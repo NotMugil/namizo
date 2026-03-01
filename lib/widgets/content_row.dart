@@ -45,8 +45,6 @@ class ContentRow extends StatelessWidget {
                 final item = items[index];
                 final posterPath = item['poster_path'];
                 final tmdbId = item['id'];
-                final mediaType = item['media_type'] ?? 
-                    (item['title'] != null ? 'movie' : 'tv');
 
                 return RepaintBoundary(
                   child: Padding(
@@ -54,7 +52,6 @@ class ContentRow extends StatelessWidget {
                     child: _AnimatedPosterCard(
                       posterPath: posterPath,
                       tmdbId: tmdbId,
-                      mediaType: mediaType,
                     ),
                   ),
                 );
@@ -70,12 +67,10 @@ class ContentRow extends StatelessWidget {
 class _AnimatedPosterCard extends StatefulWidget {
   final String? posterPath;
   final int tmdbId;
-  final String mediaType;
 
   const _AnimatedPosterCard({
     required this.posterPath,
     required this.tmdbId,
-    required this.mediaType,
   });
 
   @override
@@ -120,7 +115,7 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard> with SingleTic
         _animationController.reverse();
       },
       child: GestureDetector(
-        onTap: () => context.push('/media/${widget.tmdbId}?type=${widget.mediaType}'),
+        onTap: () => context.push('/media/${widget.tmdbId}?type=tv'),
         child: AnimatedBuilder(
           animation: _animationController,
           builder: (context, child) {

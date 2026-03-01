@@ -1,31 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nivio/core/theme.dart';
 import 'package:nivio/providers/settings_providers.dart';
 import 'package:nivio/providers/service_providers.dart';
 import 'package:nivio/providers/watch_history_provider.dart';
-import 'package:nivio/providers/language_preferences_provider.dart';
 import 'package:nivio/services/episode_check_service.dart';
-import 'package:nivio/services/shorebird_update_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 
 /// Settings Screen - All settings are functional and persist via SharedPreferences
-///
-/// ✅ INTEGRATED SETTINGS:
-/// - Playback Speed: Applied to VideoPlayerController in player_screen.dart
-/// - Video Quality: Used when fetching stream URLs from configured providers
-/// - Clear Watch History: Deletes Hive watch_history box
-/// - Sign Out: Calls Firebase Auth sign out
-///
-/// ⏳ SAVED BUT NOT YET INTEGRATED:
-/// - Subtitles: Saved to SharedPreferences, needs subtitle parser integration
-/// - Animations: Saved to SharedPreferences, needs conditional checks in widgets
-///
-/// See SETTINGS_INTEGRATION.md for complete integration details
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -35,12 +20,10 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = FirebaseAuth.instance.currentUser;
     final playbackSpeed = ref.watch(playbackSpeedProvider);
     final videoQualityNotifier = ref.read(videoQualityProvider.notifier);
     final subtitlesEnabled = ref.watch(subtitlesEnabledProvider);
     final animationsEnabled = ref.watch(animationsEnabledProvider);
-    final languagePreferences = ref.watch(languagePreferencesProvider);
     final episodeCheckEnabled = ref.watch(episodeCheckEnabledProvider);
 
     return Scaffold(
@@ -62,93 +45,6 @@ class SettingsScreen extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          // Account Section
-          _buildSectionHeader('Account'),
-          _buildSettingsTile(
-            icon: Icons.person_outline,
-            title: 'User ID',
-            subtitle: user?.uid ?? 'Not signed in',
-            trailing: null,
-          ),
-          _buildSettingsTile(
-            icon: Icons.login,
-            title: 'Sign In Method',
-            subtitle: _getSignInMethod(user),
-            trailing: null,
-          ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
-
-          // Content Preferences
-          _buildSectionHeader('Content Preferences'),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: Text(
-              'Choose which regional content appears on your home screen',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.6),
-                fontSize: 13,
-              ),
-            ),
-          ),
-          _buildLanguageToggle(
-            context: context,
-            ref: ref,
-            title: '🎌 Anime',
-            subtitle: 'Japanese Animation',
-            value: languagePreferences.showAnime,
-            onChanged: (value) {
-              ref.read(languagePreferencesProvider.notifier).toggleAnime(value);
-            },
-          ),
-          _buildLanguageToggle(
-            context: context,
-            ref: ref,
-            title: '🎬 Tamil',
-            subtitle: 'Tamil Movies & Shows',
-            value: languagePreferences.showTamil,
-            onChanged: (value) {
-              ref.read(languagePreferencesProvider.notifier).toggleTamil(value);
-            },
-          ),
-          _buildLanguageToggle(
-            context: context,
-            ref: ref,
-            title: '🎥 Telugu',
-            subtitle: 'Telugu Movies & Shows',
-            value: languagePreferences.showTelugu,
-            onChanged: (value) {
-              ref
-                  .read(languagePreferencesProvider.notifier)
-                  .toggleTelugu(value);
-            },
-          ),
-          _buildLanguageToggle(
-            context: context,
-            ref: ref,
-            title: '🎞️ Hindi',
-            subtitle: 'Hindi Movies & Shows',
-            value: languagePreferences.showHindi,
-            onChanged: (value) {
-              ref.read(languagePreferencesProvider.notifier).toggleHindi(value);
-            },
-          ),
-          _buildLanguageToggle(
-            context: context,
-            ref: ref,
-            title: '🇰🇷 Korean',
-            subtitle: 'Korean Dramas',
-            value: languagePreferences.showKorean,
-            onChanged: (value) {
-              ref
-                  .read(languagePreferencesProvider.notifier)
-                  .toggleKorean(value);
-            },
-          ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
-
           // Playback Settings
           _buildSectionHeader('Playback'),
           _buildSettingsTile(
@@ -294,29 +190,6 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
           ),
-          FutureBuilder<int?>(
-            future: ShorebirdUpdateService.currentPatchNumber(),
-            builder: (context, snapshot) {
-              final subtitle = !ShorebirdUpdateService.isAvailable
-                  ? 'Not available in this build'
-                  : snapshot.hasData
-                  ? 'Current patch: ${snapshot.data}'
-                  : 'Current patch: base release';
-
-              return _buildSettingsTile(
-                icon: Icons.system_update_alt_outlined,
-                title: 'Check OTA Update',
-                subtitle: subtitle,
-                trailing: const Icon(
-                  Icons.chevron_right,
-                  color: Colors.white70,
-                ),
-                onTap: () {
-                  _checkForOtaUpdate(context);
-                },
-              );
-            },
-          ),
           _buildSettingsTile(
             icon: Icons.policy_outlined,
             title: 'Privacy Policy',
@@ -343,50 +216,10 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
 
-          // Sign Out
-          _buildSectionHeader('Account Actions'),
-          _buildSettingsTile(
-            icon: Icons.logout,
-            title: 'Sign Out',
-            subtitle: 'Sign out of your account',
-            trailing: const Icon(Icons.chevron_right, color: Colors.white70),
-            onTap: () {
-              _showSignOutDialog(context);
-            },
-            textColor: NivioTheme.netflixRed,
-          ),
-
           const SizedBox(height: 40),
         ],
       ),
     );
-  }
-
-  String _getSignInMethod(User? user) {
-    if (user == null) return 'Not signed in';
-
-    // Check if user is anonymous
-    if (user.isAnonymous) return 'Guest Mode';
-
-    // Check provider data for actual sign-in method
-    if (user.providerData.isEmpty) return 'Anonymous';
-
-    // Get the first provider
-    final provider = user.providerData.first.providerId;
-    switch (provider) {
-      case 'google.com':
-        return 'Google';
-      case 'facebook.com':
-        return 'Facebook';
-      case 'twitter.com':
-        return 'Twitter';
-      case 'apple.com':
-        return 'Apple';
-      case 'password':
-        return 'Email/Password';
-      default:
-        return provider;
-    }
   }
 
   Future<String> _getAppVersionLabel() async {
@@ -568,121 +401,6 @@ class SettingsScreen extends ConsumerWidget {
             );
           }).toList(),
         ),
-      ),
-    );
-  }
-
-  void _showSignOutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: NivioTheme.netflixDarkGrey,
-        title: const Text('Sign Out?', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Are you sure you want to sign out?',
-          style: TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (context.mounted) {
-                Navigator.pop(context);
-                context.go('/');
-              }
-            },
-            child: const Text(
-              'Sign Out',
-              style: TextStyle(color: NivioTheme.netflixRed),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _checkForOtaUpdate(BuildContext context) async {
-    BuildContext? dialogContext;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        dialogContext = ctx;
-        return AlertDialog(
-          backgroundColor: NivioTheme.netflixDarkGrey,
-          content: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: NivioTheme.netflixRed),
-              SizedBox(height: 20),
-              Text(
-                'Checking for OTA update...',
-                style: TextStyle(color: Colors.white),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-
-    final result = await ShorebirdUpdateService.checkAndUpdate();
-
-    if (dialogContext != null && dialogContext!.mounted) {
-      Navigator.of(dialogContext!).pop();
-    }
-
-    if (!context.mounted) return;
-
-    final isFailure = result.action == ShorebirdUpdateAction.failed;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(result.message),
-        backgroundColor: isFailure
-            ? const Color(0xFFB00020)
-            : NivioTheme.netflixRed,
-      ),
-    );
-  }
-
-  Widget _buildLanguageToggle({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: SwitchListTile(
-        title: Text(
-          title,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.9),
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13),
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeColor: const Color(0xFFE50914),
-        activeTrackColor: const Color(0xFFE50914).withOpacity(0.5),
       ),
     );
   }

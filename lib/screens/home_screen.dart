@@ -1,14 +1,14 @@
 import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:nivio/core/constants.dart';
 import 'package:nivio/providers/home_providers.dart';
-import 'package:nivio/providers/language_preferences_provider.dart';
-import 'package:nivio/widgets/continue_watching_row.dart';
-import 'package:nivio/widgets/content_row.dart';
 import 'package:nivio/services/episode_check_service.dart';
+import 'package:nivio/widgets/content_row.dart';
+import 'package:nivio/widgets/continue_watching_row.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -35,14 +35,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     });
 
-    // Preload critical data first (featured, trending) for instant display
-    // Other content loads lazily in background
-    // Removed progressive loading - providers now load lazily via Consumer widgets
-
-    // Auto-slide banner every 6 seconds
     _bannerTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
       if (_pageController.hasClients) {
-        final featuredContent = ref.read(featuredContentProvider).value ?? [];
+        final featuredContent = ref.read(featuredAnimeProvider).value ?? [];
         if (featuredContent.isNotEmpty) {
           final nextPage = (_currentBannerIndex + 1) % featuredContent.length;
           _pageController.animateToPage(
@@ -65,10 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // CRITICAL: Only watch featured content in build to avoid blocking
-    // Other providers load lazily when their widgets scroll into view
-    final featuredContent = ref.watch(featuredContentProvider);
-    final languagePreferences = ref.watch(languagePreferencesProvider);
+    final featuredContent = ref.watch(featuredAnimeProvider);
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -76,13 +68,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         preferredSize: const Size.fromHeight(70),
         child: AppBar(
           elevation: 0,
-          backgroundColor: _showAppBarBackground 
-              ? const Color(0xFF141414) 
+          backgroundColor: _showAppBarBackground
+              ? const Color(0xFF141414)
               : Colors.transparent,
           flexibleSpace: Container(
             decoration: BoxDecoration(
-              gradient: _showAppBarBackground 
-                  ? null 
+              gradient: _showAppBarBackground
+                  ? null
                   : LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -109,7 +101,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onPressed: () => context.push('/search'),
               ),
             ),
-            // Notification bell with badge
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: _buildNotificationBell(context),
@@ -117,7 +108,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: IconButton(
-                icon: const Icon(Icons.bookmark_border, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.bookmark_border,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 tooltip: 'My List',
                 onPressed: () => context.push('/watchlist'),
               ),
@@ -125,7 +120,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: IconButton(
-                icon: const Icon(Icons.account_circle_outlined, color: Colors.white, size: 28),
+                icon: const Icon(
+                  Icons.account_circle_outlined,
+                  color: Colors.white,
+                  size: 28,
+                ),
                 tooltip: 'Profile',
                 onPressed: () => context.push('/profile'),
               ),
@@ -136,9 +135,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: CustomScrollView(
         controller: _scrollController,
-        cacheExtent: 1000, // Pre-render more content for smoother scrolling
+        cacheExtent: 1000,
         slivers: [
-          // Hero Banner Carousel with Regional + General Content
           SliverToBoxAdapter(
             child: RepaintBoundary(
               child: featuredContent.when(
@@ -148,8 +146,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-
-          // Continue Watching Section
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.only(top: 0, left: 16, right: 16),
@@ -171,212 +167,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-
-          // Anime Section (if enabled)
-          if (languagePreferences.showAnime) ...[
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final anime = ref.watch(animeProvider);
-                  return anime.when(
-                    data: (shows) => ContentRow(
-                      title: '🎌 Popular Anime',
-                      items: shows,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-
-            // Trending Anime
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final trendingAnime = ref.watch(trendingAnimeProvider);
-                  return trendingAnime.when(
-                    data: (shows) => ContentRow(
-                      title: '🔥 Trending Anime',
-                      items: shows,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-          ],
-
-          // Tamil Movies (if enabled)
-          if (languagePreferences.showTamil) ...[
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final tamilMovies = ref.watch(tamilMoviesProvider);
-                  return tamilMovies.when(
-                    data: (movies) => ContentRow(
-                      title: '🎬 Latest Tamil OTT Releases',
-                      items: movies,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-
-            // Trending Tamil
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final trendingTamil = ref.watch(trendingTamilMoviesProvider);
-                  return trendingTamil.when(
-                    data: (movies) => ContentRow(
-                      title: '🔥 Trending Tamil Movies',
-                      items: movies,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-          ],
-
-          // Telugu Movies (if enabled)
-          if (languagePreferences.showTelugu) ...[
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final teluguMovies = ref.watch(teluguMoviesProvider);
-                  return teluguMovies.when(
-                    data: (movies) => ContentRow(
-                      title: '🎥 Popular Telugu Movies',
-                      items: movies,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-
-            // Trending Telugu
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final trendingTelugu = ref.watch(trendingTeluguMoviesProvider);
-                  return trendingTelugu.when(
-                    data: (movies) => ContentRow(
-                      title: '🔥 Trending Telugu Movies',
-                      items: movies,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-          ],
-
-          // Hindi Movies (if enabled)
-          if (languagePreferences.showHindi) ...[
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final hindiMovies = ref.watch(hindiMoviesProvider);
-                  return hindiMovies.when(
-                    data: (movies) => ContentRow(
-                      title: '🎞️ Popular Hindi Movies',
-                      items: movies,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-
-            // Trending Hindi
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final trendingHindi = ref.watch(trendingHindiMoviesProvider);
-                  return trendingHindi.when(
-                    data: (movies) => ContentRow(
-                      title: '🔥 Trending Hindi Movies',
-                      items: movies,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-          ],
-
-          // Korean Dramas (if enabled)
-          if (languagePreferences.showKorean) ...[
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final koreanDramas = ref.watch(koreanDramasProvider);
-                  return koreanDramas.when(
-                    data: (shows) => ContentRow(
-                      title: '🇰🇷 Popular Korean Dramas',
-                      items: shows,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-
-            // Trending Korean
-            SliverToBoxAdapter(
-              child: Consumer(
-                builder: (context, ref, child) {
-                  final trendingKorean = ref.watch(trendingKoreanDramasProvider);
-                  return trendingKorean.when(
-                    data: (shows) => ContentRow(
-                      title: '🔥 Trending Korean Dramas',
-                      items: shows,
-                    ),
-                    loading: () => const SizedBox(height: 220),
-                    error: (_, __) => const SizedBox.shrink(),
-                  );
-                },
-              ),
-            ),
-          ],
-
-          // Trending Movies
           SliverToBoxAdapter(
             child: Consumer(
               builder: (context, ref, child) {
-                final trendingMovies = ref.watch(trendingMoviesProvider);
-                return trendingMovies.when(
-                  data: (movies) => ContentRow(
-                    title: 'Trending Movies',
-                    items: movies,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-
-          // Trending TV Shows
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final trendingTVShows = ref.watch(trendingTVShowsProvider);
-                return trendingTVShows.when(
+                final anime = ref.watch(popularAnimeProvider);
+                return anime.when(
                   data: (shows) => ContentRow(
-                    title: 'Trending TV Shows',
+                    title: 'Popular Anime',
                     items: shows,
                   ),
                   loading: () => const SizedBox(height: 220),
@@ -385,32 +182,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
             ),
           ),
-
-          // Popular Movies
           SliverToBoxAdapter(
             child: Consumer(
               builder: (context, ref, child) {
-                final popularMovies = ref.watch(popularMoviesProvider);
-                return popularMovies.when(
-                  data: (movies) => ContentRow(
-                    title: 'Popular Movies',
-                    items: movies,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-
-          // Popular TV Shows
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final popularTVShows = ref.watch(popularTVShowsProvider);
-                return popularTVShows.when(
+                final trendingAnime = ref.watch(trendingAnimeProvider);
+                return trendingAnime.when(
                   data: (shows) => ContentRow(
-                    title: 'Popular TV Shows',
+                    title: 'Trending Anime',
                     items: shows,
                   ),
                   loading: () => const SizedBox(height: 220),
@@ -419,16 +197,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
             ),
           ),
-
-          // Top Rated Movies
           SliverToBoxAdapter(
             child: Consumer(
               builder: (context, ref, child) {
-                final topRatedMovies = ref.watch(topRatedMoviesProvider);
-                return topRatedMovies.when(
-                  data: (movies) => ContentRow(
-                    title: 'Top Rated Movies',
-                    items: movies,
+                final topRatedAnime = ref.watch(topRatedAnimeProvider);
+                return topRatedAnime.when(
+                  data: (shows) => ContentRow(
+                    title: 'Top Rated Anime',
+                    items: shows,
                   ),
                   loading: () => const SizedBox(height: 220),
                   error: (_, __) => const SizedBox.shrink(),
@@ -436,8 +212,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
             ),
           ),
-
-          // Bottom padding
           const SliverToBoxAdapter(
             child: SizedBox(height: 50),
           ),
@@ -463,11 +237,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final title = content['title'] ?? content['name'] ?? 'Featured';
           final overview = content['overview'] ?? '';
           final tmdbId = content['id'];
-          final mediaType = content['media_type'] ?? (content['title'] != null ? 'movie' : 'tv');
 
           return Stack(
             children: [
-              // Background Image with Animation
               AnimatedOpacity(
                 opacity: 1.0,
                 duration: const Duration(milliseconds: 500),
@@ -485,7 +257,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
-              // Gradient Overlay
               Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -500,7 +271,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                 ),
               ),
-              // Content
               Positioned(
                 bottom: 80,
                 left: 30,
@@ -557,8 +327,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     Row(
                       children: [
                         ElevatedButton.icon(
-                          onPressed: () => context.push('/media/$tmdbId', extra: mediaType),
-                          icon: const Icon(Icons.play_arrow, size: 32, color: Colors.black),
+                          onPressed: () => context.push('/media/$tmdbId?type=tv'),
+                          icon: const Icon(
+                            Icons.play_arrow,
+                            size: 32,
+                            color: Colors.black,
+                          ),
                           label: const Text(
                             'Play',
                             style: TextStyle(
@@ -580,8 +354,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                         const SizedBox(width: 12),
                         OutlinedButton.icon(
-                          onPressed: () => context.push('/media/$tmdbId', extra: mediaType),
-                          icon: const Icon(Icons.info_outline, size: 28, color: Colors.white),
+                          onPressed: () => context.push('/media/$tmdbId?type=tv'),
+                          icon: const Icon(
+                            Icons.info_outline,
+                            size: 28,
+                            color: Colors.white,
+                          ),
                           label: const Text(
                             'More Info',
                             style: TextStyle(
@@ -606,7 +384,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                 ),
               ),
-              // Page Indicators
               Positioned(
                 bottom: 30,
                 left: 0,
@@ -649,7 +426,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildNotificationBell(BuildContext context) {
     final unreadCount = EpisodeCheckService.getUnreadCount();
-    
+
     return Stack(
       children: [
         IconButton(

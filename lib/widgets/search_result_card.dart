@@ -23,7 +23,7 @@ class SearchResultCard extends ConsumerWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: () {
-        context.push('/media/${media.id}?type=${media.mediaType}');
+        context.push('/media/${media.id}?type=tv');
       },
       child: Container(
         decoration: BoxDecoration(
@@ -94,7 +94,7 @@ class SearchResultCard extends ConsumerWidget {
                       top: 8,
                       left: 8,
                       child: _TagPill(
-                        label: media.mediaType.toUpperCase(),
+                        label: 'ANIME',
                         background: NivioTheme.netflixRed.withValues(
                           alpha: 0.92,
                         ),

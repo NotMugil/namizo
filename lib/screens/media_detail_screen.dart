@@ -74,29 +74,10 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
 
       for (int attempt = 0; attempt < retries; attempt++) {
         try {
-          if (widget.mediaType == 'movie') {
-            detailsWithVideos = await tmdbService.getMovieDetailsWithVideos(
-              widget.mediaId,
-            );
-            detailsWithVideos['media_type'] = 'movie';
-          } else if (widget.mediaType == 'tv') {
-            detailsWithVideos = await tmdbService.getTVShowDetailsWithVideos(
-              widget.mediaId,
-            );
-            detailsWithVideos['media_type'] = 'tv';
-          } else {
-            try {
-              detailsWithVideos = await tmdbService.getMovieDetailsWithVideos(
-                widget.mediaId,
-              );
-              detailsWithVideos['media_type'] = 'movie';
-            } catch (e) {
-              detailsWithVideos = await tmdbService.getTVShowDetailsWithVideos(
-                widget.mediaId,
-              );
-              detailsWithVideos['media_type'] = 'tv';
-            }
-          }
+          detailsWithVideos = await tmdbService.getTVShowDetailsWithVideos(
+            widget.mediaId,
+          );
+          detailsWithVideos['media_type'] = 'tv';
           break;
         } catch (e) {
           if (attempt == retries - 1) rethrow;
@@ -342,67 +323,13 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // TV controls or Movie controls
-                  if (media.mediaType == 'tv')
-                    _buildTVControls(context, media, colors)
-                  else
-                    _buildMovieControls(context, media, colors),
+                  _buildTVControls(context, media, colors),
                 ],
               ),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMovieControls(
-    BuildContext context,
-    SearchResult media,
-    DynamicColors colors,
-  ) {
-    final isInWatchlist = ref.watch(isInWatchlistProvider(media.id));
-
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              context.push('/player/${media.id}?season=1&episode=1');
-            },
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('PLAY'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(color: Colors.white, width: 1.5),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () => _toggleWatchlist(media, isInWatchlist),
-            icon: Icon(isInWatchlist ? Icons.check : Icons.add, size: 20),
-            label: Text(isInWatchlist ? 'SAVED' : 'LIST'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              side: BorderSide(
-                color: isInWatchlist ? colors.dominant : colors.onSurface,
-                width: 2,
-              ),
-              foregroundColor: isInWatchlist
-                  ? colors.dominant
-                  : colors.onSurface,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/watchlist_provider.dart';
-import '../providers/auth_provider.dart';
 import '../providers/service_providers.dart';
 
 class WatchlistScreen extends ConsumerWidget {
@@ -24,13 +23,12 @@ class WatchlistScreen extends ConsumerWidget {
               icon: const Icon(Icons.info_outline),
               tooltip: 'About Watchlist',
               onPressed: () {
-                final isSignedIn = ref.read(isSignedInProvider);
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('Watchlist Info'),
                     content: Text(
-                      'Your watchlist is saved locally and ${isSignedIn ? 'synced to the cloud' : 'will sync when you sign in'}.',
+                      'Your watchlist is saved locally on this device.',
                     ),
                     actions: [
                       TextButton(
@@ -63,7 +61,7 @@ class WatchlistScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Add movies and TV shows to watch later',
+                    'Add anime to watch later',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.5),
                     ),

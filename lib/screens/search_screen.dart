@@ -193,56 +193,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Language Filter
-                    const Text(
-                      'Language',
-                      style: TextStyle(color: Colors.white70, fontSize: 16),
-                    ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildFilterChip('All', selectedLanguage == null, () {
-                          setDialogState(() => selectedLanguage = null);
-                        }),
-                        _buildFilterChip(
-                          'English',
-                          selectedLanguage == 'en',
-                          () {
-                            setDialogState(() => selectedLanguage = 'en');
-                          },
-                        ),
-                        _buildFilterChip('Tamil', selectedLanguage == 'ta', () {
-                          setDialogState(() => selectedLanguage = 'ta');
-                        }),
-                        _buildFilterChip(
-                          'Telugu',
-                          selectedLanguage == 'te',
-                          () {
-                            setDialogState(() => selectedLanguage = 'te');
-                          },
-                        ),
-                        _buildFilterChip('Hindi', selectedLanguage == 'hi', () {
-                          setDialogState(() => selectedLanguage = 'hi');
-                        }),
-                        _buildFilterChip(
-                          'Korean',
-                          selectedLanguage == 'ko',
-                          () {
-                            setDialogState(() => selectedLanguage = 'ko');
-                          },
-                        ),
-                        _buildFilterChip(
-                          'Japanese',
-                          selectedLanguage == 'ja',
-                          () {
-                            setDialogState(() => selectedLanguage = 'ja');
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
                     // Sort Options
                     const Text(
                       'Sort By',
@@ -416,7 +367,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         textInputAction: TextInputAction.search,
         style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
-          hintText: 'Search movies, shows, actors...',
+          hintText: 'Search anime...',
           hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.45)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
@@ -455,12 +406,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildStartState() {
     const quickQueries = [
-      'Interstellar',
-      'Breaking Bad',
-      'Money Heist',
-      'Korean drama',
-      'Anime',
-      'Tamil',
+      'One Piece',
+      'Naruto',
+      'Attack on Titan',
+      'Demon Slayer',
+      'Jujutsu Kaisen',
+      'Bleach',
     ];
 
     return Center(
@@ -499,7 +450,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Search globally across movies and series.',
+                'Search for anime by title.',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Colors.white.withValues(alpha: 0.65),

@@ -21,7 +21,7 @@ class TmdbService {
         ),
       );
 
-  /// Search movies + TV globally, then rank/filter locally for relevance.
+  /// Anime-only search (Japanese TV animation entries).
   Future<SearchResults> search(
     String query, {
     int page = 1,
@@ -31,7 +31,7 @@ class TmdbService {
     final normalizedQuery = _normalizeSearchText(query);
     final normalizedSort = sortBy == 'rating' ? 'popularity' : sortBy;
     final cacheKey =
-        'search_v2_${normalizedQuery}_${page}_${language ?? 'all'}_${normalizedSort ?? 'relevance'}';
+        'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}';
 
     if (normalizedQuery.isEmpty) {
       return const SearchResults(
@@ -42,7 +42,15 @@ class TmdbService {
       );
     }
 
-    // Try cache first.
+    if (language != null && language.isNotEmpty && language != 'ja') {
+      return const SearchResults(
+        page: 1,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
+    }
+
     final cached = await _cache.getRaw(cacheKey);
     if (cached != null) {
       final results = SearchResults.fromJson(cached);
@@ -50,83 +58,51 @@ class TmdbService {
         results: _postProcessSearchResults(
           results.results,
           query: normalizedQuery,
-          language: language,
           sortBy: normalizedSort,
         ),
       );
     }
 
     try {
-      final queryParams = <String, dynamic>{
-        'query': normalizedQuery,
-        'page': page,
-        'include_adult': false,
-      };
-
-      // Search movies + TV separately so paging/relevance isn't diluted by people.
-      final responses = await Future.wait([
-        _dio.get('/3/search/movie', queryParameters: queryParams),
-        _dio.get('/3/search/tv', queryParameters: queryParams),
-      ]);
-
-      final movieResponse = Map<String, dynamic>.from(
-        responses[0].data as Map<String, dynamic>,
-      );
-      final tvResponse = Map<String, dynamic>.from(
-        responses[1].data as Map<String, dynamic>,
+      final response = await _dio.get(
+        '/3/search/tv',
+        queryParameters: {
+          'query': normalizedQuery,
+          'page': page,
+          'include_adult': false,
+          'language': 'en',
+        },
       );
 
-      final movieResults = _parseTypedSearchResults(
-        movieResponse['results'],
-        mediaType: 'movie',
-      );
-      final tvResults = _parseTypedSearchResults(
-        tvResponse['results'],
-        mediaType: 'tv',
-      );
-      final combined = <SearchResult>[...movieResults, ...tvResults];
-
+      final parsed = _parseTypedSearchResults(response.data['results']);
       final processed = _postProcessSearchResults(
-        combined,
+        parsed,
         query: normalizedQuery,
-        language: language,
         sortBy: normalizedSort,
       );
-
-      final moviePages = (movieResponse['total_pages'] as num?)?.toInt() ?? 0;
-      final tvPages = (tvResponse['total_pages'] as num?)?.toInt() ?? 0;
-      final movieTotal = (movieResponse['total_results'] as num?)?.toInt() ?? 0;
-      final tvTotal = (tvResponse['total_results'] as num?)?.toInt() ?? 0;
 
       final merged = SearchResults(
         page: page,
         results: processed,
-        totalPages: moviePages > tvPages ? moviePages : tvPages,
-        totalResults: movieTotal + tvTotal,
+        totalPages: (response.data['total_pages'] as num?)?.toInt() ?? 0,
+        totalResults: (response.data['total_results'] as num?)?.toInt() ?? 0,
       );
 
-      await _cache.set(
-        cacheKey,
-        merged.toJson(),
-        ttl: CacheService.mediumCache,
-      );
+      await _cache.set(cacheKey, merged.toJson(), ttl: CacheService.mediumCache);
       return merged;
     } catch (e) {
-      throw Exception('Failed to search: $e');
+      throw Exception('Failed to search anime: $e');
     }
   }
 
-  List<SearchResult> _parseTypedSearchResults(
-    dynamic rawResults, {
-    required String mediaType,
-  }) {
+  List<SearchResult> _parseTypedSearchResults(dynamic rawResults) {
     if (rawResults is! List) return const [];
 
     final parsed = <SearchResult>[];
     for (final item in rawResults) {
       if (item is! Map) continue;
       final json = Map<String, dynamic>.from(item);
-      json['media_type'] = mediaType;
+      json['media_type'] = 'tv';
       parsed.add(SearchResult.fromJson(json));
     }
     return parsed;
@@ -135,32 +111,17 @@ class TmdbService {
   List<SearchResult> _postProcessSearchResults(
     List<SearchResult> results, {
     required String query,
-    String? language,
     String? sortBy,
   }) {
     var processed = List<SearchResult>.from(results);
 
-    // Keep searchable media types only.
     processed = processed
-        .where((item) => item.mediaType == 'movie' || item.mediaType == 'tv')
+        .where((item) => item.mediaType == 'tv')
+        .where((item) => (item.originalLanguage ?? '').toLowerCase() == 'ja')
         .toList();
 
-    // True language filter based on original language.
-    if (language != null && language.isNotEmpty) {
-      final languageCode = language.toLowerCase();
-      processed = processed
-          .where(
-            (item) =>
-                (item.originalLanguage ?? '').toLowerCase() == languageCode,
-          )
-          .toList();
-    }
-
-    // De-duplicate by content identity.
     final seen = <String>{};
-    processed = processed
-        .where((item) => seen.add('${item.mediaType}_${item.id}'))
-        .toList();
+    processed = processed.where((item) => seen.add('tv_${item.id}')).toList();
 
     switch (sortBy) {
       case 'popularity':
@@ -231,7 +192,7 @@ class TmdbService {
   }
 
   int? _extractYear(SearchResult result) {
-    final date = result.releaseDate ?? result.firstAirDate;
+    final date = result.firstAirDate ?? result.releaseDate;
     if (date == null || date.length < 4) return null;
     return int.tryParse(date.substring(0, 4));
   }
@@ -240,11 +201,9 @@ class TmdbService {
     return text.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   }
 
-  /// Get series information (seasons, etc.)
   Future<SeriesInfo> getSeriesInfo(int showId) async {
     final cacheKey = 'series_info_$showId';
 
-    // Try to get from cache first
     final cached = await _cache.get<SeriesInfo>(
       cacheKey,
       (json) => SeriesInfo.fromJson(json),
@@ -253,21 +212,16 @@ class TmdbService {
 
     try {
       final response = await _dio.get('/3/tv/$showId');
-
-      // Cache the response
       await _cache.set(cacheKey, response.data, ttl: CacheService.longCache);
-
       return SeriesInfo.fromJson(response.data);
     } catch (e) {
-      throw Exception('Failed to get series info: $e');
+      throw Exception('Failed to get anime series info: $e');
     }
   }
 
-  /// Get season information (episodes)
   Future<SeasonData> getSeasonInfo(int showId, int seasonNumber) async {
     final cacheKey = 'season_info_${showId}_$seasonNumber';
 
-    // Try to get from cache first
     final cached = await _cache.get<SeasonData>(
       cacheKey,
       (json) => SeasonData.fromJson(json),
@@ -276,17 +230,13 @@ class TmdbService {
 
     try {
       final response = await _dio.get('/3/tv/$showId/season/$seasonNumber');
-
-      // Cache the response
       await _cache.set(cacheKey, response.data, ttl: CacheService.longCache);
-
       return SeasonData.fromJson(response.data);
     } catch (e) {
       throw Exception('Failed to get season info: $e');
     }
   }
 
-  /// Get poster URL
   String getPosterUrl(String? posterPath, {String size = posterSize}) {
     if (posterPath == null || posterPath.isEmpty) {
       return '';
@@ -294,7 +244,6 @@ class TmdbService {
     return '$tmdbImageBaseUrl/$size$posterPath';
   }
 
-  /// Get backdrop URL
   String getBackdropUrl(String? backdropPath, {String size = backdropSize}) {
     if (backdropPath == null || backdropPath.isEmpty) {
       return '';
@@ -302,241 +251,15 @@ class TmdbService {
     return '$tmdbImageBaseUrl/$size$backdropPath';
   }
 
-  /// Get trending content - with stale-while-revalidate
-  Future<List<dynamic>> getTrending(String mediaType, String timeWindow) async {
-    final cacheKey = 'trending_${mediaType}_$timeWindow';
-
-    // Stale-while-revalidate: Get stale cache first
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If cache is expired or missing, trigger background refresh
-    if (_cache.isExpired(cacheKey)) {
-      // Don't await - let it run in background
-      _cache.updateInBackground(cacheKey, () async {
-        final response = await _dio.get(
-          '/3/trending/$mediaType/$timeWindow',
-          queryParameters: {'language': 'en'},
-        );
-        return response.data;
-      }, CacheService.shortCache);
-    }
-
-    // Return stale data immediately if available
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
-
-    // Only if no cache at all, wait for network
-    try {
-      final response = await _dio.get(
-        '/3/trending/$mediaType/$timeWindow',
-        queryParameters: {'language': 'en'},
-      );
-      await _cache.set(cacheKey, response.data, ttl: CacheService.shortCache);
-      return (response.data['results'] as List<dynamic>?) ?? [];
-    } catch (e) {
-      throw Exception('Failed to get trending: $e');
-    }
+  Future<List<dynamic>> getFeaturedAnime() async {
+    final trending = await getTrendingAnime();
+    if (trending.length <= 10) return trending;
+    return trending.take(10).toList();
   }
 
-  /// Get popular content - with stale-while-revalidate
-  Future<List<dynamic>> getPopular(String mediaType) async {
-    final cacheKey = 'popular_$mediaType';
-
-    // Stale-while-revalidate: Get stale cache first
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If cache is expired or missing, trigger background refresh
-    if (_cache.isExpired(cacheKey)) {
-      _cache.updateInBackground(cacheKey, () async {
-        final response = await _dio.get(
-          '/3/$mediaType/popular',
-          queryParameters: {'language': 'en', 'page': 1},
-        );
-        return response.data;
-      }, CacheService.shortCache);
-    }
-
-    // Return stale data immediately if available
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
-
-    // Only if no cache at all, wait for network
-    try {
-      final response = await _dio.get(
-        '/3/$mediaType/popular',
-        queryParameters: {'language': 'en', 'page': 1},
-      );
-      await _cache.set(cacheKey, response.data, ttl: CacheService.shortCache);
-      return (response.data['results'] as List<dynamic>?) ?? [];
-    } catch (e) {
-      throw Exception('Failed to get popular: $e');
-    }
-  }
-
-  /// Get top rated content - with stale-while-revalidate
-  Future<List<dynamic>> getTopRated(String mediaType) async {
-    final cacheKey = 'top_rated_$mediaType';
-
-    // Stale-while-revalidate: Get stale cache first
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If cache is expired or missing, trigger background refresh
-    if (_cache.isExpired(cacheKey)) {
-      _cache.updateInBackground(cacheKey, () async {
-        final response = await _dio.get(
-          '/3/$mediaType/top_rated',
-          queryParameters: {'language': 'en', 'page': 1},
-        );
-        return response.data;
-      }, CacheService.mediumCache);
-    }
-
-    // Return stale data immediately if available
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
-
-    // Only if no cache at all, wait for network
-    try {
-      final response = await _dio.get(
-        '/3/$mediaType/top_rated',
-        queryParameters: {'language': 'en', 'page': 1},
-      );
-      await _cache.set(cacheKey, response.data, ttl: CacheService.mediumCache);
-      return (response.data['results'] as List<dynamic>?) ?? [];
-    } catch (e) {
-      throw Exception('Failed to get top rated: $e');
-    }
-  }
-
-  /// Get latest Tamil OTT releases (movies released on streaming platforms in last 6 months)
-  Future<List<dynamic>> getLatestTamilOTT() async {
-    final cacheKey = 'latest_tamil_ott';
-
-    // Try to get from cache first
-    final cached = await _cache.getRaw(cacheKey);
-    if (cached != null) {
-      return (cached['results'] as List<dynamic>?) ?? [];
-    }
-
-    try {
-      final sixMonthsAgo = DateTime.now().subtract(const Duration(days: 180));
-      final response = await _dio.get(
-        '/3/discover/movie',
-        queryParameters: {
-          'with_original_language': 'ta', // Tamil
-          'sort_by': 'release_date.desc', // Latest first
-          'release_date.gte': sixMonthsAgo.toIso8601String().split('T')[0],
-          'with_release_type':
-              '4|5|6', // 4=Digital, 5=Physical, 6=TV (includes OTT)
-          'vote_count.gte': 5, // At least 5 votes to filter out unreleased
-          'page': 1,
-        },
-      );
-
-      // Cache the response with short TTL since it's date-based
-      await _cache.set(cacheKey, response.data, ttl: CacheService.shortCache);
-
-      return (response.data['results'] as List<dynamic>?) ?? [];
-    } catch (e) {
-      throw Exception('Failed to get latest Tamil OTT releases: $e');
-    }
-  }
-
-  /// Get content by language (e.g., 'te' for Telugu, 'hi' for Hindi, 'ko' for Korean)
-  Future<List<dynamic>> getByLanguage(String mediaType, String language) async {
-    final cacheKey = 'by_language_${mediaType}_$language';
-
-    // Try to get from cache first
-    final cached = await _cache.getRaw(cacheKey);
-    if (cached != null) {
-      return (cached['results'] as List<dynamic>?) ?? [];
-    }
-
-    try {
-      final response = await _dio.get(
-        '/3/discover/$mediaType',
-        queryParameters: {
-          'with_original_language': language,
-          'sort_by': 'popularity.desc',
-          'vote_count.gte': 10, // At least 10 votes
-          'page': 1,
-        },
-      );
-
-      // Cache the response
-      await _cache.set(cacheKey, response.data, ttl: CacheService.mediumCache);
-
-      return (response.data['results'] as List<dynamic>?) ?? [];
-    } catch (e) {
-      throw Exception('Failed to get content by language: $e');
-    }
-  }
-
-  /// Get trending content by language - with stale-while-revalidate
-  Future<List<dynamic>> getTrendingByLanguage(
-    String mediaType,
-    String language,
-  ) async {
-    final cacheKey = 'trending_by_language_${mediaType}_$language';
-
-    // Stale-while-revalidate: Get stale cache first
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If cache is expired or missing, trigger background refresh
-    if (_cache.isExpired(cacheKey)) {
-      _cache.updateInBackground(cacheKey, () async {
-        final response = await _dio.get(
-          '/3/discover/$mediaType',
-          queryParameters: {
-            'with_original_language': language,
-            'sort_by': 'popularity.desc',
-            'primary_release_date.gte': DateTime.now()
-                .subtract(const Duration(days: 730))
-                .toIso8601String()
-                .split('T')[0],
-            'vote_count.gte': 10,
-            'page': 1,
-          },
-        );
-        return response.data;
-      }, CacheService.shortCache);
-    }
-
-    // Return stale data immediately if available
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
-
-    // Only if no cache at all, wait for network
-    try {
-      final response = await _dio.get(
-        '/3/discover/$mediaType',
-        queryParameters: {
-          'with_original_language': language,
-          'sort_by': 'popularity.desc',
-          'primary_release_date.gte': DateTime.now()
-              .subtract(const Duration(days: 730))
-              .toIso8601String()
-              .split('T')[0],
-          'vote_count.gte': 10,
-          'page': 1,
-        },
-      );
-      await _cache.set(cacheKey, response.data, ttl: CacheService.shortCache);
-      return (response.data['results'] as List<dynamic>?) ?? [];
-    } catch (e) {
-      throw Exception('Failed to get trending by language: $e');
-    }
-  }
-
-  /// Get anime (Japanese animation TV shows)
   Future<List<dynamic>> getAnime() async {
-    final cacheKey = 'anime';
+    final cacheKey = 'anime_popular';
 
-    // Try to get from cache first
     final cached = await _cache.getRaw(cacheKey);
     if (cached != null) {
       return (cached['results'] as List<dynamic>?) ?? [];
@@ -546,31 +269,25 @@ class TmdbService {
       final response = await _dio.get(
         '/3/discover/tv',
         queryParameters: {
-          'with_genres': '16', // 16 = Animation genre
-          'with_original_language': 'ja', // Japanese
+          'with_genres': '16',
+          'with_original_language': 'ja',
           'sort_by': 'popularity.desc',
-          'vote_count.gte': 20, // Reduced from 100 to 20
+          'vote_count.gte': 20,
           'page': 1,
         },
       );
 
-      // Cache the response
       await _cache.set(cacheKey, response.data, ttl: CacheService.mediumCache);
-
       return (response.data['results'] as List<dynamic>?) ?? [];
     } catch (e) {
       throw Exception('Failed to get anime: $e');
     }
   }
 
-  /// Get trending anime - with stale-while-revalidate
   Future<List<dynamic>> getTrendingAnime() async {
-    final cacheKey = 'trending_anime';
+    final cacheKey = 'anime_trending';
 
-    // Stale-while-revalidate: Get stale cache first
     final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If cache is expired or missing, trigger background refresh
     if (_cache.isExpired(cacheKey)) {
       _cache.updateInBackground(cacheKey, () async {
         final response = await _dio.get(
@@ -592,12 +309,10 @@ class TmdbService {
       }, CacheService.shortCache);
     }
 
-    // Return stale data immediately if available
     if (staleCache != null) {
       return (staleCache['results'] as List<dynamic>?) ?? [];
     }
 
-    // Only if no cache at all, wait for network
     try {
       final response = await _dio.get(
         '/3/discover/tv',
@@ -621,83 +336,51 @@ class TmdbService {
     }
   }
 
-  /// Get movie details by ID
-  Future<SearchResult> getMovieDetails(int movieId) async {
-    final cacheKey = 'movie_details_$movieId';
+  Future<List<dynamic>> getTopRatedAnime() async {
+    final cacheKey = 'anime_top_rated';
 
-    // Try to get from cache first
-    final cached = await _cache.get<SearchResult>(
-      cacheKey,
-      (json) => SearchResult.fromJson(json),
-    );
-    if (cached != null) return cached;
-
-    try {
-      final response = await _dio.get(
-        '/3/movie/$movieId',
-        queryParameters: {
-          'language': 'en',
-          'append_to_response': 'credits,videos',
-        },
-      );
-
-      // Add media_type to response data since it's not in the API response
-      final data = Map<String, dynamic>.from(response.data);
-      data['media_type'] = 'movie';
-
-      // Cache the response
-      await _cache.set(cacheKey, data, ttl: CacheService.longCache);
-
-      return SearchResult.fromJson(data);
-    } catch (e) {
-      throw Exception('Failed to get movie details: $e');
-    }
-  }
-
-  /// Get movie details with videos (for trailer)
-  Future<Map<String, dynamic>> getMovieDetailsWithVideos(int movieId) async {
-    final cacheKey = 'movie_details_videos_$movieId';
-
-    // Check for stale cache
     final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If we have stale cache AND it's expired, refresh in background
-    if (staleCache != null && _cache.isExpired(cacheKey)) {
+    if (_cache.isExpired(cacheKey)) {
       _cache.updateInBackground(cacheKey, () async {
         final response = await _dio.get(
-          '/3/movie/$movieId',
-          queryParameters: {'language': 'en', 'append_to_response': 'videos'},
+          '/3/discover/tv',
+          queryParameters: {
+            'with_genres': '16',
+            'with_original_language': 'ja',
+            'sort_by': 'vote_average.desc',
+            'vote_count.gte': 200,
+            'page': 1,
+          },
         );
         return response.data;
-      }, CacheService.longCache);
-      // Return stale cache immediately
-      return staleCache;
+      }, CacheService.mediumCache);
     }
 
-    // Return fresh cache if available
-    if (staleCache != null) return staleCache;
+    if (staleCache != null) {
+      return (staleCache['results'] as List<dynamic>?) ?? [];
+    }
 
-    // No cache at all - fetch synchronously
     try {
       final response = await _dio.get(
-        '/3/movie/$movieId',
-        queryParameters: {'language': 'en', 'append_to_response': 'videos'},
+        '/3/discover/tv',
+        queryParameters: {
+          'with_genres': '16',
+          'with_original_language': 'ja',
+          'sort_by': 'vote_average.desc',
+          'vote_count.gte': 200,
+          'page': 1,
+        },
       );
-
-      // Cache the response
-      await _cache.set(cacheKey, response.data, ttl: CacheService.longCache);
-
-      return response.data;
+      await _cache.set(cacheKey, response.data, ttl: CacheService.mediumCache);
+      return (response.data['results'] as List<dynamic>?) ?? [];
     } catch (e) {
-      throw Exception('Failed to get movie details: $e');
+      throw Exception('Failed to get top rated anime: $e');
     }
   }
 
-  /// Get TV show details by ID
   Future<SearchResult> getTVShowDetails(int tvId) async {
-    final cacheKey = 'tv_details_$tvId';
+    final cacheKey = 'anime_details_$tvId';
 
-    // Try to get from cache first
     final cached = await _cache.get<SearchResult>(
       cacheKey,
       (json) => SearchResult.fromJson(json),
@@ -713,27 +396,20 @@ class TmdbService {
         },
       );
 
-      // Add media_type to response data since it's not in the API response
       final data = Map<String, dynamic>.from(response.data);
       data['media_type'] = 'tv';
 
-      // Cache the response
       await _cache.set(cacheKey, data, ttl: CacheService.longCache);
-
       return SearchResult.fromJson(data);
     } catch (e) {
-      throw Exception('Failed to get TV show details: $e');
+      throw Exception('Failed to get anime details: $e');
     }
   }
 
-  /// Get TV show details with videos (for trailer)
   Future<Map<String, dynamic>> getTVShowDetailsWithVideos(int tvId) async {
-    final cacheKey = 'tv_details_videos_$tvId';
+    final cacheKey = 'anime_details_videos_$tvId';
 
-    // Check for stale cache
     final staleCache = await _cache.getStaleRaw(cacheKey);
-
-    // If we have stale cache AND it's expired, refresh in background
     if (staleCache != null && _cache.isExpired(cacheKey)) {
       _cache.updateInBackground(cacheKey, () async {
         final response = await _dio.get(
@@ -742,26 +418,24 @@ class TmdbService {
         );
         return response.data;
       }, CacheService.longCache);
-      // Return stale cache immediately
       return staleCache;
     }
 
-    // Return fresh cache if available
     if (staleCache != null) return staleCache;
 
-    // No cache at all - fetch synchronously
     try {
       final response = await _dio.get(
         '/3/tv/$tvId',
         queryParameters: {'language': 'en', 'append_to_response': 'videos'},
       );
 
-      // Cache the response
-      await _cache.set(cacheKey, response.data, ttl: CacheService.longCache);
+      final data = Map<String, dynamic>.from(response.data);
+      data['media_type'] = 'tv';
+      await _cache.set(cacheKey, data, ttl: CacheService.longCache);
 
-      return response.data;
+      return data;
     } catch (e) {
-      throw Exception('Failed to get TV show details: $e');
+      throw Exception('Failed to get anime details with videos: $e');
     }
   }
 }

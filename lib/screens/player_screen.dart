@@ -147,17 +147,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (!hasMatchingSelectedMedia) {
         setState(() => _currentProvider = 'Loading media details...');
         final tmdbService = ref.read(tmdbServiceProvider);
-        if (widget.mediaType == 'tv') {
-          media = await tmdbService.getTVShowDetails(widget.mediaId);
-        } else if (widget.mediaType == 'movie') {
-          media = await tmdbService.getMovieDetails(widget.mediaId);
-        } else {
-          try {
-            media = await tmdbService.getTVShowDetails(widget.mediaId);
-          } catch (e) {
-            media = await tmdbService.getMovieDetails(widget.mediaId);
-          }
-        }
+        media = await tmdbService.getTVShowDetails(widget.mediaId);
         ref.read(selectedMediaProvider.notifier).state = media;
       }
 
@@ -222,7 +212,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _resumePosition = startAt;
       }
 
-      // ── Build subtitle sources from Consumet ──
+      // ── Build subtitle sources ──
       final subtitleSources = result.subtitles.map((sub) {
         return BetterPlayerSubtitlesSource(
           type: BetterPlayerSubtitlesSourceType.network,

@@ -32,7 +32,7 @@ class ContinueWatchingRow extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Search for shows and movies to start watching',
+                    'Search for anime to start watching',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

@@ -26,12 +26,6 @@ dependencies:
   hive_flutter: ^1.1.0
   shared_preferences: ^2.3.3
 
-  # Firebase
-  firebase_core: ^3.8.0
-  firebase_auth: ^5.3.3
-  cloud_firestore: ^5.5.0
-  google_sign_in: ^6.2.2
-
   # Video Player
   youtube_player_flutter: ^9.0.3
   youtube_explode_dart: ^2.2.4
@@ -58,7 +52,6 @@ dependencies:
   connectivity_plus: ^6.1.1
   palette_generator: ^0.3.3+7
   better_player_plus: ^1.1.5
-  shorebird_code_push: ^2.0.5
 
 
 dev_dependencies:
@@ -82,7 +75,6 @@ flutter:
 
   assets:
     - assets/images/
-    - shorebird.yaml
 
 # App Icon Configuration
 flutter_launcher_icons:
