@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:namizo/core/theme.dart';
+import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
-import 'package:namizo/providers/search_provider.dart';
-import 'package:namizo/providers/service_providers.dart';
-import 'package:namizo/widgets/search_result_card.dart';
+import 'package:namizo/store/search_provider.dart';
+import 'package:namizo/store/service_providers.dart';
+import 'package:namizo/ui/search/widgets/search_result_card.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});

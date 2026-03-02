@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:namizo/core/theme.dart';
+import 'package:namizo/theme/theme.dart';
 
 /// WebView-based player for embedding vidsrc iframe streams using flutter_inappwebview
 class WebViewPlayer extends StatefulWidget {

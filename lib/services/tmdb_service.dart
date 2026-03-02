@@ -438,4 +438,40 @@ class TmdbService {
       throw Exception('Failed to get anime details with videos: $e');
     }
   }
+
+  /// Returns the best English logo image URL for a TV show, or null if none.
+  Future<String?> getTVShowLogoUrl(int id) async {
+    final cacheKey = 'tv_logo_$id';
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      final path = cached['logo_path'] as String?;
+      return (path != null && path.isNotEmpty) ? '$tmdbImageBaseUrl/w500$path' : null;
+    }
+
+    try {
+      final response = await _dio.get(
+        '/3/tv/$id/images',
+        queryParameters: {'include_image_language': 'en,null'},
+      );
+      final logos = (response.data['logos'] as List<dynamic>? ?? []);
+      logos.sort(
+        (a, b) => ((b['vote_average'] as num?) ?? 0)
+            .compareTo((a['vote_average'] as num?) ?? 0),
+      );
+      final logoPath =
+          logos.isNotEmpty ? logos.first['file_path'] as String? : null;
+
+      await _cache.set(
+        cacheKey,
+        {'logo_path': logoPath ?? ''},
+        ttl: CacheService.longCache,
+      );
+
+      return (logoPath != null && logoPath.isNotEmpty)
+          ? '$tmdbImageBaseUrl/w500$logoPath'
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

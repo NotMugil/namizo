@@ -6,15 +6,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:namizo/core/theme.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart'
+    hide Text, List, Map, Timer, Navigator, Page, Radius;
+import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/models/watchlist_item.dart';
-import 'package:namizo/providers/dynamic_colors_provider.dart';
-import 'package:namizo/providers/media_provider.dart';
-import 'package:namizo/providers/service_providers.dart';
-import 'package:namizo/providers/watchlist_provider.dart';
+import 'package:namizo/store/dynamic_colors_provider.dart';
+import 'package:namizo/store/media_provider.dart';
+import 'package:namizo/store/service_providers.dart';
+import 'package:namizo/store/watchlist_provider.dart';
+import 'package:namizo/ui/media/widgets/episode_list.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 class MediaDetailScreen extends ConsumerStatefulWidget {
@@ -35,20 +37,11 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
   bool _isLoading = true;
   String? _error;
   String? _trailerUrl;
-  String _episodeSearchQuery = '';
-  final TextEditingController _episodeSearchController =
-      TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _fetchMediaDetails();
-  }
-
-  @override
-  void dispose() {
-    _episodeSearchController.dispose();
-    super.dispose();
   }
 
   String? _extractTrailerKey(dynamic videosData) {
@@ -152,7 +145,11 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const WarningCircle(color: Color(0xFF9D96FF), width: 56, height: 56),
+                const WarningCircle(
+                  color: Color(0xFF9D96FF),
+                  width: 56,
+                  height: 56,
+                ),
                 const SizedBox(height: 14),
                 const Text('Failed to load details'),
                 const SizedBox(height: 8),
@@ -197,216 +194,272 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                SizedBox(
-                  height: heroHeight,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (backdropUrl.isNotEmpty)
-                        CachedNetworkImage(
-                          imageUrl: backdropUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) =>
-                              Container(color: colors.darkMuted),
-                        )
-                      else
-                        Container(color: colors.darkMuted),
-                      Container(
+                // ── Radial gradient bloom ──────────────────────────────────
+                // Dominant color "leaks" from the hero image like light
+                // emitting from the artwork. Fades to transparent by ~150px
+                // below the image bottom. Very low opacity, heavily blurred.
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: heroHeight + 150,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(
+                      sigmaX: 64,
+                      sigmaY: 64,
+                      tileMode: TileMode.decal,
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: RadialGradient(
+                          center: Alignment.topCenter,
+                          radius: 1.4,
+                          colors: [
+                            colors.dominant.withValues(alpha: 0.20),
+                            colors.dominant.withValues(alpha: 0.07),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 0.40, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ── Main content ───────────────────────────────────────────
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: heroHeight,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (backdropUrl.isNotEmpty)
+                            CachedNetworkImage(
+                              imageUrl: backdropUrl,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, error) =>
+                                  Container(color: colors.darkMuted),
+                            )
+                          else
+                            Container(color: colors.darkMuted),
+                          Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0x4D000000),
+                                  Color(0x990D0F14),
+                                  Color(0xFF0D0F14),
+                                ],
+                                stops: [0.0, 0.7, 1.0],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: 14,
+                            right: 14,
+                            top: MediaQuery.paddingOf(context).top + 4,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _glassIconButton(
+                                  icon: const NavArrowLeft(
+                                    color: NamizoTheme.netflixWhite,
+                                    width: 20,
+                                    height: 20,
+                                  ),
+                                  onTap: () => context.pop(),
+                                ),
+                                Row(
+                                  children: [
+                                    _glassIconButton(
+                                      icon: const MediaVideo(
+                                        color: NamizoTheme.netflixWhite,
+                                        width: 19,
+                                        height: 19,
+                                      ),
+                                      onTap: () {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Cast coming soon'),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(width: 10),
+                                    _glassIconButton(
+                                      icon: const ShareAndroid(
+                                        color: NamizoTheme.netflixWhite,
+                                        width: 19,
+                                        height: 19,
+                                      ),
+                                      onTap: () async {
+                                        final shareUrl =
+                                            'https://www.themoviedb.org/tv/${media.id}';
+                                        await Clipboard.setData(
+                                          ClipboardData(text: shareUrl),
+                                        );
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Link copied to clipboard',
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            left: 16,
+                            bottom: 20,
+                            child: Row(
+                              children: [
+                                _glassTag('PG-13'),
+                                const SizedBox(width: 8),
+                                _glassTag('24 min'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    Transform.translate(
+                      offset: const Offset(0, -20),
+                      child: Container(
+                        width: double.infinity,
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Color(0x4D000000),
-                              Color(0x990D0F14),
+                              Color(0x000D0F14),
+                              Color(0xCC0D0F14),
                               Color(0xFF0D0F14),
                             ],
-                            stops: [0.0, 0.7, 1.0],
+                            stops: [0, 0.22, 0.42],
                           ),
                         ),
-                      ),
-                      Positioned(
-                        left: 14,
-                        right: 14,
-                        top: MediaQuery.paddingOf(context).top + 4,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        padding: const EdgeInsets.fromLTRB(16, 26, 16, 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _glassIconButton(
-                                icon: const NavArrowLeft(
-                                  color: NamizoTheme.netflixWhite,
-                                  width: 20,
-                                  height: 20,
-                                ),
-                              onTap: () => context.pop(),
+                            Text(
+                              mediaName,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .displaySmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: NamizoTheme.netflixWhite,
+                                    height: 1.2,
+                                  ),
                             ),
+                            const SizedBox(height: 10),
+                            // Genre subtext — wraps to next line on overflow
+                            Text(
+                              _buildGenreMeta(year),
+                              style: const TextStyle(
+                                color: NamizoTheme.netflixLightGrey,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
                             Row(
                               children: [
-                                _glassIconButton(
-                                    icon: const MediaVideo(
-                                      color: NamizoTheme.netflixWhite,
-                                      width: 19,
-                                      height: 19,
-                                    ),
-                                  onTap: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Cast coming soon'),
-                                      ),
-                                    );
-                                  },
+                                Expanded(
+                                  child: _playAllButton(
+                                    onTap: () {
+                                      final season =
+                                          ref.read(selectedSeasonProvider);
+                                      context.push(
+                                        '/player/${media.id}?season=$season&episode=1',
+                                      );
+                                    },
+                                  ),
                                 ),
-                                const SizedBox(width: 10),
-                                _glassIconButton(
-                                    icon: const ShareAndroid(
-                                      color: NamizoTheme.netflixWhite,
-                                      width: 19,
-                                      height: 19,
-                                    ),
-                                  onTap: () async {
-                                    final shareUrl =
-                                        'https://www.themoviedb.org/tv/${media.id}';
-                                    await Clipboard.setData(
-                                      ClipboardData(text: shareUrl),
-                                    );
-                                    if (!mounted) return;
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Link copied to clipboard'),
-                                      ),
-                                    );
-                                  },
+                                const SizedBox(width: 12),
+                                // Filled heart = in watchlist, outline = not
+                                _plainIconButton(
+                                  icon: Icon(
+                                    isInWatchlist
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: isInWatchlist
+                                        ? colors.dominant
+                                        : NamizoTheme.netflixWhite,
+                                    size: 24,
+                                  ),
+                                  iconColor: isInWatchlist
+                                      ? colors.dominant
+                                      : NamizoTheme.netflixWhite,
+                                  onTap: () =>
+                                      _toggleWatchlist(media, isInWatchlist),
                                 ),
                               ],
                             ),
+                            if (_trailerUrl != null) ...[
+                              const SizedBox(height: 12),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () =>
+                                      _showTrailerPlayer(context),
+                                  icon: const Icon(
+                                    Icons.play_circle_outline,
+                                    size: 17,
+                                    color: Color(0xFFB9B0FF),
+                                  ),
+                                  label: const Text(
+                                    'Watch trailer',
+                                    style: TextStyle(
+                                      color: Color(0xFFB9B0FF),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+                            Text(
+                              'About',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
+                                    color: NamizoTheme.netflixWhite,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildAboutSection(
+                              media.overview?.isNotEmpty == true
+                                  ? media.overview!
+                                  : 'No description available for this title yet.',
+                            ),
+                            const SizedBox(height: 26),
+                            _buildTVControls(context, media, colors),
                           ],
                         ),
-                      ),
-                      Positioned(
-                        left: 16,
-                        bottom: 20,
-                        child: Row(
-                          children: [
-                            _glassTag('PG-13'),
-                            const SizedBox(width: 8),
-                            _glassTag('24 min'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Transform.translate(
-                  offset: const Offset(0, -20),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x000D0F14),
-                          Color(0xCC0D0F14),
-                          Color(0xFF0D0F14),
-                        ],
-                        stops: [0, 0.22, 0.42],
                       ),
                     ),
-                    padding: const EdgeInsets.fromLTRB(16, 26, 16, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          mediaName,
-                          style: Theme.of(context).textTheme.displaySmall
-                              ?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: NamizoTheme.netflixWhite,
-                                height: 1.2,
-                              ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _buildGenreMeta(year),
-                          style: const TextStyle(
-                            color: NamizoTheme.netflixLightGrey,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _playAllButton(
-                                onTap: () {
-                                  final season =
-                                      ref.read(selectedSeasonProvider);
-                                  context.push(
-                                    '/player/${media.id}?season=$season&episode=1',
-                                  );
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            _plainIconButton(
-                              icon: Heart(
-                                color: isInWatchlist
-                                    ? colors.dominant
-                                    : NamizoTheme.netflixWhite,
-                                width: 23,
-                                height: 23,
-                              ),
-                              iconColor: isInWatchlist
-                                  ? colors.dominant
-                                  : NamizoTheme.netflixWhite,
-                              onTap: () => _toggleWatchlist(media, isInWatchlist),
-                            ),
-                          ],
-                        ),
-                        if (_trailerUrl != null) ...[
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                              onPressed: () => _showTrailerPlayer(context),
-                              icon: const Icon(
-                                Icons.play_circle_outline,
-                                size: 17,
-                                color: Color(0xFFB9B0FF),
-                              ),
-                              label: const Text(
-                                'Watch trailer',
-                                style: TextStyle(color: Color(0xFFB9B0FF)),
-                              ),
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        Text(
-                          'About',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: NamizoTheme.netflixWhite,
-                                fontWeight: FontWeight.w700,
-                              ),
-                        ),
-                        const SizedBox(height: 8),
-                        _buildAboutSection(
-                          media.overview?.isNotEmpty == true
-                              ? media.overview!
-                              : 'No description available for this title yet.',
-                        ),
-                        const SizedBox(height: 26),
-                        _buildTVControls(context, media, colors),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -622,8 +675,6 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                         if (value == null) return;
                         ref.read(selectedSeasonProvider.notifier).state = value;
                         ref.read(selectedEpisodeProvider.notifier).state = 1;
-                        setState(() => _episodeSearchQuery = '');
-                        _episodeSearchController.clear();
                       },
                     ),
                   ),
@@ -631,7 +682,11 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
               ],
             ),
             const SizedBox(height: 14),
-            _buildEpisodeList(media, selectedSeason, colors),
+            EpisodeList(
+              media: media,
+              season: selectedSeason,
+              colors: colors,
+            ),
           ],
         );
       },
@@ -641,262 +696,6 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       error: (err, stack) => Text(
         'Error loading seasons: $err',
         style: const TextStyle(color: NamizoTheme.netflixLightGrey),
-      ),
-    );
-  }
-
-  Widget _buildEpisodeList(
-    SearchResult media,
-    int season,
-    DynamicColors colors,
-  ) {
-    final seasonDataAsync = ref.watch(
-      seasonDataProvider((showId: media.id, seasonNumber: season)),
-    );
-
-    return seasonDataAsync.when(
-      data: (seasonData) {
-        final filteredEpisodes = _episodeSearchQuery.isEmpty
-            ? seasonData.episodes
-            : seasonData.episodes.where((ep) {
-                final query = _episodeSearchQuery.toLowerCase();
-                final name = ep.episodeName?.toLowerCase() ?? '';
-                final number = ep.episodeNumber.toString();
-                return name.contains(query) || number.contains(query);
-              }).toList();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _episodeSearchController,
-              onChanged: (value) => setState(() => _episodeSearchQuery = value),
-              style: const TextStyle(
-                color: NamizoTheme.netflixWhite,
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search episodes',
-                hintStyle: const TextStyle(color: NamizoTheme.netflixGrey),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: NamizoTheme.netflixLightGrey.withValues(alpha: 0.7),
-                  size: 20,
-                ),
-                suffixIcon: _episodeSearchQuery.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          _episodeSearchController.clear();
-                          setState(() => _episodeSearchQuery = '');
-                        },
-                        icon: Icon(
-                          Icons.close,
-                          color: NamizoTheme.netflixLightGrey.withValues(alpha: 0.7),
-                          size: 18,
-                        ),
-                      )
-                    : null,
-                filled: true,
-                fillColor: const Color(0x1FFFFFFF),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: const BorderSide(color: Color(0x26FFFFFF)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: const BorderSide(color: Color(0x667C73FF)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (filteredEpisodes.isEmpty)
-              Padding(
-                padding: const EdgeInsets.all(32),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.search_off,
-                        color: colors.onSurface.withValues(alpha: 0.4),
-                        size: 48,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No episodes match "$_episodeSearchQuery"',
-                        style: TextStyle(
-                          color: colors.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              ...filteredEpisodes.map(
-                (episode) => _buildEpisodeCard(media, episode, season),
-              ),
-          ],
-        );
-      },
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF7C73FF)),
-      ),
-      error: (err, stack) => Text(
-        'Error loading episodes: $err',
-        style: const TextStyle(color: NamizoTheme.netflixLightGrey),
-      ),
-    );
-  }
-
-  Widget _buildEpisodeCard(SearchResult media, EpisodeData episode, int season) {
-    final stillUrl = episode.stillPath != null
-        ? 'https://image.tmdb.org/t/p/w500${episode.stillPath}'
-        : '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: () {
-            context.push(
-              '/player/${media.id}?season=$season&episode=${episode.episodeNumber}',
-            );
-          },
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: stillUrl.isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: stillUrl,
-                        width: 78,
-                        height: 78,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          width: 78,
-                          height: 78,
-                          color: const Color(0x33262C3D),
-                          child: const Center(
-                            child: SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF7C73FF),
-                              ),
-                            ),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          width: 78,
-                          height: 78,
-                          color: const Color(0x33262C3D),
-                          child: const Icon(
-                            Icons.ondemand_video,
-                            color: NamizoTheme.netflixGrey,
-                            size: 24,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        width: 78,
-                        height: 78,
-                        color: const Color(0x33262C3D),
-                        child: const Icon(
-                          Icons.ondemand_video,
-                          color: NamizoTheme.netflixGrey,
-                          size: 24,
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${episode.episodeNumber}. ${episode.episodeName ?? 'Episode ${episode.episodeNumber}'}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: NamizoTheme.netflixWhite,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      episode.overview != null && episode.overview!.isNotEmpty
-                          ? episode.overview!
-                          : 'No description available',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: NamizoTheme.netflixLightGrey,
-                        height: 1.35,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, size: 13, color: Color(0xFFE9C46A)),
-                        const SizedBox(width: 4),
-                        Text(
-                          (episode.voteAverage ?? 0).toStringAsFixed(1),
-                          style: const TextStyle(
-                            color: NamizoTheme.netflixLightGrey,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        const Icon(
-                          Icons.schedule,
-                          size: 13,
-                          color: NamizoTheme.netflixGrey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${episode.runtime ?? 24}m',
-                          style: const TextStyle(
-                            color: NamizoTheme.netflixLightGrey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              _glassIconButton(
-                icon: const Play(
-                  color: Color(0xFFB9B0FF),
-                  width: 17,
-                  height: 17,
-                ),
-                size: 40,
-                onTap: () {
-                  context.push(
-                    '/player/${media.id}?season=$season&episode=${episode.episodeNumber}',
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -930,9 +729,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
               aboutText,
               style: style,
               maxLines: _aboutExpanded ? null : 4,
-              overflow: _aboutExpanded
-                  ? TextOverflow.visible
-                  : TextOverflow.ellipsis,
+              overflow:
+                  _aboutExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
             ),
             if (_aboutOverflow) ...[
               const SizedBox(height: 4),

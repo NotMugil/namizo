@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/models/search_result.dart';
-import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/store/service_providers.dart';
 
 // Search query state
 final searchQueryProvider = StateProvider<String>((ref) => '');

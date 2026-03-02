@@ -7,13 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/core/theme.dart';
+import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/watchlist_item.dart';
-import 'package:namizo/providers/home_providers.dart';
+import 'package:namizo/store/home_providers.dart';
 import 'package:namizo/services/episode_check_service.dart';
-import 'package:namizo/providers/watchlist_provider.dart';
-import 'package:namizo/widgets/content_row.dart';
-import 'package:namizo/widgets/continue_watching_row.dart';
+import 'package:namizo/store/watchlist_provider.dart';
+import 'package:namizo/ui/home/widgets/content_row.dart';
+import 'package:namizo/ui/home/widgets/continue_watching_row.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -79,6 +79,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final featuredContent = ref.watch(featuredAnimeProvider);
+    final featuredLogos = ref.watch(featuredAnimeLogosProvider);
+
+    // Precache logo images as soon as all URLs are resolved
+    ref.listen(featuredAnimeLogosProvider, (_, next) {
+      next.whenData((logos) {
+        for (final url in logos.values) {
+          if (url != null && url.isNotEmpty) {
+            precacheImage(CachedNetworkImageProvider(url), context);
+          }
+        }
+      });
+    });
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -154,7 +166,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SliverToBoxAdapter(
             child: RepaintBoundary(
               child: featuredContent.when(
-                data: (content) => _buildHeroBannerCarousel(context, content),
+                data: (content) => _buildHeroBannerCarousel(
+                  context,
+                  content,
+                  featuredLogos.value ?? {},
+                ),
                 loading: () => _buildHeroBannerShimmer(),
                 error: (_, __) => const SizedBox(height: 500),
               ),
@@ -246,7 +262,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildHeroBannerCarousel(BuildContext context, List<dynamic> items) {
+  Widget _buildHeroBannerCarousel(
+    BuildContext context,
+    List<dynamic> items,
+    Map<int, String?> logos,
+  ) {
     if (items.isEmpty) return const SizedBox(height: 500);
 
     return SizedBox(
@@ -326,16 +346,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            title,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          Builder(
+                            builder: (context) {
+                              final logoUrl =
+                                  tmdbId is int ? logos[tmdbId] : null;
+                              if (logoUrl != null && logoUrl.isNotEmpty) {
+                                return CachedNetworkImage(
+                                  imageUrl: logoUrl,
+                                  height: 72,
+                                  fit: BoxFit.contain,
+                                  errorWidget: (_, __, ___) => Text(
+                                    title,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }
+                              return Text(
+                                title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              );
+                            },
                           ),
                           const SizedBox(height: 8),
                           if (meta.isNotEmpty)

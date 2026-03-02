@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:namizo/providers/watch_history_provider.dart';
-import 'package:namizo/widgets/media_card.dart';
-import 'package:namizo/core/theme.dart';
+import 'package:namizo/store/watch_history_provider.dart';
+import 'package:namizo/ui/common/media_card.dart';
+import 'package:namizo/theme/theme.dart';
 
 class ContinueWatchingRow extends ConsumerWidget {
   const ContinueWatchingRow({super.key});

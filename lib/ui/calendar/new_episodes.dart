@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:namizo/core/theme.dart';
+import 'package:namizo/theme/theme.dart';
 import 'package:namizo/core/constants.dart';
 import 'package:namizo/models/new_episode.dart';
 import 'package:namizo/services/episode_check_service.dart';

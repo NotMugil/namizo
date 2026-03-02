@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/season_info.dart';
-import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/store/service_providers.dart';
 
 // Selected media state
 final selectedMediaProvider = StateProvider<SearchResult?>((ref) => null);

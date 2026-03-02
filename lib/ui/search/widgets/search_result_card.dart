@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:namizo/core/theme.dart';
+import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
-import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/store/service_providers.dart';
 
 class SearchResultCard extends ConsumerWidget {
   final SearchResult media;

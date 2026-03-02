@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/models/watch_history.dart';
-import 'package:namizo/core/theme.dart';
-import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/theme/theme.dart';
+import 'package:namizo/store/service_providers.dart';
 
 class MediaCard extends ConsumerStatefulWidget {
   final WatchHistory history;
