@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nivio/providers/watch_history_provider.dart';
-import 'package:nivio/widgets/media_card.dart';
-import 'package:nivio/core/theme.dart';
+import 'package:namizo/providers/watch_history_provider.dart';
+import 'package:namizo/widgets/media_card.dart';
+import 'package:namizo/core/theme.dart';
 
 class ContinueWatchingRow extends ConsumerWidget {
   const ContinueWatchingRow({super.key});
@@ -23,7 +23,7 @@ class ContinueWatchingRow extends ConsumerWidget {
                   Icon(
                     Icons.ondemand_video_rounded,
                     size: 64,
-                    color: NivioTheme.netflixGrey,
+                    color: NamizoTheme.netflixGrey,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -55,7 +55,7 @@ class ContinueWatchingRow extends ConsumerWidget {
         height: 200,
         child: Center(
           child: CircularProgressIndicator(
-            color: NivioTheme.netflixRed,
+            color: NamizoTheme.netflixRed,
           ),
         ),
       ),
@@ -68,7 +68,7 @@ class ContinueWatchingRow extends ConsumerWidget {
               Icon(
                 Icons.error_outline,
                 size: 48,
-                color: NivioTheme.netflixRed,
+                color: NamizoTheme.netflixRed,
               ),
               const SizedBox(height: 16),
               Text(

@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/providers/service_providers.dart';
-import 'package:nivio/providers/watchlist_provider.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/providers/watchlist_provider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -16,11 +16,11 @@ class ProfileScreen extends ConsumerWidget {
     final tmdbService = ref.watch(tmdbServiceProvider);
 
     return Scaffold(
-      backgroundColor: NivioTheme.netflixBlack,
+      backgroundColor: NamizoTheme.netflixBlack,
       appBar: AppBar(
         title: const Text('Profile'),
         automaticallyImplyLeading: false,
-        backgroundColor: NivioTheme.netflixBlack,
+        backgroundColor: NamizoTheme.netflixBlack,
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
@@ -45,9 +45,9 @@ class ProfileScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Nivio User',
+                        'Namizo User',
                         style: TextStyle(
-                          color: NivioTheme.netflixWhite,
+                          color: NamizoTheme.netflixWhite,
                           fontWeight: FontWeight.w700,
                           fontSize: 16,
                         ),
@@ -56,7 +56,7 @@ class ProfileScreen extends ConsumerWidget {
                       Text(
                         'Your watchlist and preferences',
                         style: TextStyle(
-                          color: NivioTheme.netflixLightGrey,
+                          color: NamizoTheme.netflixLightGrey,
                           fontSize: 12,
                         ),
                       ),
@@ -74,7 +74,7 @@ class ProfileScreen extends ConsumerWidget {
               Text(
                 'My Watchlist (${watchlist.length})',
                 style: const TextStyle(
-                  color: NivioTheme.netflixWhite,
+                  color: NamizoTheme.netflixWhite,
                   fontWeight: FontWeight.w700,
                   fontSize: 16,
                 ),
@@ -92,17 +92,17 @@ class ProfileScreen extends ConsumerWidget {
               ),
               child: const Column(
                 children: [
-                  const Bookmark(color: NivioTheme.netflixGrey, width: 38, height: 38),
+                  const Bookmark(color: NamizoTheme.netflixGrey, width: 38, height: 38),
                   SizedBox(height: 10),
                   Text(
                     'Your watchlist is empty',
-                    style: TextStyle(color: NivioTheme.netflixWhite),
+                    style: TextStyle(color: NamizoTheme.netflixWhite),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Add anime from details page to see them here.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: NivioTheme.netflixGrey, fontSize: 12),
+                    style: TextStyle(color: NamizoTheme.netflixGrey, fontSize: 12),
                   ),
                 ],
               ),
@@ -153,7 +153,7 @@ class ProfileScreen extends ConsumerWidget {
                                     color: const Color(0x29222A3C),
                                     child: const Center(
                                       child: MediaImageXmark(
-                                        color: NivioTheme.netflixGrey,
+                                        color: NamizoTheme.netflixGrey,
                                         width: 20,
                                         height: 20,
                                       ),
@@ -164,7 +164,7 @@ class ProfileScreen extends ConsumerWidget {
                                   color: const Color(0x29222A3C),
                                   child: const Center(
                                     child: MediaVideo(
-                                      color: NivioTheme.netflixGrey,
+                                      color: NamizoTheme.netflixGrey,
                                       width: 20,
                                       height: 20,
                                     ),
@@ -178,7 +178,7 @@ class ProfileScreen extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: NivioTheme.netflixWhite,
+                          color: NamizoTheme.netflixWhite,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -195,9 +195,9 @@ class ProfileScreen extends ConsumerWidget {
             leading: const Settings(color: Color(0xFFB9B0FF), width: 22, height: 22),
             title: const Text(
               'Settings',
-              style: TextStyle(color: NivioTheme.netflixWhite),
+              style: TextStyle(color: NamizoTheme.netflixWhite),
             ),
-            trailing: const NavArrowRight(color: NivioTheme.netflixGrey, width: 18, height: 18),
+            trailing: const NavArrowRight(color: NamizoTheme.netflixGrey, width: 18, height: 18),
             onTap: () => context.push('/settings'),
           ),
         ],

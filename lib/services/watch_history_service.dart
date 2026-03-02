@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:nivio/models/watch_history.dart';
+import 'package:namizo/models/watch_history.dart';
 
 class WatchHistoryService {
   late Box<String> _historyBox;

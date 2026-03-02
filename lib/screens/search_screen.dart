@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/models/search_result.dart';
-import 'package:nivio/providers/search_provider.dart';
-import 'package:nivio/providers/service_providers.dart';
-import 'package:nivio/widgets/search_result_card.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/providers/search_provider.dart';
+import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/widgets/search_result_card.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -183,7 +183,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              backgroundColor: NivioTheme.netflixDarkGrey,
+              backgroundColor: NamizoTheme.netflixDarkGrey,
               title: const Text(
                 'Filter & Sort',
                 style: TextStyle(color: Colors.white),
@@ -245,7 +245,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   },
                   child: const Text(
                     'Apply',
-                    style: TextStyle(color: NivioTheme.netflixRed),
+                    style: TextStyle(color: NamizoTheme.netflixRed),
                   ),
                 ),
               ],
@@ -263,12 +263,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? NivioTheme.netflixRed
+              ? NamizoTheme.netflixRed
               : Colors.white.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
-                ? NivioTheme.netflixRed
+                ? NamizoTheme.netflixRed
                 : Colors.white.withValues(alpha: 0.3),
           ),
         ),
@@ -292,7 +292,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: NivioTheme.netflixBlack,
+        backgroundColor: NamizoTheme.netflixBlack,
         surfaceTintColor: Colors.transparent,
         toolbarHeight: 76,
         titleSpacing: 12,
@@ -312,7 +312,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     width: 9,
                     height: 9,
                     decoration: BoxDecoration(
-                      color: NivioTheme.netflixRed,
+                      color: NamizoTheme.netflixRed,
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.black, width: 1.2),
                     ),
@@ -330,8 +330,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             end: Alignment.bottomCenter,
             colors: [
               const Color(0xFF1A1A1A),
-              NivioTheme.netflixBlack,
-              NivioTheme.netflixBlack,
+              NamizoTheme.netflixBlack,
+              NamizoTheme.netflixBlack,
             ],
           ),
         ),
@@ -342,7 +342,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               : _isInitialLoading
               ? const Center(
                   child: CircularProgressIndicator(
-                    color: NivioTheme.netflixRed,
+                    color: NamizoTheme.netflixRed,
                   ),
                 )
               : _allResults.isEmpty
@@ -428,8 +428,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   shape: BoxShape.circle,
                   gradient: RadialGradient(
                     colors: [
-                      NivioTheme.netflixRed.withValues(alpha: 0.35),
-                      NivioTheme.netflixRed.withValues(alpha: 0.0),
+                      NamizoTheme.netflixRed.withValues(alpha: 0.35),
+                      NamizoTheme.netflixRed.withValues(alpha: 0.0),
                     ],
                   ),
                 ),
@@ -607,7 +607,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
-                            color: NivioTheme.netflixRed,
+                            color: NamizoTheme.netflixRed,
                             strokeWidth: 2,
                           ),
                         ),
@@ -633,10 +633,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: NivioTheme.netflixRed.withValues(alpha: 0.18),
+        color: NamizoTheme.netflixRed.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
-          color: NivioTheme.netflixRed.withValues(alpha: 0.55),
+          color: NamizoTheme.netflixRed.withValues(alpha: 0.55),
         ),
       ),
       child: Text(

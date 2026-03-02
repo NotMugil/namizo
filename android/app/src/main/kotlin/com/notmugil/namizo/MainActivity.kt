@@ -1,4 +1,4 @@
-package com.example.nivio
+package com.notmugil.namizo
 
 import android.os.Build
 import android.os.Bundle
@@ -8,7 +8,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.nivio/gesture_exclusion"
+    private val CHANNEL = "com.namizo/gesture_exclusion"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

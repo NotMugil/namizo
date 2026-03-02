@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/providers/settings_providers.dart';
-import 'package:nivio/providers/service_providers.dart';
-import 'package:nivio/providers/watch_history_provider.dart';
-import 'package:nivio/services/episode_check_service.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/providers/settings_providers.dart';
+import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/providers/watch_history_provider.dart';
+import 'package:namizo/services/episode_check_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
@@ -31,7 +31,7 @@ class SettingsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: NivioTheme.netflixBlack,
+        backgroundColor: NamizoTheme.netflixBlack,
         title: const Text(
           'Settings',
           style: TextStyle(
@@ -76,10 +76,10 @@ class SettingsScreen extends ConsumerWidget {
               onChanged: (_) {
                 ref.read(subtitlesEnabledProvider.notifier).toggle();
               },
-              activeColor: NivioTheme.netflixRed,
+              activeColor: NamizoTheme.netflixRed,
             ),
           ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
+          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
           // Notifications Section (only show on platforms that support background tasks)
           if (_supportsBackgroundTasks) ...[
@@ -95,7 +95,7 @@ class SettingsScreen extends ConsumerWidget {
                       .read(episodeCheckEnabledProvider.notifier)
                       .setEnabled(value);
                 },
-                activeColor: NivioTheme.netflixRed,
+                activeColor: NamizoTheme.netflixRed,
               ),
             ),
             if (episodeCheckEnabled) ...[
@@ -135,7 +135,7 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
             ],
-            const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
+            const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
           ],
 
           // Data & Storage
@@ -149,7 +149,7 @@ class SettingsScreen extends ConsumerWidget {
               _showClearHistoryDialog(context, ref);
             },
           ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
+          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
           // Appearance
           _buildSectionHeader('Appearance'),
@@ -168,10 +168,10 @@ class SettingsScreen extends ConsumerWidget {
               onChanged: (_) {
                 ref.read(animationsEnabledProvider.notifier).toggle();
               },
-              activeColor: NivioTheme.netflixRed,
+              activeColor: NamizoTheme.netflixRed,
             ),
           ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
+          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
           _buildSectionHeader('AniList'),
           aniListViewerAsync.when(
@@ -238,7 +238,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () => _showAniListConnectDialog(context, ref),
             ),
           ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
+          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
           // About
           _buildSectionHeader('About'),
@@ -259,7 +259,7 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'View privacy policy',
             trailing: const ArrowUpRight(color: Colors.white70, width: 18, height: 18),
             onTap: () async {
-              final uri = Uri.parse('https://nivio-app.com/privacy');
+              final uri = Uri.parse('https://namizo-app.com/privacy');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
@@ -271,13 +271,13 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'View terms of service',
             trailing: const ArrowUpRight(color: Colors.white70, width: 18, height: 18),
             onTap: () async {
-              final uri = Uri.parse('https://nivio-app.com/terms');
+              final uri = Uri.parse('https://namizo-app.com/terms');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
             },
           ),
-          const Divider(color: NivioTheme.netflixDarkGrey, height: 1),
+          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
           const SizedBox(height: 40),
         ],
@@ -360,7 +360,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NivioTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.netflixDarkGrey,
         title: const Text(
           'Clear Watch History?',
           style: TextStyle(color: Colors.white),
@@ -391,14 +391,14 @@ class SettingsScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Watch history cleared successfully'),
-                    backgroundColor: NivioTheme.netflixRed,
+                    backgroundColor: NamizoTheme.netflixRed,
                   ),
                 );
               }
             },
             child: const Text(
               'Clear',
-              style: TextStyle(color: NivioTheme.netflixRed),
+              style: TextStyle(color: NamizoTheme.netflixRed),
             ),
           ),
         ],
@@ -412,7 +412,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NivioTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.netflixDarkGrey,
         title: const Text(
           'Playback Speed',
           style: TextStyle(color: Colors.white),
@@ -424,7 +424,7 @@ class SettingsScreen extends ConsumerWidget {
             return RadioListTile<double>(
               value: speed,
               groupValue: currentSpeed,
-              activeColor: NivioTheme.netflixRed,
+              activeColor: NamizoTheme.netflixRed,
               title: Text(
                 '${speed}x',
                 style: const TextStyle(color: Colors.white),
@@ -454,7 +454,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NivioTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.netflixDarkGrey,
         title: const Text(
           'Video Quality',
           style: TextStyle(color: Colors.white),
@@ -466,7 +466,7 @@ class SettingsScreen extends ConsumerWidget {
             return RadioListTile<String>(
               value: quality['value']!,
               groupValue: currentQuality,
-              activeColor: NivioTheme.netflixRed,
+              activeColor: NamizoTheme.netflixRed,
               title: Text(
                 quality['label']!,
                 style: const TextStyle(color: Colors.white),
@@ -494,7 +494,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NivioTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.netflixDarkGrey,
         title: const Text(
           'Check Frequency',
           style: TextStyle(color: Colors.white),
@@ -514,7 +514,7 @@ class SettingsScreen extends ConsumerWidget {
               return RadioListTile<int>(
                 value: freq['value'] as int,
                 groupValue: currentFreq,
-                activeColor: NivioTheme.netflixRed,
+                activeColor: NamizoTheme.netflixRed,
                 title: Text(
                   freq['label'] as String,
                   style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -540,11 +540,11 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NivioTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.netflixDarkGrey,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(color: NivioTheme.netflixRed),
+            const CircularProgressIndicator(color: NamizoTheme.netflixRed),
             const SizedBox(height: 20),
             const Text(
               'Checking for new episodes...',
@@ -566,7 +566,7 @@ class SettingsScreen extends ConsumerWidget {
                                 ? '🎉 Found $count new episode${count > 1 ? 's' : ''}!'
                                 : 'No new episodes found',
                           ),
-                          backgroundColor: NivioTheme.netflixRed,
+                          backgroundColor: NamizoTheme.netflixRed,
                         ),
                       );
                     }

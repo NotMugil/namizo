@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nivio/models/watch_history.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/providers/service_providers.dart';
+import 'package:namizo/models/watch_history.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/providers/service_providers.dart';
 
 class MediaCard extends ConsumerStatefulWidget {
   final WatchHistory history;
@@ -95,18 +95,18 @@ class _MediaCardState extends ConsumerState<MediaCard> with SingleTickerProvider
                                     width: 130,
                                     fit: BoxFit.cover,
                                     placeholder: (context, url) => Container(
-                                      color: NivioTheme.netflixDarkGrey,
+                                      color: NamizoTheme.netflixDarkGrey,
                                       child: const Center(
                                         child: CircularProgressIndicator(
-                                          color: NivioTheme.netflixRed,
+                                          color: NamizoTheme.netflixRed,
                                         ),
                                       ),
                                     ),
                                     errorWidget: (context, url, error) => Container(
-                                      color: NivioTheme.netflixDarkGrey,
+                                      color: NamizoTheme.netflixDarkGrey,
                                       child: const Icon(
                                         Icons.movie,
-                                        color: NivioTheme.netflixGrey,
+                                        color: NamizoTheme.netflixGrey,
                                         size: 48,
                                       ),
                                     ),
@@ -114,10 +114,10 @@ class _MediaCardState extends ConsumerState<MediaCard> with SingleTickerProvider
                                 : Container(
                                     height: 180,
                                     width: 130,
-                                    color: NivioTheme.netflixDarkGrey,
+                                    color: NamizoTheme.netflixDarkGrey,
                                     child: const Icon(
                                       Icons.movie,
-                                      color: NivioTheme.netflixGrey,
+                                      color: NamizoTheme.netflixGrey,
                                       size: 48,
                                     ),
                                   ),
@@ -131,7 +131,7 @@ class _MediaCardState extends ConsumerState<MediaCard> with SingleTickerProvider
                               value: widget.history.progressPercent,
                               backgroundColor: Colors.grey.withOpacity(0.3),
                               valueColor: const AlwaysStoppedAnimation<Color>(
-                                NivioTheme.netflixRed,
+                                NamizoTheme.netflixRed,
                               ),
                             ),
                           ),
@@ -176,7 +176,7 @@ class _MediaCardState extends ConsumerState<MediaCard> with SingleTickerProvider
                       Text(
                         'S${widget.history.currentSeason} E${widget.history.currentEpisode}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: NivioTheme.netflixGrey,
+                              color: NamizoTheme.netflixGrey,
                             ),
                       ),
                   ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:nivio/core/theme.dart';
+import 'package:namizo/core/theme.dart';
 
 /// WebView-based player for embedding vidsrc iframe streams using flutter_inappwebview
 class WebViewPlayer extends StatefulWidget {
@@ -413,7 +413,7 @@ class _WebViewPlayerState extends State<WebViewPlayer> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(color: NivioTheme.netflixRed),
+                  const CircularProgressIndicator(color: NamizoTheme.netflixRed),
                   const SizedBox(height: 16),
                   Text(
                     'Loading player...',

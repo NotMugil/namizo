@@ -6,14 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:nivio/core/constants.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/models/watchlist_item.dart';
-import 'package:nivio/providers/home_providers.dart';
-import 'package:nivio/services/episode_check_service.dart';
-import 'package:nivio/providers/watchlist_provider.dart';
-import 'package:nivio/widgets/content_row.dart';
-import 'package:nivio/widgets/continue_watching_row.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/models/watchlist_item.dart';
+import 'package:namizo/providers/home_providers.dart';
+import 'package:namizo/services/episode_check_service.dart';
+import 'package:namizo/providers/watchlist_provider.dart';
+import 'package:namizo/widgets/content_row.dart';
+import 'package:namizo/widgets/continue_watching_row.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -122,9 +122,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           title: const Padding(
             padding: EdgeInsets.only(top: 8.0, left: 4),
             child: Text(
-              'namizo.',
+              'Namizo.',
               style: TextStyle(
-                color: NivioTheme.netflixWhite,
+                color: NamizoTheme.netflixWhite,
                 fontSize: 20,
                 fontWeight: FontWeight.w700,
               ),

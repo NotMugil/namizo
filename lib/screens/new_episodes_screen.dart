@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/core/constants.dart';
-import 'package:nivio/models/new_episode.dart';
-import 'package:nivio/services/episode_check_service.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/models/new_episode.dart';
+import 'package:namizo/services/episode_check_service.dart';
 
 /// Provider for new episodes list
 final newEpisodesProvider = StateProvider<List<NewEpisode>>((ref) {
@@ -46,10 +46,10 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
     final episodes = ref.watch(newEpisodesProvider);
 
     return Scaffold(
-      backgroundColor: NivioTheme.netflixBlack,
+      backgroundColor: NamizoTheme.netflixBlack,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: NivioTheme.netflixBlack,
+        backgroundColor: NamizoTheme.netflixBlack,
         automaticallyImplyLeading: false,
         title: const Text(
           'New Episodes',
@@ -63,7 +63,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
           if (episodes.isNotEmpty)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.white),
-              color: NivioTheme.netflixDarkGrey,
+              color: NamizoTheme.netflixDarkGrey,
               onSelected: (value) async {
                 switch (value) {
                   case 'mark_read':
@@ -148,7 +148,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                           ? '🎉 Found $count new episode${count > 1 ? 's' : ''}!'
                           : 'No new episodes found',
                     ),
-                    backgroundColor: NivioTheme.netflixRed,
+                    backgroundColor: NamizoTheme.netflixRed,
                   ),
                 );
               }
@@ -156,7 +156,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
             icon: const Icon(Icons.refresh),
             label: const Text('Check Now'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: NivioTheme.netflixRed,
+              backgroundColor: NamizoTheme.netflixRed,
               foregroundColor: Colors.white,
             ),
           ),
@@ -200,12 +200,12 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: hasUnread
-            ? NivioTheme.netflixRed.withValues(alpha: 0.1)
+            ? NamizoTheme.netflixRed.withValues(alpha: 0.1)
             : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: hasUnread
             ? Border.all(
-                color: NivioTheme.netflixRed.withValues(alpha: 0.3),
+                color: NamizoTheme.netflixRed.withValues(alpha: 0.3),
               )
             : null,
       ),
@@ -236,25 +236,25 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                         placeholder: (context, url) => Container(
                           width: 60,
                           height: 90,
-                          color: NivioTheme.netflixDarkGrey,
+                          color: NamizoTheme.netflixDarkGrey,
                           child: const Center(
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: NivioTheme.netflixRed,
+                              color: NamizoTheme.netflixRed,
                             ),
                           ),
                         ),
                         errorWidget: (context, url, error) => Container(
                           width: 60,
                           height: 90,
-                          color: NivioTheme.netflixDarkGrey,
+                          color: NamizoTheme.netflixDarkGrey,
                           child: const Icon(Icons.tv, color: Colors.white54),
                         ),
                       )
                     : Container(
                         width: 60,
                         height: 90,
-                        color: NivioTheme.netflixDarkGrey,
+                        color: NamizoTheme.netflixDarkGrey,
                         child: const Icon(Icons.tv, color: Colors.white54),
                       ),
               ),
@@ -272,7 +272,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                             height: 8,
                             margin: const EdgeInsets.only(right: 8),
                             decoration: const BoxDecoration(
-                              color: NivioTheme.netflixRed,
+                              color: NamizoTheme.netflixRed,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -296,7 +296,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                           ? 'S${firstEpisode.seasonNumber}E${firstEpisode.episodeNumber}'
                           : '${episodes.length} new episodes',
                       style: TextStyle(
-                        color: NivioTheme.netflixRed.withValues(alpha: 0.9),
+                        color: NamizoTheme.netflixRed.withValues(alpha: 0.9),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),

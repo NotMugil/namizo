@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:nivio/models/cache_entry.dart';
+import 'package:namizo/models/cache_entry.dart';
 
 class CacheService {
   static const String _boxName = 'tmdb_cache';

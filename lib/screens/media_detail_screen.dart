@@ -7,14 +7,14 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/models/search_result.dart';
-import 'package:nivio/models/season_info.dart';
-import 'package:nivio/models/watchlist_item.dart';
-import 'package:nivio/providers/dynamic_colors_provider.dart';
-import 'package:nivio/providers/media_provider.dart';
-import 'package:nivio/providers/service_providers.dart';
-import 'package:nivio/providers/watchlist_provider.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/models/season_info.dart';
+import 'package:namizo/models/watchlist_item.dart';
+import 'package:namizo/providers/dynamic_colors_provider.dart';
+import 'package:namizo/providers/media_provider.dart';
+import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/providers/watchlist_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 class MediaDetailScreen extends ConsumerStatefulWidget {
@@ -134,8 +134,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: NivioTheme.netflixBlack,
-        appBar: AppBar(backgroundColor: NivioTheme.netflixBlack, elevation: 0),
+        backgroundColor: NamizoTheme.netflixBlack,
+        appBar: AppBar(backgroundColor: NamizoTheme.netflixBlack, elevation: 0),
         body: const Center(
           child: CircularProgressIndicator(color: Color(0xFF7C73FF)),
         ),
@@ -144,8 +144,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: NivioTheme.netflixBlack,
-        appBar: AppBar(backgroundColor: NivioTheme.netflixBlack, elevation: 0),
+        backgroundColor: NamizoTheme.netflixBlack,
+        appBar: AppBar(backgroundColor: NamizoTheme.netflixBlack, elevation: 0),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -158,7 +158,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                 const SizedBox(height: 8),
                 Text(
                   _error!,
-                  style: const TextStyle(color: NivioTheme.netflixGrey),
+                  style: const TextStyle(color: NamizoTheme.netflixGrey),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -193,7 +193,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     final mediaName = media.title ?? media.name ?? 'Unknown';
 
     return Scaffold(
-      backgroundColor: NivioTheme.netflixBlack,
+      backgroundColor: NamizoTheme.netflixBlack,
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
@@ -237,7 +237,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                           children: [
                             _glassIconButton(
                                 icon: const NavArrowLeft(
-                                  color: NivioTheme.netflixWhite,
+                                  color: NamizoTheme.netflixWhite,
                                   width: 20,
                                   height: 20,
                                 ),
@@ -247,7 +247,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                               children: [
                                 _glassIconButton(
                                     icon: const MediaVideo(
-                                      color: NivioTheme.netflixWhite,
+                                      color: NamizoTheme.netflixWhite,
                                       width: 19,
                                       height: 19,
                                     ),
@@ -262,7 +262,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                 const SizedBox(width: 10),
                                 _glassIconButton(
                                     icon: const ShareAndroid(
-                                      color: NivioTheme.netflixWhite,
+                                      color: NamizoTheme.netflixWhite,
                                       width: 19,
                                       height: 19,
                                     ),
@@ -324,7 +324,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                           style: Theme.of(context).textTheme.displaySmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: NivioTheme.netflixWhite,
+                                color: NamizoTheme.netflixWhite,
                                 height: 1.2,
                               ),
                         ),
@@ -332,7 +332,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                         Text(
                           _buildGenreMeta(year),
                           style: const TextStyle(
-                            color: NivioTheme.netflixLightGrey,
+                            color: NamizoTheme.netflixLightGrey,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -358,13 +358,13 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                               icon: Heart(
                                 color: isInWatchlist
                                     ? colors.dominant
-                                    : NivioTheme.netflixWhite,
+                                    : NamizoTheme.netflixWhite,
                                 width: 23,
                                 height: 23,
                               ),
                               iconColor: isInWatchlist
                                   ? colors.dominant
-                                  : NivioTheme.netflixWhite,
+                                  : NamizoTheme.netflixWhite,
                               onTap: () => _toggleWatchlist(media, isInWatchlist),
                             ),
                           ],
@@ -392,7 +392,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                           'About',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
-                                color: NivioTheme.netflixWhite,
+                                color: NamizoTheme.netflixWhite,
                                 fontWeight: FontWeight.w700,
                               ),
                         ),
@@ -459,7 +459,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
           child: Text(
             label,
             style: const TextStyle(
-              color: NivioTheme.netflixWhite,
+              color: NamizoTheme.netflixWhite,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -478,7 +478,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
   Widget _plainIconButton({
     required Widget icon,
     required VoidCallback onTap,
-    Color iconColor = NivioTheme.netflixWhite,
+    Color iconColor = NamizoTheme.netflixWhite,
   }) {
     return IconButton(
       onPressed: onTap,
@@ -578,7 +578,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                   child: Text(
                     'Episodes',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: NivioTheme.netflixWhite,
+                          color: NamizoTheme.netflixWhite,
                           fontWeight: FontWeight.w700,
                         ),
                   ),
@@ -598,14 +598,14 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                       value: selectedSeason <= seriesInfo.seasons.length
                           ? selectedSeason
                           : 1,
-                      dropdownColor: NivioTheme.netflixDarkGrey,
+                      dropdownColor: NamizoTheme.netflixDarkGrey,
                       borderRadius: BorderRadius.circular(14),
                       icon: const Icon(
                         Icons.expand_more,
-                        color: NivioTheme.netflixWhite,
+                        color: NamizoTheme.netflixWhite,
                       ),
                       style: const TextStyle(
-                        color: NivioTheme.netflixWhite,
+                        color: NamizoTheme.netflixWhite,
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -640,7 +640,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       ),
       error: (err, stack) => Text(
         'Error loading seasons: $err',
-        style: const TextStyle(color: NivioTheme.netflixLightGrey),
+        style: const TextStyle(color: NamizoTheme.netflixLightGrey),
       ),
     );
   }
@@ -672,15 +672,15 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
               controller: _episodeSearchController,
               onChanged: (value) => setState(() => _episodeSearchQuery = value),
               style: const TextStyle(
-                color: NivioTheme.netflixWhite,
+                color: NamizoTheme.netflixWhite,
                 fontSize: 14,
               ),
               decoration: InputDecoration(
                 hintText: 'Search episodes',
-                hintStyle: const TextStyle(color: NivioTheme.netflixGrey),
+                hintStyle: const TextStyle(color: NamizoTheme.netflixGrey),
                 prefixIcon: Icon(
                   Icons.search,
-                  color: NivioTheme.netflixLightGrey.withValues(alpha: 0.7),
+                  color: NamizoTheme.netflixLightGrey.withValues(alpha: 0.7),
                   size: 20,
                 ),
                 suffixIcon: _episodeSearchQuery.isNotEmpty
@@ -691,7 +691,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                         },
                         icon: Icon(
                           Icons.close,
-                          color: NivioTheme.netflixLightGrey.withValues(alpha: 0.7),
+                          color: NamizoTheme.netflixLightGrey.withValues(alpha: 0.7),
                           size: 18,
                         ),
                       )
@@ -751,7 +751,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       ),
       error: (err, stack) => Text(
         'Error loading episodes: $err',
-        style: const TextStyle(color: NivioTheme.netflixLightGrey),
+        style: const TextStyle(color: NamizoTheme.netflixLightGrey),
       ),
     );
   }
@@ -805,7 +805,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                           color: const Color(0x33262C3D),
                           child: const Icon(
                             Icons.ondemand_video,
-                            color: NivioTheme.netflixGrey,
+                            color: NamizoTheme.netflixGrey,
                             size: 24,
                           ),
                         ),
@@ -816,7 +816,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                         color: const Color(0x33262C3D),
                         child: const Icon(
                           Icons.ondemand_video,
-                          color: NivioTheme.netflixGrey,
+                          color: NamizoTheme.netflixGrey,
                           size: 24,
                         ),
                       ),
@@ -830,7 +830,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                       '${episode.episodeNumber}. ${episode.episodeName ?? 'Episode ${episode.episodeNumber}'}',
                       style: const TextStyle(
                         fontSize: 14,
-                        color: NivioTheme.netflixWhite,
+                        color: NamizoTheme.netflixWhite,
                         fontWeight: FontWeight.w700,
                       ),
                       maxLines: 1,
@@ -843,7 +843,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                           : 'No description available',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: NivioTheme.netflixLightGrey,
+                        color: NamizoTheme.netflixLightGrey,
                         height: 1.35,
                       ),
                       maxLines: 2,
@@ -857,7 +857,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                         Text(
                           (episode.voteAverage ?? 0).toStringAsFixed(1),
                           style: const TextStyle(
-                            color: NivioTheme.netflixLightGrey,
+                            color: NamizoTheme.netflixLightGrey,
                             fontSize: 12,
                           ),
                         ),
@@ -865,13 +865,13 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                         const Icon(
                           Icons.schedule,
                           size: 13,
-                          color: NivioTheme.netflixGrey,
+                          color: NamizoTheme.netflixGrey,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${episode.runtime ?? 24}m',
                           style: const TextStyle(
-                            color: NivioTheme.netflixLightGrey,
+                            color: NamizoTheme.netflixLightGrey,
                             fontSize: 12,
                           ),
                         ),
@@ -903,7 +903,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
 
   Widget _buildAboutSection(String aboutText) {
     final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: NivioTheme.netflixLightGrey,
+      color: NamizoTheme.netflixLightGrey,
       height: 1.45,
     );
 

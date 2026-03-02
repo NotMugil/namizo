@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/models/search_result.dart';
-import 'package:nivio/providers/service_providers.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/providers/service_providers.dart';
 
 class SearchResultCard extends ConsumerWidget {
   final SearchResult media;
@@ -47,33 +47,33 @@ class SearchResultCard extends ConsumerWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         placeholder: (context, url) => Container(
-                          color: NivioTheme.netflixDarkGrey,
+                          color: NamizoTheme.netflixDarkGrey,
                           child: const Center(
                             child: SizedBox(
                               width: 22,
                               height: 22,
                               child: CircularProgressIndicator(
-                                color: NivioTheme.netflixRed,
+                                color: NamizoTheme.netflixRed,
                                 strokeWidth: 2,
                               ),
                             ),
                           ),
                         ),
                         errorWidget: (context, url, error) => Container(
-                          color: NivioTheme.netflixDarkGrey,
+                          color: NamizoTheme.netflixDarkGrey,
                           child: const Icon(
                             Icons.movie_creation_outlined,
-                            color: NivioTheme.netflixGrey,
+                            color: NamizoTheme.netflixGrey,
                             size: 42,
                           ),
                         ),
                       )
                     else
                       Container(
-                        color: NivioTheme.netflixDarkGrey,
+                        color: NamizoTheme.netflixDarkGrey,
                         child: const Icon(
                           Icons.movie_creation_outlined,
-                          color: NivioTheme.netflixGrey,
+                          color: NamizoTheme.netflixGrey,
                           size: 42,
                         ),
                       ),
@@ -104,7 +104,7 @@ class SearchResultCard extends ConsumerWidget {
                         Text(
                           year,
                           style: const TextStyle(
-                            color: NivioTheme.netflixGrey,
+                            color: NamizoTheme.netflixGrey,
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -113,7 +113,7 @@ class SearchResultCard extends ConsumerWidget {
                         const Text(
                           '  •  ',
                           style: TextStyle(
-                            color: NivioTheme.netflixGrey,
+                            color: NamizoTheme.netflixGrey,
                             fontSize: 11,
                           ),
                         ),
@@ -129,7 +129,7 @@ class SearchResultCard extends ConsumerWidget {
                             Text(
                               rating.toStringAsFixed(1),
                               style: const TextStyle(
-                                color: NivioTheme.netflixGrey,
+                                color: NamizoTheme.netflixGrey,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
                               ),

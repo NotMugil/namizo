@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nivio/providers/service_providers.dart';
+import 'package:namizo/providers/service_providers.dart';
 
 final featuredAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(tmdbServiceProvider);

@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:nivio/models/search_result.dart';
-import 'package:nivio/models/stream_result.dart';
-import 'package:nivio/services/aimi_anime_service.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/models/stream_result.dart';
+import 'package:namizo/services/aimi_anime_service.dart';
 
 /// Service for fetching anime streaming URLs.
 /// Primary: AIMI direct sources.

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/services/anilist_service.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/services/anilist_service.dart';
 
 class AniListLoginScreen extends StatefulWidget {
   const AniListLoginScreen({super.key});
@@ -51,9 +51,9 @@ class _AniListLoginScreenState extends State<AniListLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NivioTheme.netflixBlack,
+      backgroundColor: NamizoTheme.netflixBlack,
       appBar: AppBar(
-        backgroundColor: NivioTheme.netflixBlack,
+        backgroundColor: NamizoTheme.netflixBlack,
         title: const Text('AniList Login'),
       ),
       body: InAppWebView(

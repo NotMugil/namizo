@@ -1,6 +1,6 @@
 import 'package:aimi_lib/aimi_lib.dart' as aimi;
-import 'package:nivio/models/search_result.dart';
-import 'package:nivio/models/stream_result.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/models/stream_result.dart';
 
 /// Anime streaming via aimi_lib providers (AnimePahe/AllAnime/Anizone).
 class AimiAnimeService {

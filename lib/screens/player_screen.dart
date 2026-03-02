@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/models/season_info.dart';
-import 'package:nivio/providers/media_provider.dart';
-import 'package:nivio/providers/service_providers.dart';
-import 'package:nivio/providers/settings_providers.dart';
-import 'package:nivio/models/stream_result.dart';
-import 'package:nivio/services/streaming_service.dart';
-import 'package:nivio/widgets/webview_player.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/models/season_info.dart';
+import 'package:namizo/providers/media_provider.dart';
+import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/providers/settings_providers.dart';
+import 'package:namizo/models/stream_result.dart';
+import 'package:namizo/services/streaming_service.dart';
+import 'package:namizo/widgets/webview_player.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -277,12 +277,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             enableSkips: true,
             forwardSkipTimeInMilliseconds: 10000,
             backwardSkipTimeInMilliseconds: 10000,
-            progressBarPlayedColor: NivioTheme.netflixRed,
-            progressBarHandleColor: NivioTheme.netflixRed,
-            progressBarBufferedColor: NivioTheme.netflixLightGrey,
-            progressBarBackgroundColor: NivioTheme.netflixGrey,
+            progressBarPlayedColor: NamizoTheme.netflixRed,
+            progressBarHandleColor: NamizoTheme.netflixRed,
+            progressBarBufferedColor: NamizoTheme.netflixLightGrey,
+            progressBarBackgroundColor: NamizoTheme.netflixGrey,
             controlBarColor: Colors.black54,
-            loadingColor: NivioTheme.netflixRed,
+            loadingColor: NamizoTheme.netflixRed,
             overflowModalColor: const Color(0xFF1F1F1F),
             overflowModalTextColor: Colors.white,
             overflowMenuIconsColor: Colors.white70,
@@ -299,7 +299,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           placeholder: Container(
             color: Colors.black,
             child: const Center(
-              child: CircularProgressIndicator(color: NivioTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
             ),
           ),
           errorBuilder: (context, errorMessage) {
@@ -309,7 +309,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   const Icon(
                     Icons.error_outline,
-                    color: NivioTheme.netflixRed,
+                    color: NamizoTheme.netflixRed,
                     size: 64,
                   ),
                   const SizedBox(height: 16),
@@ -335,7 +335,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     icon: const Icon(Icons.refresh),
                     label: Text('Retry ($_retryCount/$_maxRetries)'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: NivioTheme.netflixRed,
+                      backgroundColor: NamizoTheme.netflixRed,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -448,7 +448,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 'Resumed from ${_formatDuration(_resumePosition!)}',
               ),
               duration: const Duration(seconds: 2),
-              backgroundColor: NivioTheme.netflixRed,
+              backgroundColor: NamizoTheme.netflixRed,
             ),
           );
           _resumePosition = null;
@@ -912,7 +912,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: NivioTheme.netflixRed,
+                                  color: NamizoTheme.netflixRed,
                                   borderRadius: BorderRadius.circular(3),
                                 ),
                                 child: Text(
@@ -972,7 +972,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   'Switching to ${StreamingService.getProviderName(providerIndex)}...',
                                 ),
                                 duration: const Duration(seconds: 2),
-                                backgroundColor: NivioTheme.netflixRed,
+                                backgroundColor: NamizoTheme.netflixRed,
                               ),
                             );
                           }
@@ -1001,7 +1001,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         ? Icons.check_circle
                                         : Icons.circle_outlined,
                                     color: isSelected
-                                        ? NivioTheme.netflixRed
+                                        ? NamizoTheme.netflixRed
                                         : Colors.white70,
                                     size: 18,
                                   ),
@@ -1010,7 +1010,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     StreamingService.getProviderName(index),
                                     style: TextStyle(
                                       color: isSelected
-                                          ? NivioTheme.netflixRed
+                                          ? NamizoTheme.netflixRed
                                           : Colors.white,
                                       fontWeight: isSelected
                                           ? FontWeight.bold
@@ -1125,7 +1125,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Animated Netflix-style loading ring
-                SizedBox(width: 56, height: 56, child: _NivioLoadingSpinner()),
+                SizedBox(width: 56, height: 56, child: _NamizoLoadingSpinner()),
                 const SizedBox(height: 24),
                 if (title.isNotEmpty)
                   Padding(
@@ -1167,7 +1167,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          color: NivioTheme.netflixRed.withOpacity(0.7),
+                          color: NamizoTheme.netflixRed.withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1215,12 +1215,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: NivioTheme.netflixRed.withOpacity(0.1),
+              color: NamizoTheme.netflixRed.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.error_outline,
-              color: NivioTheme.netflixRed,
+              color: NamizoTheme.netflixRed,
               size: 64,
             ),
           ),
@@ -1285,7 +1285,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 icon: const Icon(Icons.refresh, size: 20),
                 label: const Text('RETRY'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: NivioTheme.netflixRed,
+                  backgroundColor: NamizoTheme.netflixRed,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
@@ -1560,14 +1560,14 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                   margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
                                     color: isCurrent
-                                        ? NivioTheme.netflixRed.withOpacity(
+                                        ? NamizoTheme.netflixRed.withOpacity(
                                             0.15,
                                           )
                                         : const Color(0xFF1E1E1E),
                                     borderRadius: BorderRadius.circular(10),
                                     border: isCurrent
                                         ? Border.all(
-                                            color: NivioTheme.netflixRed,
+                                            color: NamizoTheme.netflixRed,
                                             width: 1.5,
                                           )
                                         : null,
@@ -1631,7 +1631,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                               : Icons
                                                                     .play_arrow,
                                                           color: isCurrent
-                                                              ? NivioTheme
+                                                              ? NamizoTheme
                                                                     .netflixRed
                                                               : Colors.white,
                                                           size: 20,
@@ -1675,7 +1675,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                             right: 6,
                                                           ),
                                                       decoration: BoxDecoration(
-                                                        color: NivioTheme
+                                                        color: NamizoTheme
                                                             .netflixRed,
                                                         borderRadius:
                                                             BorderRadius.circular(
@@ -1700,7 +1700,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                         fontWeight:
                                                             FontWeight.w600,
                                                         color: isCurrent
-                                                            ? NivioTheme
+                                                            ? NamizoTheme
                                                                   .netflixRed
                                                             : Colors.white,
                                                       ),
@@ -1754,7 +1754,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
               );
             },
             loading: () => const Center(
-              child: CircularProgressIndicator(color: NivioTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
             ),
             error: (error, stack) => const Center(
               child: Text(
@@ -1778,12 +1778,12 @@ class _NextEpState {
 }
 
 // ── Netflix-style loading spinner ──
-class _NivioLoadingSpinner extends StatefulWidget {
+class _NamizoLoadingSpinner extends StatefulWidget {
   @override
-  State<_NivioLoadingSpinner> createState() => _NivioLoadingSpinnerState();
+  State<_NamizoLoadingSpinner> createState() => _NamizoLoadingSpinnerState();
 }
 
-class _NivioLoadingSpinnerState extends State<_NivioLoadingSpinner>
+class _NamizoLoadingSpinnerState extends State<_NamizoLoadingSpinner>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -1841,7 +1841,7 @@ class _SpinnerPainter extends CustomPainter {
       ..shader = SweepGradient(
         startAngle: 0,
         endAngle: math.pi * 2,
-        colors: [NivioTheme.netflixRed.withOpacity(0), NivioTheme.netflixRed],
+        colors: [NamizoTheme.netflixRed.withOpacity(0), NamizoTheme.netflixRed],
         transform: GradientRotation(progress * math.pi * 2),
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
@@ -1858,7 +1858,7 @@ class _SpinnerPainter extends CustomPainter {
     final dotX = center.dx + radius * math.cos(dotAngle);
     final dotY = center.dy + radius * math.sin(dotAngle);
     final dotPaint = Paint()
-      ..color = NivioTheme.netflixRed
+      ..color = NamizoTheme.netflixRed
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     canvas.drawCircle(Offset(dotX, dotY), 3, dotPaint);
     canvas.drawCircle(Offset(dotX, dotY), 2, Paint()..color = Colors.white);
@@ -2027,7 +2027,7 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                                 value: (state.countdown ?? 0) / 15,
                                 backgroundColor: Colors.white12,
                                 valueColor: const AlwaysStoppedAnimation<Color>(
-                                  NivioTheme.netflixRed,
+                                  NamizoTheme.netflixRed,
                                 ),
                                 minHeight: 3,
                                 borderRadius: BorderRadius.circular(2),

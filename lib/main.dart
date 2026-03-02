@@ -3,23 +3,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:nivio/core/theme.dart';
-import 'package:nivio/models/cache_entry.dart';
-import 'package:nivio/models/watchlist_item.dart';
-import 'package:nivio/models/new_episode.dart';
-import 'package:nivio/services/cache_service.dart';
-import 'package:nivio/services/watchlist_service.dart';
-import 'package:nivio/services/episode_check_service.dart';
-import 'package:nivio/providers/service_providers.dart';
-import 'package:nivio/screens/home_screen.dart';
-import 'package:nivio/screens/search_screen.dart';
-import 'package:nivio/screens/media_detail_screen.dart';
-import 'package:nivio/screens/main_shell_screen.dart';
-import 'package:nivio/screens/player_screen.dart';
-import 'package:nivio/screens/settings_screen.dart';
-import 'package:nivio/screens/anilist_login_screen.dart';
-import 'package:nivio/screens/profile_screen.dart';
-import 'package:nivio/screens/new_episodes_screen.dart';
+import 'package:namizo/core/theme.dart';
+import 'package:namizo/models/cache_entry.dart';
+import 'package:namizo/models/watchlist_item.dart';
+import 'package:namizo/models/new_episode.dart';
+import 'package:namizo/services/cache_service.dart';
+import 'package:namizo/services/watchlist_service.dart';
+import 'package:namizo/services/episode_check_service.dart';
+import 'package:namizo/providers/service_providers.dart';
+import 'package:namizo/screens/home_screen.dart';
+import 'package:namizo/screens/search_screen.dart';
+import 'package:namizo/screens/media_detail_screen.dart';
+import 'package:namizo/screens/main_shell_screen.dart';
+import 'package:namizo/screens/player_screen.dart';
+import 'package:namizo/screens/settings_screen.dart';
+import 'package:namizo/screens/anilist_login_screen.dart';
+import 'package:namizo/screens/profile_screen.dart';
+import 'package:namizo/screens/new_episodes_screen.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -35,7 +35,7 @@ void main() async {
   runApp(
     ProviderScope(
       overrides: [cacheServiceProvider.overrideWithValue(cacheService)],
-      child: const NivioApp(),
+      child: const NamizoApp(),
     ),
   );
 
@@ -128,14 +128,14 @@ final _router = GoRouter(
   ],
 );
 
-class NivioApp extends StatelessWidget {
-  const NivioApp({super.key});
+class NamizoApp extends StatelessWidget {
+  const NamizoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Nivio',
-      theme: NivioTheme.darkTheme,
+      title: 'Namizo',
+      theme: NamizoTheme.darkTheme,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );

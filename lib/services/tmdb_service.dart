@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
-import 'package:nivio/core/constants.dart';
-import 'package:nivio/models/search_result.dart';
-import 'package:nivio/models/season_info.dart';
-import 'package:nivio/services/cache_service.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/models/season_info.dart';
+import 'package:namizo/services/cache_service.dart';
 
 class TmdbService {
   final Dio _dio;
@@ -15,7 +15,7 @@ class TmdbService {
           connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 15),
           headers: {
-            'User-Agent': 'Nivio/1.0 (compatible; +https://example.com)',
+            'User-Agent': 'namizo/1.0 (compatible; +https://example.com)',
           },
           queryParameters: {'api_key': tmdbApiKey},
         ),
