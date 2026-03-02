@@ -14,9 +14,10 @@ import 'package:nivio/providers/service_providers.dart';
 import 'package:nivio/screens/home_screen.dart';
 import 'package:nivio/screens/search_screen.dart';
 import 'package:nivio/screens/media_detail_screen.dart';
+import 'package:nivio/screens/main_shell_screen.dart';
 import 'package:nivio/screens/player_screen.dart';
 import 'package:nivio/screens/settings_screen.dart';
-import 'package:nivio/screens/watchlist_screen.dart';
+import 'package:nivio/screens/anilist_login_screen.dart';
 import 'package:nivio/screens/profile_screen.dart';
 import 'package:nivio/screens/new_episodes_screen.dart';
 
@@ -50,26 +51,57 @@ Future<void> _initHive() async {
 }
 
 final _router = GoRouter(
-  initialLocation: '/',
+  initialLocation: '/home',
   routes: [
-    GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
-    GoRoute(path: '/search', builder: (context, state) => const SearchScreen()),
+    GoRoute(path: '/', redirect: (_, __) => '/home'),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          MainShellScreen(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/home',
+              builder: (context, state) => const HomeScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/search',
+              builder: (context, state) => const SearchScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/calendar',
+              builder: (context, state) => const NewEpisodesScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/profile',
+              builder: (context, state) => const ProfileScreen(),
+            ),
+          ],
+        ),
+      ],
+    ),
+    GoRoute(path: '/new-episodes', redirect: (_, __) => '/calendar'),
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
     ),
     GoRoute(
-      path: '/watchlist',
-      builder: (context, state) => const WatchlistScreen(),
+      path: '/anilist-login',
+      builder: (context, state) => const AniListLoginScreen(),
     ),
-    GoRoute(
-      path: '/profile',
-      builder: (context, state) => const ProfileScreen(),
-    ),
-    GoRoute(
-      path: '/new-episodes',
-      builder: (context, state) => const NewEpisodesScreen(),
-    ),
+    GoRoute(path: '/watchlist', redirect: (_, __) => '/profile'),
     GoRoute(
       path: '/media/:id',
       builder: (context, state) {

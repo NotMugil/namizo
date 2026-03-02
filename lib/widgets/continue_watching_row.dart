@@ -21,7 +21,7 @@ class ContinueWatchingRow extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.movie_outlined,
+                    Icons.ondemand_video_rounded,
                     size: 64,
                     color: NivioTheme.netflixGrey,
                   ),

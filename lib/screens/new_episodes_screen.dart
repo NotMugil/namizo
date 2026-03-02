@@ -50,6 +50,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: NivioTheme.netflixBlack,
+        automaticallyImplyLeading: false,
         title: const Text(
           'New Episodes',
           style: TextStyle(
@@ -57,10 +58,6 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(),
         ),
         actions: [
           if (episodes.isNotEmpty)
@@ -118,13 +115,13 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
           Icon(
             Icons.notifications_none_outlined,
             size: 80,
-            color: Colors.white.withOpacity(0.3),
+            color: Colors.white.withValues(alpha: 0.3),
           ),
           const SizedBox(height: 16),
           Text(
             'No new episodes',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 18,
               fontWeight: FontWeight.w500,
             ),
@@ -133,7 +130,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
           Text(
             'New episodes from your watchlist will appear here',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 14,
             ),
             textAlign: TextAlign.center,
@@ -203,11 +200,13 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: hasUnread
-            ? NivioTheme.netflixRed.withOpacity(0.1)
-            : Colors.white.withOpacity(0.05),
+            ? NivioTheme.netflixRed.withValues(alpha: 0.1)
+            : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: hasUnread
-            ? Border.all(color: NivioTheme.netflixRed.withOpacity(0.3))
+            ? Border.all(
+                color: NivioTheme.netflixRed.withValues(alpha: 0.3),
+              )
             : null,
       ),
       child: InkWell(
@@ -297,7 +296,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                           ? 'S${firstEpisode.seasonNumber}E${firstEpisode.episodeNumber}'
                           : '${episodes.length} new episodes',
                       style: TextStyle(
-                        color: NivioTheme.netflixRed.withOpacity(0.9),
+                        color: NivioTheme.netflixRed.withValues(alpha: 0.9),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),
@@ -307,7 +306,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                       Text(
                         firstEpisode.episodeName,
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 13,
                         ),
                         maxLines: 2,
@@ -321,7 +320,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                             .join(', ') +
                             (episodes.length > 3 ? '...' : ''),
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
+                          color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 13,
                         ),
                         maxLines: 1,
@@ -331,7 +330,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
                     Text(
                       'Aired ${DateFormat.yMMMd().format(firstEpisode.airDate)}',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         fontSize: 12,
                       ),
                     ),
@@ -341,7 +340,7 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
               // Arrow
               Icon(
                 Icons.chevron_right,
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
               ),
             ],
           ),

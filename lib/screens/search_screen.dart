@@ -301,7 +301,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.tune_rounded, color: Colors.white),
+                icon: const Icon(Icons.filter_list_rounded, color: Colors.white),
                 onPressed: _showFilterDialog,
               ),
               if (hasFilters)
@@ -375,7 +375,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             vertical: 10,
           ),
           prefixIcon: Icon(
-            Icons.search_rounded,
+            Icons.search,
             color: Colors.white.withValues(alpha: 0.7),
           ),
           suffixIcon: _controller.text.isNotEmpty

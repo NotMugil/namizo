@@ -18,16 +18,15 @@ class SearchResultCard extends ConsumerWidget {
     final title = media.title ?? media.name ?? 'Unknown';
     final year = _getYear();
     final rating = media.voteAverage;
-    final language = (media.originalLanguage ?? '').toUpperCase();
 
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       onTap: () {
         context.push('/media/${media.id}?type=tv');
       },
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           color: const Color(0xFF1A1A1A),
         ),
@@ -37,7 +36,7 @@ class SearchResultCard extends ConsumerWidget {
             Expanded(
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(10),
+                  top: Radius.circular(8),
                 ),
                 child: Stack(
                   fit: StackFit.expand,
@@ -90,66 +89,67 @@ class SearchResultCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: _TagPill(
-                        label: 'ANIME',
-                        background: NivioTheme.netflixRed.withValues(
-                          alpha: 0.92,
-                        ),
-                        foreground: Colors.white,
-                      ),
-                    ),
-                    if (year != 'N/A')
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: _TagPill(
-                          label: year,
-                          background: Colors.black.withValues(alpha: 0.65),
-                          foreground: Colors.white,
-                        ),
-                      ),
-                    Positioned(
-                      left: 10,
-                      right: 10,
-                      bottom: 10,
-                      child: Row(
-                        children: [
-                          if (rating != null && rating > 0)
-                            _TagPill(
-                              icon: Icons.star_rounded,
-                              label: rating.toStringAsFixed(1),
-                              background: Colors.amber.withValues(alpha: 0.92),
-                              foreground: Colors.black,
-                            ),
-                          if (language.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            _TagPill(
-                              label: language,
-                              background: Colors.white.withValues(alpha: 0.14),
-                              foreground: Colors.white,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-              child: Text(
-                title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  height: 1.22,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (year != 'N/A')
+                        Text(
+                          year,
+                          style: const TextStyle(
+                            color: NivioTheme.netflixGrey,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      if (year != 'N/A' && rating != null && rating > 0)
+                        const Text(
+                          '  •  ',
+                          style: TextStyle(
+                            color: NivioTheme.netflixGrey,
+                            fontSize: 11,
+                          ),
+                        ),
+                      if (rating != null && rating > 0)
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              size: 12,
+                              color: Color(0xFFE9C46A),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: NivioTheme.netflixGrey,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      height: 1.22,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -164,48 +164,5 @@ class SearchResultCard extends ConsumerWidget {
       return date.substring(0, 4);
     }
     return 'N/A';
-  }
-}
-
-class _TagPill extends StatelessWidget {
-  final IconData? icon;
-  final String label;
-  final Color background;
-  final Color foreground;
-
-  const _TagPill({
-    this.icon,
-    required this.label,
-    required this.background,
-    required this.foreground,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 11, color: foreground),
-            const SizedBox(width: 3),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

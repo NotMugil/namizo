@@ -1,12 +1,17 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:nivio/core/constants.dart';
+import 'package:nivio/core/theme.dart';
+import 'package:nivio/models/watchlist_item.dart';
 import 'package:nivio/providers/home_providers.dart';
 import 'package:nivio/services/episode_check_service.dart';
+import 'package:nivio/providers/watchlist_provider.dart';
 import 'package:nivio/widgets/content_row.dart';
 import 'package:nivio/widgets/continue_watching_row.dart';
 
@@ -18,6 +23,19 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const Map<int, String> _genreMap = {
+    16: 'Animation',
+    28: 'Action',
+    12: 'Adventure',
+    14: 'Fantasy',
+    35: 'Comedy',
+    18: 'Drama',
+    9648: 'Mystery',
+    878: 'Sci-Fi',
+    10759: 'Action & Adventure',
+    10765: 'Fantasy',
+  };
+
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
   bool _showAppBarBackground = false;
@@ -69,38 +87,50 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: AppBar(
           elevation: 0,
           backgroundColor: _showAppBarBackground
-              ? const Color(0xFF141414)
+              ? Colors.transparent
               : Colors.transparent,
-          flexibleSpace: Container(
-            decoration: BoxDecoration(
-              gradient: _showAppBarBackground
-                  ? null
-                  : LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withOpacity(0.7),
-                        Colors.transparent,
-                      ],
-                    ),
+          flexibleSpace: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: _showAppBarBackground ? 12 : 0,
+                sigmaY: _showAppBarBackground ? 12 : 0,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _showAppBarBackground
+                      ? const Color(0x6A0D0F14)
+                      : Colors.transparent,
+                  border: _showAppBarBackground
+                      ? const Border(
+                          bottom: BorderSide(color: Color(0x22FFFFFF)),
+                        )
+                      : null,
+                  gradient: _showAppBarBackground
+                      ? null
+                      : LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.7),
+                            Colors.transparent,
+                          ],
+                        ),
+                ),
+              ),
             ),
           ),
-          title: Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Image.asset(
-              'assets/images/nivio-dark.png',
-              height: 100,
-              fit: BoxFit.contain,
+          title: const Padding(
+            padding: EdgeInsets.only(top: 8.0, left: 4),
+            child: Text(
+              'namizo.',
+              style: TextStyle(
+                color: NivioTheme.netflixWhite,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           actions: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: IconButton(
-                icon: const Icon(Icons.search, color: Colors.white, size: 28),
-                onPressed: () => context.push('/search'),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: _buildNotificationBell(context),
@@ -108,25 +138,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
               child: IconButton(
-                icon: const Icon(
-                  Icons.bookmark_border,
-                  color: Colors.white,
-                  size: 28,
-                ),
-                tooltip: 'My List',
-                onPressed: () => context.push('/watchlist'),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8.0),
-              child: IconButton(
-                icon: const Icon(
-                  Icons.account_circle_outlined,
-                  color: Colors.white,
-                  size: 28,
-                ),
+                icon: const UserCircle(color: Colors.white, width: 24, height: 24),
                 tooltip: 'Profile',
-                onPressed: () => context.push('/profile'),
+                onPressed: () => context.go('/profile'),
               ),
             ),
             const SizedBox(width: 8),
@@ -143,6 +157,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 data: (content) => _buildHeroBannerCarousel(context, content),
                 loading: () => _buildHeroBannerShimmer(),
                 error: (_, __) => const SizedBox(height: 500),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Container(
+              height: 40,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF141414), Color(0xFF0D0F14)],
+                ),
               ),
             ),
           ),
@@ -235,7 +261,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           final content = items[index];
           final backdropPath = content['backdrop_path'] ?? content['poster_path'];
           final title = content['title'] ?? content['name'] ?? 'Featured';
-          final overview = content['overview'] ?? '';
+            final year = ((content['first_air_date'] ?? content['release_date'])
+                  ?.toString()
+                  .split('-')
+                  .first ??
+                '')
+              .trim();
+            final genreIds = (content['genre_ids'] as List<dynamic>? ?? [])
+              .whereType<num>()
+              .map((genreId) => _genreMap[genreId.toInt()])
+              .whereType<String>()
+              .take(3)
+              .toList();
+            final meta = [
+            if (genreIds.isNotEmpty) genreIds.join(' • '),
+            '24 min',
+            if (year.isNotEmpty) year,
+            ];
           final tmdbId = content['id'];
 
           return Stack(
@@ -264,7 +306,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.5),
+                      Colors.black.withValues(alpha: 0.5),
                       const Color(0xFF141414),
                     ],
                     stops: const [0.0, 0.7, 1.0],
@@ -272,114 +314,86 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               Positioned(
-                bottom: 80,
-                left: 30,
-                right: 30,
+                bottom: 76,
+                left: 24,
+                right: 24,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     AnimatedOpacity(
                       opacity: 1.0,
                       duration: const Duration(milliseconds: 500),
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 42,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(
-                              blurRadius: 10.0,
-                              color: Colors.black,
-                              offset: Offset(2, 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            title,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
                             ),
-                          ],
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (overview.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      AnimatedOpacity(
-                        opacity: 1.0,
-                        duration: const Duration(milliseconds: 500),
-                        child: Text(
-                          overview,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            height: 1.4,
-                            shadows: [
-                              Shadow(
-                                blurRadius: 8.0,
-                                color: Colors.black,
-                                offset: Offset(1, 1),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          if (meta.isNotEmpty)
+                            Wrap(
+                              alignment: WrapAlignment.center,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: _buildMetaChips(meta),
+                            ),
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _smallSquareButton(
+                                icon: const Plus(
+                                  color: Colors.white,
+                                  width: 18,
+                                  height: 18,
+                                ),
+                                onTap: () => _addFeaturedToWatchlist(content),
+                              ),
+                              const SizedBox(width: 10),
+                              ElevatedButton.icon(
+                                onPressed: () =>
+                                    context.push('/media/$tmdbId?type=tv'),
+                                icon: const Play(
+                                  color: Colors.black,
+                                  width: 16,
+                                  height: 16,
+                                ),
+                                label: const Text('Play'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 10,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              _smallSquareButton(
+                                icon: const InfoCircle(
+                                  color: Colors.white,
+                                  width: 18,
+                                  height: 18,
+                                ),
+                                onTap: () =>
+                                    context.push('/media/$tmdbId?type=tv'),
                               ),
                             ],
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        ],
                       ),
-                    ],
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () => context.push('/media/$tmdbId?type=tv'),
-                          icon: const Icon(
-                            Icons.play_arrow,
-                            size: 32,
-                            color: Colors.black,
-                          ),
-                          label: const Text(
-                            'Play',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton.icon(
-                          onPressed: () => context.push('/media/$tmdbId?type=tv'),
-                          icon: const Icon(
-                            Icons.info_outline,
-                            size: 28,
-                            color: Colors.white,
-                          ),
-                          label: const Text(
-                            'More Info',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            side: const BorderSide(color: Colors.white70, width: 2),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
                   ],
                 ),
@@ -394,14 +408,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     items.length,
                     (dotIndex) => AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      width: _currentBannerIndex == dotIndex ? 24 : 8,
-                      height: 3,
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: _currentBannerIndex == dotIndex ? 7 : 5,
+                      height: _currentBannerIndex == dotIndex ? 7 : 5,
                       decoration: BoxDecoration(
                         color: _currentBannerIndex == dotIndex
-                            ? const Color(0xFFE50914)
+                            ? const Color(0xFF9D96FF)
                             : Colors.white38,
-                        borderRadius: BorderRadius.circular(2),
+                        shape: BoxShape.circle,
                       ),
                     ),
                   ),
@@ -419,7 +433,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       height: 600,
       color: const Color(0xFF2F2F2F),
       child: const Center(
-        child: CircularProgressIndicator(color: Color(0xFFE50914)),
+        child: CircularProgressIndicator(color: Color(0xFF9D96FF)),
       ),
     );
   }
@@ -430,13 +444,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Stack(
       children: [
         IconButton(
-          icon: Icon(
-            unreadCount > 0 ? Icons.notifications : Icons.notifications_none,
-            color: Colors.white,
-            size: 28,
-          ),
+          icon: unreadCount > 0
+              ? const BellNotification(color: Colors.white, width: 22, height: 22)
+              : const Bell(color: Colors.white, width: 22, height: 22),
           tooltip: 'New Episodes',
-          onPressed: () => context.push('/new-episodes'),
+          onPressed: () => context.go('/calendar'),
         ),
         if (unreadCount > 0)
           Positioned(
@@ -464,6 +476,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  List<Widget> _buildMetaChips(List<String> meta) {
+    final widgets = <Widget>[];
+    for (var index = 0; index < meta.length; index++) {
+      widgets.add(
+        Text(
+          meta[index],
+          style: const TextStyle(
+            color: Color(0xFFD4D8E3),
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      );
+      if (index != meta.length - 1) {
+        widgets.add(
+          Container(
+            width: 4,
+            height: 4,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: const BoxDecoration(
+              color: Color(0xFFD4D8E3),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      }
+    }
+    return widgets;
+  }
+
+  Widget _smallSquareButton({
+    required Widget icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: const Color(0x30FFFFFF),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Center(child: icon),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addFeaturedToWatchlist(Map<String, dynamic> content) async {
+    final watchlistService = ref.read(watchlistServiceProvider);
+    final mediaId = content['id'] as int?;
+    if (mediaId == null) return;
+
+    final item = WatchlistItem(
+      id: mediaId,
+      title: (content['title'] ?? content['name'] ?? 'Unknown').toString(),
+      posterPath: content['poster_path']?.toString(),
+      mediaType: 'tv',
+      addedAt: DateTime.now(),
+      voteAverage: (content['vote_average'] as num?)?.toDouble(),
+      releaseDate: (content['first_air_date'] ?? content['release_date'])
+          ?.toString(),
+      overview: content['overview']?.toString(),
+    );
+
+    await watchlistService.addToWatchlist(item);
+    ref.read(watchlistRefreshProvider.notifier).refresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Added to watchlist')),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:nivio/core/theme.dart';
 import 'package:nivio/models/season_info.dart';
 import 'package:nivio/providers/media_provider.dart';
@@ -885,7 +886,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     backgroundColor: Colors.black.withOpacity(0.7),
                     elevation: 0,
                     leading: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      icon: const NavArrowLeft(color: Colors.white, width: 20, height: 20),
                       onPressed: () => Navigator.pop(context),
                     ),
                     title: Column(
@@ -949,13 +950,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     actions: [
                       if (media?.mediaType == 'tv')
                         IconButton(
-                          icon: const Icon(Icons.list, color: Colors.white),
+                          icon: const Menu(color: Colors.white, width: 21, height: 21),
                           tooltip: 'Episodes',
                           onPressed: _showEpisodesBottomSheet,
                         ),
                       // Switch Server
                       PopupMenuButton<int>(
-                        icon: const Icon(Icons.swap_horiz, color: Colors.white),
+                        icon: const RefreshDouble(color: Colors.white, width: 21, height: 21),
                         tooltip: 'Switch Server',
                         color: const Color(0xFF1F1F1F),
                         onSelected: (providerIndex) async {
