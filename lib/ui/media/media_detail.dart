@@ -37,11 +37,18 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
   bool _isLoading = true;
   String? _error;
   String? _trailerUrl;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _fetchMediaDetails();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   String? _extractTrailerKey(dynamic videosData) {
@@ -192,6 +199,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     return Scaffold(
       backgroundColor: NamizoTheme.netflixBlack,
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           SliverToBoxAdapter(
             child: Stack(
@@ -686,6 +694,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
               media: media,
               season: selectedSeason,
               colors: colors,
+              scrollController: _scrollController,
             ),
           ],
         );

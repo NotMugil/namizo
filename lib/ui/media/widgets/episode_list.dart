@@ -14,12 +14,14 @@ class EpisodeList extends ConsumerStatefulWidget {
   final SearchResult media;
   final int season;
   final DynamicColors colors;
+  final ScrollController? scrollController;
 
   const EpisodeList({
     super.key,
     required this.media,
     required this.season,
     required this.colors,
+    this.scrollController,
   });
 
   @override
@@ -27,22 +29,55 @@ class EpisodeList extends ConsumerStatefulWidget {
 }
 
 class _EpisodeListState extends ConsumerState<EpisodeList> {
+  static const int _pageSize = 50;
+  static const double _scrollThreshold = 400;
+
   String _searchQuery = '';
+  int _displayedCount = _pageSize;
+  bool _hasMore = false;
+  bool _nearBottom = false;
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scrollController?.addListener(_onScroll);
+  }
 
   @override
   void didUpdateWidget(EpisodeList oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.scrollController != widget.scrollController) {
+      oldWidget.scrollController?.removeListener(_onScroll);
+      widget.scrollController?.addListener(_onScroll);
+    }
     if (oldWidget.season != widget.season) {
       _searchController.clear();
-      setState(() => _searchQuery = '');
+      setState(() {
+        _searchQuery = '';
+        _displayedCount = _pageSize;
+        _nearBottom = false;
+      });
     }
   }
 
   @override
   void dispose() {
+    widget.scrollController?.removeListener(_onScroll);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    final sc = widget.scrollController;
+    if (sc == null || !sc.hasClients) return;
+    final isNear = sc.position.extentAfter < _scrollThreshold;
+    if (isNear && !_nearBottom && _hasMore) {
+      _nearBottom = true;
+      setState(() => _displayedCount += _pageSize);
+    } else if (!isNear && _nearBottom) {
+      _nearBottom = false;
+    }
   }
 
   @override
@@ -62,12 +97,19 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                 return name.contains(query) || number.contains(query);
               }).toList();
 
+        _hasMore = filteredEpisodes.length > _displayedCount;
+        final visibleEpisodes =
+            filteredEpisodes.take(_displayedCount).toList();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             TextField(
               controller: _searchController,
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (value) => setState(() {
+                _searchQuery = value;
+                _displayedCount = _pageSize;
+              }),
               style: const TextStyle(
                 color: NamizoTheme.netflixWhite,
                 fontSize: 14,
@@ -84,7 +126,10 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                     ? IconButton(
                         onPressed: () {
                           _searchController.clear();
-                          setState(() => _searchQuery = '');
+                          setState(() {
+                            _searchQuery = '';
+                            _displayedCount = _pageSize;
+                          });
                         },
                         icon: Icon(
                           Icons.close,
@@ -138,10 +183,25 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                   ),
                 ),
               )
-            else
-              ...filteredEpisodes.asMap().entries.map(
+            else ...[
+              ...visibleEpisodes.asMap().entries.map(
                 (entry) => _buildEpisodeCard(entry.key, entry.value),
               ),
+              if (_hasMore)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF7C73FF),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ],
         );
       },
