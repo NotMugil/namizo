@@ -56,6 +56,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _postSeekNudgeTimer;
   int _postSeekNudgeAttempt = 0;
   Duration? _lastSeekTarget;
+  Duration? _postSeekBaselinePosition;
+  bool _awaitingPostSeekRecovery = false;
+  bool _isRecoveringPostSeek = false;
+  static const int _maxPostSeekRecoveryAttempts = 2;
   bool _isInFullscreen = false;
   bool _arePlayerControlsVisible = true;
   final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier =
@@ -213,8 +217,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           history.currentSeason == widget.season &&
           history.currentEpisode == _currentEpisode &&
           history.lastPositionSeconds > 0 &&
+          history.totalDurationSeconds > 0 &&
           history.lastPositionSeconds < history.totalDurationSeconds - 30) {
-        startAt = Duration(seconds: history.lastPositionSeconds);
+        final cappedResumeUpperBound = math.max(
+          0,
+          history.totalDurationSeconds - 45,
+        );
+        final safeResumeSeconds = math.min(
+          math.max(0, history.lastPositionSeconds - 3),
+          cappedResumeUpperBound,
+        );
+        if (safeResumeSeconds > 0) {
+          startAt = Duration(seconds: safeResumeSeconds);
+        }
         _resumePosition = startAt;
       }
 
@@ -463,8 +478,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       case BetterPlayerEventType.bufferingStart:
         break;
       case BetterPlayerEventType.bufferingEnd:
-        // Buffering started → ExoPlayer is alive, cancel nudge.
-        _cancelPostSeekNudge();
         break;
       case BetterPlayerEventType.openFullscreen:
         setState(() {
@@ -488,11 +501,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _syncFullscreenTopBarVisibility();
         break;
       case BetterPlayerEventType.progress:
-        // Progress ticking → playback healthy, cancel any pending nudge.
-        _cancelPostSeekNudge();
+        _onProgressEvent();
         _checkNextEpisode();
         break;
       case BetterPlayerEventType.exception:
+        _onPlaybackExceptionEvent();
         break;
       case BetterPlayerEventType.finished:
         _markAsCompleted();
@@ -532,13 +545,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // media source to silently die after a seek – the AudioTrack is destroyed
   // but no new HLS segments are fetched, so inputFps/renderFps drop to 0.
   //
-  // Recovery strategy (3 phases):
-  //   Phase 1 (1.5 s): just call play() – works for most streams.
-  //   Phase 2 (3.5 s): call play() again – covers slow segment loads.
-  //   Phase 3 (6.0 s): retryDataSource + seekTo saved target – nuclear
-  //                     option for streams where the media source is dead.
+  // Recovery strategy (bounded to 2 attempts):
+  //   Attempt 1 (~1.8 s): re-seek target + play.
+  //   Attempt 2 (~3.6 s): retryDataSource + re-seek + play.
   //
-  // Any bufferingEnd or progress event cancels the chain immediately.
+  // Recovery is cancelled only when playback position advances.
 
   void _onSeekEvent(BetterPlayerEvent event) {
     // Resolve & remember the target so we can re-seek after a data-source
@@ -558,18 +569,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (target != null && target > Duration.zero) {
       _lastSeekTarget = target;
     }
+    _postSeekBaselinePosition =
+        _betterPlayerController?.videoPlayerController?.value.position;
+    _awaitingPostSeekRecovery = true;
     _postSeekNudgeAttempt = 0;
-    _postSeekNudgeTimer?.cancel();
-    _postSeekNudgeTimer = Timer(
-      const Duration(milliseconds: 1500),
-      _runPostSeekNudge,
-    );
+    _schedulePostSeekRecovery();
+  }
+
+  void _onPlaybackExceptionEvent() {
+    final vpc = _betterPlayerController?.videoPlayerController;
+    if (vpc == null) return;
+    _awaitingPostSeekRecovery = true;
+    _postSeekBaselinePosition = vpc.value.position;
+    _lastSeekTarget ??= vpc.value.position;
+    _postSeekNudgeAttempt = 0;
+    _schedulePostSeekRecovery(force: true);
   }
 
   void _cancelPostSeekNudge() {
     _postSeekNudgeTimer?.cancel();
     _postSeekNudgeTimer = null;
     _postSeekNudgeAttempt = 0;
+    _awaitingPostSeekRecovery = false;
+    _isRecoveringPostSeek = false;
+    _postSeekBaselinePosition = null;
+  }
+
+  void _onProgressEvent() {
+    if (_awaitingPostSeekRecovery && _hasRecoveredAfterSeek()) {
+      _cancelPostSeekNudge();
+    }
+  }
+
+  bool _hasRecoveredAfterSeek() {
+    final vpc = _betterPlayerController?.videoPlayerController;
+    final baseline = _postSeekBaselinePosition;
+    if (vpc == null || baseline == null) return false;
+    final current = vpc.value.position;
+    return current >= baseline + const Duration(milliseconds: 700);
+  }
+
+  void _schedulePostSeekRecovery({bool force = false}) {
+    if (!mounted || _betterPlayerController == null) return;
+    if (!_awaitingPostSeekRecovery && !force) return;
+    _postSeekNudgeTimer?.cancel();
+    _postSeekNudgeTimer = Timer(
+      const Duration(milliseconds: 1800),
+      _runPostSeekNudge,
+    );
   }
 
   Future<void> _runPostSeekNudge() async {
@@ -584,45 +631,81 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       return;
     }
 
-    final isPlaying = c.isPlaying() == true;
-    final isBuffering = vpc.value.isBuffering;
-
-    // Already recovered — nothing to do.
-    if (isPlaying || isBuffering) {
+    if (!_awaitingPostSeekRecovery) {
       _cancelPostSeekNudge();
       return;
     }
 
-    _postSeekNudgeAttempt++;
-
-    // Phase 1 & 2: just call play().
-    if (_postSeekNudgeAttempt <= 2) {
-      debugPrint(
-        '[PostSeekNudge] phase $_postSeekNudgeAttempt – calling play()',
-      );
-      c.play();
-      final delay = Duration(
-        milliseconds: 1500 + (_postSeekNudgeAttempt * 1000),
-      );
-      _postSeekNudgeTimer = Timer(delay, _runPostSeekNudge);
+    if (_hasRecoveredAfterSeek()) {
+      _cancelPostSeekNudge();
       return;
     }
 
-    // Phase 3: media source is dead → reload + re-seek.
-    debugPrint(
-      '[PostSeekNudge] phase 3 – retryDataSource + seekTo $_lastSeekTarget',
-    );
-    try {
-      await c.retryDataSource();
-      await Future.delayed(const Duration(milliseconds: 600));
-      if (!mounted || _betterPlayerController != c) return;
-      final target = _lastSeekTarget;
-      if (target != null && target > Duration.zero) {
-        await c.seekTo(target);
+    if (_isRecoveringPostSeek) {
+      _schedulePostSeekRecovery();
+      return;
+    }
+
+    _postSeekNudgeAttempt++;
+    _isRecoveringPostSeek = true;
+
+    // Attempt 1: re-seek target + play.
+    if (_postSeekNudgeAttempt == 1) {
+      debugPrint(
+        '[PostSeekNudge] attempt 1 – re-seek + play',
+      );
+      try {
+        final target = _lastSeekTarget;
+        if (target != null && target > Duration.zero) {
+          await c.seekTo(target);
+        }
+        await c.play();
+      } catch (e) {
+        debugPrint('[PostSeekNudge] attempt 1 failed: $e');
+      } finally {
+        _isRecoveringPostSeek = false;
       }
-      await c.play();
-    } catch (e) {
-      debugPrint('[PostSeekNudge] phase 3 failed: $e');
+      _schedulePostSeekRecovery();
+      return;
+    }
+
+    // Attempt 2: media source likely dead → reload + re-seek + play.
+    if (_postSeekNudgeAttempt == 2) {
+      debugPrint(
+        '[PostSeekNudge] attempt 2 – retryDataSource + seekTo $_lastSeekTarget',
+      );
+      try {
+        await c.retryDataSource();
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (!mounted || _betterPlayerController != c) return;
+        final target = _lastSeekTarget;
+        if (target != null && target > Duration.zero) {
+          await c.seekTo(target);
+        }
+        await c.play();
+      } catch (e) {
+        debugPrint('[PostSeekNudge] attempt 2 failed: $e');
+      } finally {
+        _isRecoveringPostSeek = false;
+      }
+
+      _schedulePostSeekRecovery();
+      return;
+    }
+
+    // Exhausted recovery attempts.
+    _isRecoveringPostSeek = false;
+    if (_postSeekNudgeAttempt >= _maxPostSeekRecoveryAttempts) {
+      debugPrint('[PostSeekNudge] exhausted automatic recovery attempts');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Playback stalled after seek. Try seeking again.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: NamizoTheme.netflixRed,
+          ),
+        );
+      }
     }
     _cancelPostSeekNudge();
   }
@@ -930,6 +1013,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _progressTimer?.cancel();
     _postSeekNudgeTimer?.cancel();
     _postSeekNudgeTimer = null;
+    _awaitingPostSeekRecovery = false;
+    _isRecoveringPostSeek = false;
+    _postSeekBaselinePosition = null;
     _removeFullscreenTopBarOverlayEntry();
     if (_betterPlayerController != null) {
       _betterPlayerController!.removeEventsListener(_onBetterPlayerEvent);
@@ -943,6 +1029,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _progressTimer?.cancel();
     _postSeekNudgeTimer?.cancel();
     _postSeekNudgeTimer = null;
+    _awaitingPostSeekRecovery = false;
+    _isRecoveringPostSeek = false;
+    _postSeekBaselinePosition = null;
     _nextEpisodeTimer?.cancel();
     _removeOverlayEntry();
     _removeFullscreenTopBarOverlayEntry();
