@@ -308,7 +308,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             overflowMenuIconsColor: Colors.white70,
             enableControlsBackdrop: true,
             controlsBackdropColor: const Color(0xE6000000),
-            controlsBackdropTopHeight: 0,
+            controlsBackdropTopHeight: 120,
             controlsBackdropBottomHeight: 260,
             playerTheme: BetterPlayerTheme.material,
             overflowMenuCustomItems: [

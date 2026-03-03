@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
+import 'package:namizo/store/home_providers.dart';
 import 'package:namizo/store/search_provider.dart';
 import 'package:namizo/store/service_providers.dart';
 import 'package:namizo/ui/search/widgets/search_result_card.dart';
@@ -338,7 +339,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
           child: query.isEmpty
-              ? _buildStartState()
+              ? _buildDefaultResultsState()
               : _isInitialLoading
               ? const Center(
                   child: CircularProgressIndicator(
@@ -365,6 +366,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         controller: _controller,
         autofocus: true,
         textInputAction: TextInputAction.search,
+        textAlignVertical: TextAlignVertical.center,
         style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           hintText: 'Search anime...',
@@ -372,11 +374,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
-            vertical: 10,
+            vertical: 11,
           ),
           prefixIcon: Icon(
             Icons.search,
             color: Colors.white.withValues(alpha: 0.7),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minHeight: 44,
+            minWidth: 40,
           ),
           suffixIcon: _controller.text.isNotEmpty
               ? IconButton(
@@ -485,6 +491,105 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDefaultResultsState() {
+    final trendingAsync = ref.watch(trendingAnimeProvider);
+
+    return trendingAsync.when(
+      data: (items) {
+        final defaultResults = items
+            .whereType<Map>()
+            .map((item) {
+              final map = Map<String, dynamic>.from(item.cast<String, dynamic>());
+              map['media_type'] = map['media_type'] ?? 'tv';
+              return SearchResult.fromJson(map);
+            })
+            .toList();
+
+        if (defaultResults.isEmpty) {
+          return const Center(
+            child: Text(
+              'No default results available',
+              style: TextStyle(color: Colors.white70),
+            ),
+          );
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = _getGridColumns(constraints.maxWidth);
+            return Column(
+              children: [
+                Container(
+                  margin: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'Trending Anime',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${defaultResults.length} results',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.72),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    key: const PageStorageKey<String>('default_search_grid'),
+                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 20),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      childAspectRatio: _getGridAspectRatio(columns),
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 14,
+                    ),
+                    itemCount: defaultResults.length,
+                    itemBuilder: (context, index) {
+                      final item = defaultResults[index];
+                      return SearchResultCard(
+                        key: ValueKey('default_${item.mediaType}_${item.id}'),
+                        media: item,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+      ),
+      error: (_, __) => const Center(
+        child: Text(
+          'Failed to load default results',
+          style: TextStyle(color: Colors.white70),
         ),
       ),
     );

@@ -21,6 +21,57 @@ final topRatedAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   return await tmdbService.getTopRatedAnime();
 });
 
+final romanceAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
+  final tmdbService = ref.watch(tmdbServiceProvider);
+  final results = await tmdbService.getAnimeByGenre(
+    18,
+    sortBy: 'vote_average.desc',
+    voteCountGte: 40,
+  );
+
+  return results.where((item) {
+    if (item is! Map) return false;
+    final title =
+        '${item['name'] ?? item['title'] ?? ''}'.toLowerCase();
+    final overview = '${item['overview'] ?? ''}'.toLowerCase();
+    return title.contains('love') ||
+        title.contains('romance') ||
+        overview.contains('love') ||
+        overview.contains('romance') ||
+        overview.contains('relationship');
+  }).toList();
+});
+
+final actionAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
+  final tmdbService = ref.watch(tmdbServiceProvider);
+  return await tmdbService.getAnimeByGenre(10759, sortBy: 'popularity.desc');
+});
+
+final adventureAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
+  final tmdbService = ref.watch(tmdbServiceProvider);
+  final results = await tmdbService.getAnimeByGenre(
+    10759,
+    sortBy: 'first_air_date.desc',
+  );
+
+  return results.where((item) {
+    if (item is! Map) return false;
+    final title =
+        '${item['name'] ?? item['title'] ?? ''}'.toLowerCase();
+    final overview = '${item['overview'] ?? ''}'.toLowerCase();
+    return title.contains('adventure') || overview.contains('adventure');
+  }).toList();
+});
+
+final fantasyAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
+  final tmdbService = ref.watch(tmdbServiceProvider);
+  return await tmdbService.getAnimeByGenre(
+    10765,
+    sortBy: 'vote_average.desc',
+    voteCountGte: 40,
+  );
+});
+
 final tvLogoProvider = FutureProvider.family<String?, int>((ref, id) async {
   final tmdbService = ref.watch(tmdbServiceProvider);
   return tmdbService.getTVShowLogoUrl(id);

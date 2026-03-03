@@ -296,10 +296,10 @@ class TmdbService {
             'with_genres': '16',
             'with_original_language': 'ja',
             'sort_by': 'popularity.desc',
-            'vote_average.gte': 6.0,
-            'vote_count.gte': 50,
+            'vote_average.gte': 5.0,
+            'vote_count.gte': 0,
             'first_air_date.gte': DateTime.now()
-                .subtract(const Duration(days: 1825))
+                .subtract(const Duration(days: 120))
                 .toIso8601String()
                 .split('T')[0],
             'page': 1,
@@ -323,7 +323,7 @@ class TmdbService {
           'vote_average.gte': 6.0,
           'vote_count.gte': 50,
           'first_air_date.gte': DateTime.now()
-              .subtract(const Duration(days: 1825))
+              .subtract(const Duration(days: 365))
               .toIso8601String()
               .split('T')[0],
           'page': 1,
@@ -375,6 +375,53 @@ class TmdbService {
       return (response.data['results'] as List<dynamic>?) ?? [];
     } catch (e) {
       throw Exception('Failed to get top rated anime: $e');
+    }
+  }
+
+  Future<List<dynamic>> getAnimeByGenre(
+    int genreId, {
+    String sortBy = 'popularity.desc',
+    int voteCountGte = 20,
+  }) async {
+    final cacheKey =
+        'anime_genre_${genreId}_${sortBy.replaceAll('.', '_')}_$voteCountGte';
+
+    final staleCache = await _cache.getStaleRaw(cacheKey);
+    if (_cache.isExpired(cacheKey)) {
+      _cache.updateInBackground(cacheKey, () async {
+        final response = await _dio.get(
+          '/3/discover/tv',
+          queryParameters: {
+            'with_genres': '16,$genreId',
+            'with_original_language': 'ja',
+            'sort_by': sortBy,
+            'vote_count.gte': voteCountGte,
+            'page': 1,
+          },
+        );
+        return response.data;
+      }, CacheService.mediumCache);
+    }
+
+    if (staleCache != null) {
+      return (staleCache['results'] as List<dynamic>?) ?? [];
+    }
+
+    try {
+      final response = await _dio.get(
+        '/3/discover/tv',
+        queryParameters: {
+          'with_genres': '16,$genreId',
+          'with_original_language': 'ja',
+          'sort_by': sortBy,
+          'vote_count.gte': voteCountGte,
+          'page': 1,
+        },
+      );
+      await _cache.set(cacheKey, response.data, ttl: CacheService.mediumCache);
+      return (response.data['results'] as List<dynamic>?) ?? [];
+    } catch (e) {
+      throw Exception('Failed to get genre anime: $e');
     }
   }
 

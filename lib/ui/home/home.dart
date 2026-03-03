@@ -11,6 +11,7 @@ import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/store/home_providers.dart';
 import 'package:namizo/services/episode_check_service.dart';
+import 'package:namizo/store/watch_history_provider.dart';
 import 'package:namizo/store/watchlist_provider.dart';
 import 'package:namizo/ui/home/widgets/content_row.dart';
 import 'package:namizo/ui/home/widgets/continue_watching_row.dart';
@@ -189,24 +190,65 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 0, left: 16, right: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Continue Watching',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const ContinueWatchingRow(),
-                  const SizedBox(height: 30),
-                ],
-              ),
+            child: Consumer(
+              builder: (context, ref, child) {
+                final watchlist = ref
+                    .watch(watchlistProvider)
+                    .where((item) => item.mediaType == 'tv')
+                    .toList();
+                if (watchlist.length <= 1) {
+                  return const SizedBox.shrink();
+                }
+
+                final watchlistItems = watchlist
+                    .map(
+                      (WatchlistItem item) => {
+                        'id': item.id,
+                        'poster_path': item.posterPath,
+                      },
+                    )
+                    .toList();
+
+                return ContentRow(
+                  title: 'Your List',
+                  items: watchlistItems,
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final continueWatching = ref.watch(continueWatchingProvider);
+                return continueWatching.when(
+                  data: (items) {
+                    if (items.length <= 1) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 0, left: 16, right: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Continue Watching',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const ContinueWatchingRow(),
+                          const SizedBox(height: 30),
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
             ),
           ),
           SliverToBoxAdapter(
@@ -215,7 +257,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 final anime = ref.watch(popularAnimeProvider);
                 return anime.when(
                   data: (shows) => ContentRow(
-                    title: 'Popular Anime',
+                    title: 'All Time Popular',
                     items: shows,
                   ),
                   loading: () => const SizedBox(height: 220),
@@ -230,7 +272,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 final trendingAnime = ref.watch(trendingAnimeProvider);
                 return trendingAnime.when(
                   data: (shows) => ContentRow(
-                    title: 'Trending Anime',
+                    title: 'Trending Now',
                     items: shows,
                   ),
                   loading: () => const SizedBox(height: 220),
@@ -246,6 +288,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 return topRatedAnime.when(
                   data: (shows) => ContentRow(
                     title: 'Top Rated Anime',
+                    items: shows,
+                  ),
+                  loading: () => const SizedBox(height: 220),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final romanceAnime = ref.watch(romanceAnimeProvider);
+                return romanceAnime.when(
+                  data: (shows) => ContentRow(
+                    title: 'Romance',
+                    items: shows,
+                  ),
+                  loading: () => const SizedBox(height: 220),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final actionAnime = ref.watch(actionAnimeProvider);
+                return actionAnime.when(
+                  data: (shows) => ContentRow(
+                    title: 'Action',
+                    items: shows,
+                  ),
+                  loading: () => const SizedBox(height: 220),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final adventureAnime = ref.watch(adventureAnimeProvider);
+                return adventureAnime.when(
+                  data: (shows) => ContentRow(
+                    title: 'Adventure',
+                    items: shows,
+                  ),
+                  loading: () => const SizedBox(height: 220),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final fantasyAnime = ref.watch(fantasyAnimeProvider);
+                return fantasyAnime.when(
+                  data: (shows) => ContentRow(
+                    title: 'Fantasy',
                     items: shows,
                   ),
                   loading: () => const SizedBox(height: 220),
