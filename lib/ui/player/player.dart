@@ -56,6 +56,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Timer? _postSeekNudgeTimer;
   int _postSeekNudgeAttempt = 0;
   Duration? _lastSeekTarget;
+  bool _isInFullscreen = false;
+  bool _arePlayerControlsVisible = true;
+  final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier =
+      ValueNotifier(false);
 
   // Notifier so overlay updates inside BetterPlayer fullscreen
   final ValueNotifier<_NextEpState> _nextEpNotifier = ValueNotifier(
@@ -296,6 +300,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
             ],
           ),
+          overlay: _buildFullscreenFloatingTopBar(),
           placeholder: Container(
             color: Colors.black,
             child: const Center(
@@ -434,12 +439,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Set playback speed after initialization
         final speed = ref.read(playbackSpeedProvider);
         _betterPlayerController?.setSpeed(speed);
-        // Enter fullscreen with a delay so BetterPlayer is fully ready
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted && _betterPlayerController?.isFullScreen == false) {
-            _betterPlayerController?.enterFullScreen();
-          }
-        });
         // Show resume snackbar
         if (_resumePosition != null && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -462,6 +461,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       case BetterPlayerEventType.bufferingEnd:
         // Buffering started → ExoPlayer is alive, cancel nudge.
         _cancelPostSeekNudge();
+        break;
+      case BetterPlayerEventType.openFullscreen:
+        setState(() {
+          _isInFullscreen = true;
+          _arePlayerControlsVisible = true;
+        });
+        _syncFullscreenTopBarVisibility();
+        break;
+      case BetterPlayerEventType.hideFullscreen:
+        setState(() {
+          _isInFullscreen = false;
+        });
+        _syncFullscreenTopBarVisibility();
+        break;
+      case BetterPlayerEventType.controlsVisible:
+        setState(() => _arePlayerControlsVisible = true);
+        _syncFullscreenTopBarVisibility();
+        break;
+      case BetterPlayerEventType.controlsHiddenEnd:
+        setState(() => _arePlayerControlsVisible = false);
+        _syncFullscreenTopBarVisibility();
         break;
       case BetterPlayerEventType.progress:
         // Progress ticking → playback healthy, cancel any pending nudge.
@@ -848,6 +868,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _nextEpisodeTimer?.cancel();
     _removeOverlayEntry();
     _nextEpNotifier.dispose();
+    _fullscreenTopBarVisibleNotifier.dispose();
     // Save progress before disposing
     if (_betterPlayerController?.isVideoInitialized() == true) {
       _saveProgress();
@@ -871,6 +892,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     final media = ref.watch(selectedMediaProvider);
     final shouldShowAppBar = _streamResult != null;
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
     return GestureDetector(
       child: Focus(
@@ -878,7 +900,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         onKeyEvent: _handleKeyEvent,
         child: Scaffold(
           backgroundColor: Colors.black,
-          extendBodyBehindAppBar: true,
+          extendBodyBehindAppBar: false,
           appBar: shouldShowAppBar
               ? PreferredSize(
                   preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -948,12 +970,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ],
                     ),
                     actions: [
-                      if (media?.mediaType == 'tv')
-                        IconButton(
-                          icon: const Menu(color: Colors.white, width: 21, height: 21),
-                          tooltip: 'Episodes',
-                          onPressed: _showEpisodesBottomSheet,
-                        ),
                       // Switch Server
                       PopupMenuButton<int>(
                         icon: const RefreshDouble(color: Colors.white, width: 21, height: 21),
@@ -1047,24 +1063,269 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   ),
                 )
               : null,
-          body: Stack(
-            children: [
-              Center(
-                child: _isLoading
-                    ? _buildLoadingState()
-                    : _error != null
-                    ? _buildErrorState()
-                    : _streamResult != null && !_isDirectStream
-                    ? _buildWebViewPlayer()
-                    : _betterPlayerController != null
-                    ? _buildVideoPlayer()
-                    : _buildLoadingState(),
-              ),
-            ],
-          ),
+          body: _buildPlayerBody(isPortrait),
         ),
       ),
     );
+  }
+
+  Widget _buildPlayerBody(bool isPortrait) {
+    if (_isLoading) return _buildLoadingState();
+    if (_error != null) return _buildErrorState();
+    if (_streamResult != null && !_isDirectStream) return _buildWebViewPlayer();
+    if (_betterPlayerController == null) return _buildLoadingState();
+
+    return _buildDirectStreamLayout(isPortrait);
+  }
+
+  Widget _buildDirectStreamLayout(bool isPortrait) {
+    final controller = _betterPlayerController;
+    final aspectRatio =
+        controller?.videoPlayerController?.value.aspectRatio;
+    final safeAspectRatio =
+        (aspectRatio != null && aspectRatio > 0 && !aspectRatio.isNaN)
+        ? aspectRatio
+        : 16 / 9;
+
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final maxWidth = constraints.maxWidth;
+              final maxHeight = constraints.maxHeight;
+              final fittedWidth = math.min(maxWidth, maxHeight * safeAspectRatio);
+              final fittedHeight = fittedWidth / safeAspectRatio;
+
+              return Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  width: fittedWidth,
+                  height: fittedHeight,
+                  child: _buildVideoPlayer(),
+                ),
+              );
+            },
+          ),
+        ),
+        if (isPortrait) _buildPortraitBottomControls(),
+      ],
+    );
+  }
+
+  Widget _buildFullscreenFloatingTopBar() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: _fullscreenTopBarVisibleNotifier,
+      builder: (context, showInPlayer, _) {
+        return IgnorePointer(
+          ignoring: !showInPlayer,
+          child: AnimatedOpacity(
+            opacity: showInPlayer ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4, top: 6, right: 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        if (_betterPlayerController?.isFullScreen == true) {
+                          _betterPlayerController?.exitFullScreen();
+                        } else {
+                          Navigator.pop(context);
+                        }
+                      },
+                      icon: const NavArrowLeft(color: Colors.white, width: 20, height: 20),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            ref.read(selectedMediaProvider)?.title ??
+                                ref.read(selectedMediaProvider)?.name ??
+                                'Playing',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            _buildFullscreenSubtitle(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _syncFullscreenTopBarVisibility() {
+    final shouldShow = _isInFullscreen && _arePlayerControlsVisible;
+    if (_fullscreenTopBarVisibleNotifier.value != shouldShow) {
+      _fullscreenTopBarVisibleNotifier.value = shouldShow;
+    }
+  }
+
+  String _buildFullscreenSubtitle() {
+    final media = ref.read(selectedMediaProvider);
+    if (media?.mediaType != 'tv') {
+      return _streamResult?.provider.toUpperCase() ?? '';
+    }
+
+    String? episodeName;
+    final seasonData = _currentSeasonData;
+    if (seasonData != null) {
+      for (final episode in seasonData.episodes) {
+        if (episode.episodeNumber == _currentEpisode) {
+          episodeName = episode.episodeName;
+          break;
+        }
+      }
+    }
+
+    final fallback = 'S${widget.season} E$_currentEpisode';
+    if (episodeName == null || episodeName.trim().isEmpty) {
+      return fallback;
+    }
+    return episodeName;
+  }
+
+  Widget _buildPortraitBottomControls() {
+    final controller = _betterPlayerController;
+    final videoController = controller?.videoPlayerController;
+    if (controller == null || videoController == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      color: const Color(0xCC000000),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: SafeArea(
+        top: false,
+        child: ValueListenableBuilder(
+          valueListenable: videoController,
+          builder: (context, value, _) {
+            final position = value.position;
+            final duration = value.duration ?? Duration.zero;
+            final durationMs = duration.inMilliseconds;
+            final maxMs = durationMs > 0 ? durationMs.toDouble() : 1.0;
+            final sliderValue = durationMs > 0
+                ? position.inMilliseconds.clamp(0, durationMs).toDouble()
+                : 0.0;
+            final isMuted = value.volume <= 0.01;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      _formatDuration(position),
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _formatDuration(duration),
+                      style: const TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ],
+                ),
+                Slider(
+                  value: sliderValue,
+                  min: 0,
+                  max: maxMs,
+                  activeColor: NamizoTheme.netflixRed,
+                  inactiveColor: Colors.white30,
+                  onChanged: durationMs > 0 ? (_) {} : null,
+                  onChangeEnd: durationMs > 0
+                      ? (newValue) {
+                          controller.seekTo(
+                            Duration(milliseconds: newValue.round()),
+                          );
+                        }
+                      : null,
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => _seekRelative(const Duration(seconds: -10)),
+                      icon: const Icon(Icons.replay_10, color: Colors.white),
+                    ),
+                    IconButton(
+                      onPressed: () => _seekRelative(const Duration(seconds: 10)),
+                      icon: const Icon(Icons.forward_10, color: Colors.white),
+                    ),
+                    IconButton(
+                      onPressed: () =>
+                          controller.setVolume(isMuted ? 1.0 : 0.0),
+                      icon: Icon(
+                        isMuted ? Icons.volume_off : Icons.volume_up,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (ref.read(selectedMediaProvider)?.mediaType == 'tv')
+                      IconButton(
+                        onPressed: _showEpisodesBottomSheet,
+                        icon: const Icon(Icons.list, color: Colors.white),
+                      ),
+                    IconButton(
+                      onPressed: () {
+                        if (controller.isFullScreen) {
+                          controller.exitFullScreen();
+                        } else {
+                          controller.enterFullScreen();
+                        }
+                      },
+                      icon: Icon(
+                        controller.isFullScreen
+                            ? Icons.fullscreen_exit
+                            : Icons.fullscreen,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _seekRelative(Duration delta) {
+    final controller = _betterPlayerController;
+    final vpc = controller?.videoPlayerController;
+    if (controller == null || vpc == null) return;
+
+    final current = vpc.value.position;
+    final duration = vpc.value.duration ?? Duration.zero;
+    var target = current + delta;
+    if (target < Duration.zero) target = Duration.zero;
+    if (duration > Duration.zero && target > duration) target = duration;
+    controller.seekTo(target);
   }
 
   // ── OverlayEntry management ─────────────────────────────────────

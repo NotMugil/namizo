@@ -52,7 +52,8 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   connectivity_plus: ^6.1.1
   palette_generator: ^0.3.3+7
-  better_player_plus: ^1.1.5
+  better_player_plus:
+    path: packages/better_player_plus
 
 
 dev_dependencies:
