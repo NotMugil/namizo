@@ -142,7 +142,7 @@ class _VideoProgressBarState extends State<BetterPlayerMaterialVideoProgressBar>
             final playheadX = _isScrubbing ? _scrubDx.clamp(0.0, barWidth) : barWidth * progress;
 
             return SizedBox(
-              height: 56,
+              height: 30,
               width: double.infinity,
               child: Stack(
                 clipBehavior: Clip.none,

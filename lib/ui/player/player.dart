@@ -60,6 +60,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _arePlayerControlsVisible = true;
   final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier =
       ValueNotifier(false);
+  OverlayEntry? _fullscreenTopBarOverlayEntry;
 
   // Notifier so overlay updates inside BetterPlayer fullscreen
   final ValueNotifier<_NextEpState> _nextEpNotifier = ValueNotifier(
@@ -285,11 +286,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             progressBarHandleColor: NamizoTheme.netflixRed,
             progressBarBufferedColor: NamizoTheme.netflixLightGrey,
             progressBarBackgroundColor: NamizoTheme.netflixGrey,
-            controlBarColor: Colors.black54,
+            controlBarColor: const Color(0xFF111111),
             loadingColor: NamizoTheme.netflixRed,
             overflowModalColor: const Color(0xFF1F1F1F),
             overflowModalTextColor: Colors.white,
             overflowMenuIconsColor: Colors.white70,
+            enableControlsBackdrop: true,
+            controlsBackdropColor: const Color(0xE6000000),
+            controlsBackdropTopHeight: 0,
+            controlsBackdropBottomHeight: 260,
             playerTheme: BetterPlayerTheme.material,
             overflowMenuCustomItems: [
               if (media!.mediaType == 'tv')
@@ -300,7 +305,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
             ],
           ),
-          overlay: _buildFullscreenFloatingTopBar(),
           placeholder: Container(
             color: Colors.black,
             child: const Center(
@@ -770,6 +774,79 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  Future<void> _switchToProvider(int providerIndex) async {
+    if (providerIndex == _currentProviderIndex) return;
+
+    await _saveProgress();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Switching to ${StreamingService.getProviderName(providerIndex)}...',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: NamizoTheme.netflixRed,
+        ),
+      );
+    }
+
+    _disposePlayer();
+
+    setState(() {
+      _currentProviderIndex = providerIndex;
+      _isLoading = true;
+      _error = null;
+      _retryCount = 0;
+      _streamResult = null;
+    });
+
+    await _initializePlayer();
+  }
+
+  List<PopupMenuEntry<int>> _buildProviderMenuItems() {
+    return List.generate(_maxProviders, (index) {
+      final isSelected = index == _currentProviderIndex;
+      return PopupMenuItem(
+        value: index,
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              color: isSelected ? NamizoTheme.netflixRed : Colors.white70,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              StreamingService.getProviderName(index),
+              style: TextStyle(
+                color: isSelected ? NamizoTheme.netflixRed : Colors.white,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            if (index == 0)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'HD',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.green,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+
   // ── WebView progress helpers ────────────────────────────────────
   Future<void> _saveWebViewProgress(double currentTime, double duration) async {
     final media = ref.read(selectedMediaProvider);
@@ -853,6 +930,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _progressTimer?.cancel();
     _postSeekNudgeTimer?.cancel();
     _postSeekNudgeTimer = null;
+    _removeFullscreenTopBarOverlayEntry();
     if (_betterPlayerController != null) {
       _betterPlayerController!.removeEventsListener(_onBetterPlayerEvent);
       _betterPlayerController!.dispose(forceDispose: true);
@@ -867,6 +945,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _postSeekNudgeTimer = null;
     _nextEpisodeTimer?.cancel();
     _removeOverlayEntry();
+    _removeFullscreenTopBarOverlayEntry();
     _nextEpNotifier.dispose();
     _fullscreenTopBarVisibleNotifier.dispose();
     // Save progress before disposing
@@ -891,7 +970,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final media = ref.watch(selectedMediaProvider);
-    final shouldShowAppBar = _streamResult != null;
+    final shouldShowAppBar = _streamResult != null && !_isInFullscreen;
     final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
     return GestureDetector(
@@ -975,89 +1054,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         icon: const RefreshDouble(color: Colors.white, width: 21, height: 21),
                         tooltip: 'Switch Server',
                         color: const Color(0xFF1F1F1F),
-                        onSelected: (providerIndex) async {
-                          if (providerIndex == _currentProviderIndex) return;
-
-                          // Save current position before switching
-                          await _saveProgress();
-
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Switching to ${StreamingService.getProviderName(providerIndex)}...',
-                                ),
-                                duration: const Duration(seconds: 2),
-                                backgroundColor: NamizoTheme.netflixRed,
-                              ),
-                            );
-                          }
-
-                          _disposePlayer();
-
-                          setState(() {
-                            _currentProviderIndex = providerIndex;
-                            _isLoading = true;
-                            _error = null;
-                            _retryCount = 0;
-                            _streamResult = null;
-                          });
-
-                          await _initializePlayer();
-                        },
-                        itemBuilder: (context) {
-                          return List.generate(_maxProviders, (index) {
-                            final isSelected = index == _currentProviderIndex;
-                            return PopupMenuItem(
-                              value: index,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isSelected
-                                        ? Icons.check_circle
-                                        : Icons.circle_outlined,
-                                    color: isSelected
-                                        ? NamizoTheme.netflixRed
-                                        : Colors.white70,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    StreamingService.getProviderName(index),
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? NamizoTheme.netflixRed
-                                          : Colors.white,
-                                      fontWeight: isSelected
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                    ),
-                                  ),
-                                  if (index == 0)
-                                    Container(
-                                      margin: const EdgeInsets.only(left: 8),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: const Text(
-                                        'HD',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.green,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          });
-                        },
+                        onSelected: _switchToProvider,
+                        itemBuilder: (context) => _buildProviderMenuItems(),
                       ),
                     ],
                   ),
@@ -1114,6 +1112,28 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Widget _buildFullscreenFloatingTopBar() {
+    final appTheme = Theme.of(context);
+    final titleStyle = appTheme.textTheme.titleMedium?.copyWith(
+      color: Colors.white,
+      fontSize: 16,
+      fontWeight: FontWeight.w500,
+    ) ??
+        const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        );
+    final subtitleStyle = appTheme.textTheme.bodySmall?.copyWith(
+      color: Colors.white70,
+      fontSize: 12,
+      fontWeight: FontWeight.w400,
+    ) ??
+        const TextStyle(
+          color: Colors.white70,
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+        );
+
     return ValueListenableBuilder<bool>(
       valueListenable: _fullscreenTopBarVisibleNotifier,
       builder: (context, showInPlayer, _) {
@@ -1125,21 +1145,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.only(left: 4, top: 6, right: 16),
+                padding: const EdgeInsets.only(left: 12, top: 6, right: 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     IconButton(
                       onPressed: () {
-                        if (_betterPlayerController?.isFullScreen == true) {
-                          _betterPlayerController?.exitFullScreen();
-                        } else {
-                          Navigator.pop(context);
-                        }
+                        _exitPlayerFromTopBar();
                       },
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                       icon: const NavArrowLeft(color: Colors.white, width: 20, height: 20),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 2),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1151,24 +1170,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 'Playing',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
+                            style: titleStyle,
                           ),
                           Text(
                             _buildFullscreenSubtitle(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                            ),
+                            style: subtitleStyle,
                           ),
                         ],
                       ),
+                    ),
+                    PopupMenuButton<int>(
+                      icon: const RefreshDouble(
+                        color: Colors.white,
+                        width: 20,
+                        height: 20,
+                      ),
+                      tooltip: 'Switch Server',
+                      color: const Color(0xFF1F1F1F),
+                      onSelected: _switchToProvider,
+                      itemBuilder: (context) => _buildProviderMenuItems(),
                     ),
                   ],
                 ),
@@ -1185,6 +1207,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (_fullscreenTopBarVisibleNotifier.value != shouldShow) {
       _fullscreenTopBarVisibleNotifier.value = shouldShow;
     }
+    if (shouldShow) {
+      _showFullscreenTopBarOverlayEntry();
+    } else {
+      _removeFullscreenTopBarOverlayEntry();
+    }
+  }
+
+  void _exitPlayerFromTopBar() {
+    final isFullscreen = _betterPlayerController?.isFullScreen == true;
+    if (isFullscreen) {
+      _betterPlayerController?.exitFullScreen();
+      Future.delayed(const Duration(milliseconds: 220), () {
+        if (!mounted) return;
+        Navigator.of(context).maybePop();
+      });
+      return;
+    }
+    Navigator.of(context).maybePop();
+  }
+
+  void _showFullscreenTopBarOverlayEntry() {
+    if (!mounted || _fullscreenTopBarOverlayEntry != null) return;
+    _fullscreenTopBarOverlayEntry = OverlayEntry(
+      builder: (_) => Positioned.fill(
+        child: _buildFullscreenFloatingTopBar(),
+      ),
+    );
+    Overlay.of(context, rootOverlay: true).insert(_fullscreenTopBarOverlayEntry!);
+  }
+
+  void _removeFullscreenTopBarOverlayEntry() {
+    _fullscreenTopBarOverlayEntry?.remove();
+    _fullscreenTopBarOverlayEntry = null;
   }
 
   String _buildFullscreenSubtitle() {
@@ -1268,14 +1323,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: () => _seekRelative(const Duration(seconds: -10)),
-                      icon: const Icon(Icons.replay_10, color: Colors.white),
-                    ),
-                    IconButton(
-                      onPressed: () => _seekRelative(const Duration(seconds: 10)),
-                      icon: const Icon(Icons.forward_10, color: Colors.white),
-                    ),
                     IconButton(
                       onPressed: () =>
                           controller.setVolume(isMuted ? 1.0 : 0.0),

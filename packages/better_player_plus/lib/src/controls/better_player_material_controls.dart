@@ -286,20 +286,29 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
       opacity: controlsNotVisible ? 0.0 : 1.0,
       duration: _controlsConfiguration.controlsHideTime,
       onEnd: _onPlayerHide,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (_betterPlayerController!.isLiveStream())
-              const SizedBox()
-            else ...[
-              if (_controlsConfiguration.enableProgressText) _buildProgressTimestamps(),
-              if (_controlsConfiguration.enableProgressBar) _buildProgressBar(),
-            ],
-            const SizedBox(height: 0),
-            SizedBox(
-              height: _controlsConfiguration.controlBarHeight,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_betterPlayerController!.isLiveStream())
+            const SizedBox()
+          else ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_controlsConfiguration.enableProgressText) _buildProgressTimestamps(),
+                  if (_controlsConfiguration.enableProgressBar) _buildProgressBar(),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 0),
+          SizedBox(
+            width: double.infinity,
+            height: _controlsConfiguration.controlBarHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
                   Expanded(child: _buildVolumeSection()),
@@ -308,8 +317,8 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -444,7 +453,7 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
   }
 
   Widget _buildMiddleRow() => Container(
-    color: _controlsConfiguration.controlBarColor,
+    color: Colors.transparent,
     width: double.infinity,
     height: double.infinity,
     child: _betterPlayerController?.isLiveStream() ?? false
