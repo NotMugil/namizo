@@ -22,6 +22,7 @@ import 'package:namizo/ui/profile/anilist_login.dart';
 import 'package:namizo/ui/profile/profile.dart';
 import 'package:namizo/ui/calendar/new_episodes.dart';
 import 'package:namizo/ui/calendar/schedule.dart';
+import 'package:namizo/ui/watchlist/watchlist.dart';
 import 'package:namizo/theme/font_family.dart';
 
 void main() async {
@@ -80,20 +81,24 @@ final _router = GoRouter(
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/calendar',
-              builder: (context, state) => const ScheduleScreen(),
+              path: '/watchlist',
+              builder: (context, state) => const WatchlistScreen(),
             ),
           ],
         ),
         StatefulShellBranch(
           routes: [
             GoRoute(
-              path: '/profile',
-              builder: (context, state) => const ProfileScreen(),
+              path: '/calendar',
+              builder: (context, state) => const ScheduleScreen(),
             ),
           ],
         ),
       ],
+    ),
+    GoRoute(
+      path: '/profile',
+      builder: (context, state) => const ProfileScreen(),
     ),
     GoRoute(
       path: '/notifications',
@@ -108,7 +113,6 @@ final _router = GoRouter(
       path: '/anilist-login',
       builder: (context, state) => const AniListLoginScreen(),
     ),
-    GoRoute(path: '/watchlist', redirect: (_, __) => '/profile'),
     GoRoute(
       path: '/media/:id',
       builder: (context, state) {

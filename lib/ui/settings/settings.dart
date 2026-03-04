@@ -27,25 +27,39 @@ class SettingsScreen extends ConsumerWidget {
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
     final hideAdultContent = ref.watch(hideAdultContentProvider);
     final scheduleTrackedOnly = ref.watch(scheduleTrackedOnlyProvider);
+    void handleBack() {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/profile');
+      }
+    }
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: NamizoTheme.netflixBlack,
-        title: const Text(
-          'Settings',
-          style: NamizoTheme.pageHeaderStyle,
-        ),
-        leading: IconButton(
-          icon: const PhosphorIcon(
-            PhosphorIconsRegular.caretLeft,
-            color: Colors.white,
-            size: 20,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          handleBack();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: NamizoTheme.netflixBlack,
+          title: const Text(
+            'Settings',
+            style: NamizoTheme.pageHeaderStyle,
           ),
-          onPressed: () => context.pop(),
+          leading: IconButton(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.caretLeft,
+              color: Colors.white,
+              size: 20,
+            ),
+            onPressed: handleBack,
+          ),
         ),
-      ),
-      body: ListView(
+        body: ListView(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -142,11 +156,6 @@ class SettingsScreen extends ConsumerWidget {
               }
 
               final username = (viewer['name'] ?? 'Unknown').toString();
-              final watchlistCount =
-                  ((viewer['statistics'] as Map<String, dynamic>?)?['anime']
-                              as Map<String, dynamic>?)?['count']
-                          ?.toString() ??
-                      'Unavailable';
 
               return Column(
                 children: [
@@ -158,16 +167,6 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     title: 'AniList Username',
                     subtitle: username,
-                    trailing: null,
-                  ),
-                  _buildSettingsTile(
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.bookmarkSimple,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    title: 'AniList Watchlist',
-                    subtitle: '$watchlistCount entries',
                     trailing: null,
                   ),
                   _buildSettingsTile(
@@ -473,6 +472,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 40),
         ],
+        ),
       ),
     );
   }

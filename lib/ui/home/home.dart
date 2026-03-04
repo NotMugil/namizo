@@ -834,6 +834,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       id: mediaId,
       title: (content['title'] ?? content['name'] ?? 'Unknown').toString(),
       posterPath: content['poster_path']?.toString(),
+      backdropPath: content['backdrop_path']?.toString(),
       mediaType: 'tv',
       addedAt: DateTime.now(),
       voteAverage: (content['vote_average'] as num?)?.toDouble(),

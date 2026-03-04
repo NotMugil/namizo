@@ -13,6 +13,9 @@ class WatchlistItem extends HiveObject {
   @HiveField(2)
   final String? posterPath;
 
+  @HiveField(8)
+  final String? backdropPath;
+
   @HiveField(3)
   final String mediaType; // 'movie' or 'tv'
 
@@ -32,6 +35,7 @@ class WatchlistItem extends HiveObject {
     required this.id,
     required this.title,
     this.posterPath,
+    this.backdropPath,
     required this.mediaType,
     required this.addedAt,
     this.voteAverage,
@@ -44,6 +48,7 @@ class WatchlistItem extends HiveObject {
       'id': id,
       'title': title,
       'posterPath': posterPath,
+      'backdropPath': backdropPath,
       'mediaType': mediaType,
       'addedAt': addedAt.toIso8601String(),
       'voteAverage': voteAverage,
@@ -57,6 +62,7 @@ class WatchlistItem extends HiveObject {
       id: json['id'] as int,
       title: json['title'] as String,
       posterPath: json['posterPath'] as String?,
+      backdropPath: json['backdropPath'] as String?,
       mediaType: json['mediaType'] as String,
       addedAt: DateTime.parse(json['addedAt'] as String),
       voteAverage: json['voteAverage'] as double?,
