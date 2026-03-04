@@ -17,49 +17,57 @@ class MainShellScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: navigationShell,
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF0D0F14),
-          border: Border(top: BorderSide(color: Color(0x1FFFFFFF))),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: navigationShell.currentIndex,
-          onTap: _onTap,
-          backgroundColor: NamizoTheme.netflixBlack,
-          elevation: 0,
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: NamizoTheme.netflixRed,
-          unselectedItemColor: NamizoTheme.netflixGrey,
-          showUnselectedLabels: true,
-          selectedLabelStyle: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+    return PopScope(
+      canPop: navigationShell.currentIndex == 0,
+      onPopInvoked: (didPop) {
+        if (!didPop && navigationShell.currentIndex != 0) {
+          navigationShell.goBranch(0);
+        }
+      },
+      child: Scaffold(
+        body: navigationShell,
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0D0F14),
+            border: Border(top: BorderSide(color: Color(0x1FFFFFFF))),
           ),
-          unselectedLabelStyle: const TextStyle(fontSize: 11),
-          items: const [
-            BottomNavigationBarItem(
-              icon: PhosphorIcon(PhosphorIconsRegular.house, color: NamizoTheme.netflixGrey, size: 22),
-              activeIcon: PhosphorIcon(PhosphorIconsFill.house, color: NamizoTheme.netflixRed, size: 22),
-              label: 'Home',
+          child: BottomNavigationBar(
+            currentIndex: navigationShell.currentIndex,
+            onTap: _onTap,
+            backgroundColor: NamizoTheme.netflixBlack,
+            elevation: 0,
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: NamizoTheme.netflixRed,
+            unselectedItemColor: NamizoTheme.netflixGrey,
+            showUnselectedLabels: true,
+            selectedLabelStyle: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
-            BottomNavigationBarItem(
-              icon: PhosphorIcon(PhosphorIconsRegular.magnifyingGlass, color: NamizoTheme.netflixGrey, size: 22),
-              activeIcon: PhosphorIcon(PhosphorIconsFill.magnifyingGlass, color: NamizoTheme.netflixRed, size: 22),
-              label: 'Discover',
-            ),
-            BottomNavigationBarItem(
-              icon: PhosphorIcon(PhosphorIconsRegular.calendarBlank, color: NamizoTheme.netflixGrey, size: 22),
-              activeIcon: PhosphorIcon(PhosphorIconsFill.calendarCheck, color: NamizoTheme.netflixRed, size: 22),
-              label: 'Schedule',
-            ),
-            BottomNavigationBarItem(
-              icon: PhosphorIcon(PhosphorIconsRegular.userCircle, color: NamizoTheme.netflixGrey, size: 22),
-              activeIcon: PhosphorIcon(PhosphorIconsFill.userCircle, color: NamizoTheme.netflixRed, size: 22),
-              label: 'Profile',
-            ),
-          ],
+            unselectedLabelStyle: const TextStyle(fontSize: 11),
+            items: const [
+              BottomNavigationBarItem(
+                icon: PhosphorIcon(PhosphorIconsRegular.house, color: NamizoTheme.netflixGrey, size: 22),
+                activeIcon: PhosphorIcon(PhosphorIconsFill.house, color: NamizoTheme.netflixRed, size: 22),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: PhosphorIcon(PhosphorIconsRegular.magnifyingGlass, color: NamizoTheme.netflixGrey, size: 22),
+                activeIcon: PhosphorIcon(PhosphorIconsFill.magnifyingGlass, color: NamizoTheme.netflixRed, size: 22),
+                label: 'Discover',
+              ),
+              BottomNavigationBarItem(
+                icon: PhosphorIcon(PhosphorIconsRegular.bookmarkSimple, color: NamizoTheme.netflixGrey, size: 22),
+                activeIcon: PhosphorIcon(PhosphorIconsFill.bookmarkSimple, color: NamizoTheme.netflixRed, size: 22),
+                label: 'Watchlist',
+              ),
+              BottomNavigationBarItem(
+                icon: PhosphorIcon(PhosphorIconsRegular.calendarBlank, color: NamizoTheme.netflixGrey, size: 22),
+                activeIcon: PhosphorIcon(PhosphorIconsFill.calendarCheck, color: NamizoTheme.netflixRed, size: 22),
+                label: 'Schedule',
+              ),
+            ],
+          ),
         ),
       ),
     );

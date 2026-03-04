@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:namizo/providers/serviceproviders.dart';
-import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -15,66 +14,67 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
 
-    return aniListViewerAsync.when(
-      loading: () => const Scaffold(
-        backgroundColor: NamizoTheme.netflixBlack,
-        body: Center(
-          child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
-        ),
-      ),
-      error: (_, __) => _buildLoggedOutView(context, ref),
-      data: (viewer) {
-        if (viewer == null) {
-          return _buildLoggedOutView(context, ref);
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          context.go('/home');
         }
+      },
+      child: aniListViewerAsync.when(
+        loading: () => const Scaffold(
+          backgroundColor: NamizoTheme.netflixBlack,
+          body: Center(
+            child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+          ),
+        ),
+        error: (_, __) => _buildLoggedOutView(context, ref),
+        data: (viewer) {
+          if (viewer == null) {
+            return _buildLoggedOutView(context, ref);
+          }
 
-        return DefaultTabController(
-          length: 3,
-          child: Scaffold(
-            backgroundColor: NamizoTheme.netflixBlack,
-            body: Column(
-              children: [
-                _buildProfileHeader(context, viewer),
-                const TabBar(
-                  indicatorColor: NamizoTheme.netflixRed,
-                  dividerColor: Colors.transparent,
-                  labelColor: NamizoTheme.netflixWhite,
-                  unselectedLabelColor: NamizoTheme.netflixGrey,
-                  tabs: [
-                    Tab(
-                      icon: PhosphorIcon(
-                        PhosphorIconsRegular.chartBar,
-                        size: 20,
+          return DefaultTabController(
+            length: 2,
+            child: Scaffold(
+              backgroundColor: NamizoTheme.netflixBlack,
+              body: Column(
+                children: [
+                  _buildProfileHeader(context, viewer),
+                  const TabBar(
+                    indicatorColor: NamizoTheme.netflixRed,
+                    dividerColor: Colors.transparent,
+                    labelColor: NamizoTheme.netflixWhite,
+                    unselectedLabelColor: NamizoTheme.netflixGrey,
+                    tabs: [
+                      Tab(
+                        icon: PhosphorIcon(
+                          PhosphorIconsRegular.chartBar,
+                          size: 20,
+                        ),
                       ),
-                    ),
-                    Tab(
-                      icon: PhosphorIcon(
-                        PhosphorIconsRegular.bookmarkSimple,
-                        size: 20,
+                      Tab(
+                        icon: PhosphorIcon(
+                          PhosphorIconsRegular.pulse,
+                          size: 20,
+                        ),
                       ),
-                    ),
-                    Tab(
-                      icon: PhosphorIcon(
-                        PhosphorIconsRegular.pulse,
-                        size: 20,
-                      ),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildStatsTab(viewer),
-                      _buildWatchlistTab(context, ref),
-                      _buildActivitiesTab(ref),
                     ],
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildStatsTab(viewer),
+                        _buildActivitiesTab(ref),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -163,13 +163,30 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           SafeArea(
+            bottom: false,
             child: Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                onPressed: () => context.push('/settings'),
-                icon: const PhosphorIcon(
-                  PhosphorIconsRegular.gear,
-                  color: NamizoTheme.netflixWhite,
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    IconButton(
+                      onPressed: () => context.go('/home'),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.caretLeft,
+                        color: NamizoTheme.netflixWhite,
+                        size: 22,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => context.push('/settings'),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.gear,
+                        color: NamizoTheme.netflixWhite,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -263,106 +280,6 @@ class ProfileScreen extends ConsumerWidget {
       ),
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemCount: entries.length,
-    );
-  }
-
-  Widget _buildWatchlistTab(BuildContext context, WidgetRef ref) {
-    final watchlist = ref.watch(watchlistProvider);
-    final tmdbService = ref.watch(kuroiruServiceProvider);
-
-    if (watchlist.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Your watchlist is empty',
-            style: TextStyle(
-              color: NamizoTheme.netflixGrey,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.62,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-      ),
-      itemCount: watchlist.length,
-      itemBuilder: (context, index) {
-        final item = watchlist[index];
-        final posterUrl = tmdbService.getPosterUrl(item.posterPath);
-
-        return InkWell(
-          onTap: () => context.push('/media/${item.id}?type=${item.mediaType}'),
-          borderRadius: BorderRadius.circular(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: item.posterPath != null
-                      ? CachedNetworkImage(
-                          imageUrl: posterUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          placeholder: (context, url) => Container(
-                            color: const Color(0x29222A3C),
-                            child: const Center(
-                              child: SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: NamizoTheme.netflixRed,
-                                ),
-                              ),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: const Color(0x29222A3C),
-                            child: const Center(
-                                      child: PhosphorIcon(
-                                        PhosphorIconsRegular.imageBroken,
-                                color: NamizoTheme.netflixGrey,
-                                        size: 20,
-                              ),
-                            ),
-                          ),
-                        )
-                      : Container(
-                          color: const Color(0x29222A3C),
-                          child: const Center(
-                                    child: PhosphorIcon(
-                                      PhosphorIconsRegular.video,
-                              color: NamizoTheme.netflixGrey,
-                                      size: 20,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: NamizoTheme.netflixWhite,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 

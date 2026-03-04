@@ -648,6 +648,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
         id: media.id,
         title: media.title ?? media.name ?? 'Unknown',
         posterPath: media.posterPath,
+        backdropPath: media.backdropPath,
         mediaType: media.mediaType,
         addedAt: DateTime.now(),
         voteAverage: media.voteAverage,

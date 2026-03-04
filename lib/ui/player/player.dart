@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:namizo/core/debug/stream_debug_logger.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/providers/mediaprovider.dart';
@@ -53,13 +54,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Duration? _resumePosition;
   int _currentEpisode = 0;
   bool _isSwappingEpisode = false;
-  Timer? _postSeekNudgeTimer;
-  int _postSeekNudgeAttempt = 0;
+  Timer? _seekRecoveryTimer;
   Duration? _lastSeekTarget;
-  Duration? _postSeekBaselinePosition;
-  bool _awaitingPostSeekRecovery = false;
-  bool _isRecoveringPostSeek = false;
-  static const int _maxPostSeekRecoveryAttempts = 2;
+  Duration? _seekBaselinePosition;
+  Duration? _forcedStartAt;
+  bool _seekRecoveryAttempted = false;
+  bool _seekRecoveryInProgress = false;
+  bool _seekHardResetInProgress = false;
   bool _isInFullscreen = false;
   bool _arePlayerControlsVisible = true;
   final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier =
@@ -198,6 +199,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _currentProvider = result.provider;
       _isDirectStream = StreamingService.isDirectStream(_currentProviderIndex);
 
+      await StreamDebugLogger.logOpenedStream(
+        mediaId: widget.mediaId,
+        season: widget.season,
+        episode: _currentEpisode,
+        provider: result.provider,
+        url: result.url,
+        isM3u8: result.isM3U8,
+      );
+
       // Embed providers use WebView
       if (!_isDirectStream) {
         setState(() {
@@ -233,6 +243,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _resumePosition = startAt;
       }
 
+      if (_forcedStartAt != null) {
+        startAt = _forcedStartAt;
+        _resumePosition = startAt;
+        _forcedStartAt = null;
+      }
+
       // ── Build subtitle sources ──
       final subtitleSources = result.subtitles.map((sub) {
         return BetterPlayerSubtitlesSource(
@@ -242,37 +258,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         );
       }).toList();
 
-      // ── Build resolutions map for non-HLS multi-quality ──
+      // ── Build resolutions map for multi-quality sources ──
       Map<String, String>? resolutions;
-      if (!result.isM3U8 && result.sources.length > 1) {
-        resolutions = {};
+      if (result.sources.length > 1) {
+        final mapped = <String, String>{};
         for (var source in result.sources) {
-          resolutions[source.quality] = source.url;
+          final label = source.quality.trim().isEmpty
+              ? 'Source ${mapped.length + 1}'
+              : source.quality.trim();
+          if (label.toLowerCase() == 'auto') continue;
+          mapped[label] = source.url;
+        }
+
+        if (mapped.isEmpty) {
+          for (final source in result.sources) {
+            mapped['Source ${mapped.length + 1}'] = source.url;
+          }
+        }
+
+        if (mapped.isNotEmpty) {
+          resolutions = mapped;
         }
       }
 
       // ── Headers ──
       final headers = _buildPlaybackHeaders(result.headers);
+      final isHls = result.isM3U8;
+
+      final cacheConfiguration = isHls
+          ? BetterPlayerCacheConfiguration(
+              useCache: true,
+              maxCacheSize: 1024 * 1024 * 1024,
+              maxCacheFileSize: 256 * 1024 * 1024,
+              preCacheSize: 20 * 1024 * 1024,
+              key:
+                  'hls_${widget.mediaId}_${widget.season}_${_currentEpisode}_${result.provider}',
+            )
+          : const BetterPlayerCacheConfiguration(
+              useCache: true,
+              maxCacheSize: 512 * 1024 * 1024,
+              maxCacheFileSize: 128 * 1024 * 1024,
+              preCacheSize: 8 * 1024 * 1024,
+            );
+
+      final bufferingConfiguration = isHls
+          ? const BetterPlayerBufferingConfiguration(
+              minBufferMs: 180000,
+              maxBufferMs: 600000,
+              bufferForPlaybackMs: 3000,
+              bufferForPlaybackAfterRebufferMs: 12000,
+            )
+          : const BetterPlayerBufferingConfiguration(
+              minBufferMs: 120000,
+              maxBufferMs: 300000,
+              bufferForPlaybackMs: 2500,
+              bufferForPlaybackAfterRebufferMs: 10000,
+            );
 
       // ── Data source ──
       final dataSource = BetterPlayerDataSource(
         BetterPlayerDataSourceType.network,
         result.url,
         headers: headers,
-        videoFormat: result.isM3U8
+        videoFormat: isHls
             ? BetterPlayerVideoFormat.hls
             : BetterPlayerVideoFormat.other,
-        useAsmsTracks: result.isM3U8,
-        useAsmsSubtitles: result.isM3U8,
-        useAsmsAudioTracks: result.isM3U8,
+        useAsmsTracks: isHls && resolutions == null,
+        useAsmsSubtitles: isHls,
+        useAsmsAudioTracks: isHls,
         subtitles: subtitleSources.isNotEmpty ? subtitleSources : null,
         resolutions: resolutions,
-        bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-          minBufferMs: 120000,
-          maxBufferMs: 300000,
-          bufferForPlaybackMs: 2500,
-          bufferForPlaybackAfterRebufferMs: 10000,
-        ),
+        cacheConfiguration: cacheConfiguration,
+        bufferingConfiguration: bufferingConfiguration,
       );
 
       // ── Controller config ──
@@ -380,6 +437,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
 
       await _betterPlayerController!.setupDataSource(dataSource);
+
+      if (isHls) {
+        unawaited(_betterPlayerController!.preCache(dataSource).catchError((_) {}));
+      }
 
       // Start progress tracking timer
       _startProgressTracking();
@@ -539,24 +600,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
-  // ── Post-seek stall recovery ────────────────────────────────────
-  //
-  // Some HLS streams (e.g. Solo Leveling from AnimePahe) cause ExoPlayer's
-  // media source to silently die after a seek – the AudioTrack is destroyed
-  // but no new HLS segments are fetched, so inputFps/renderFps drop to 0.
-  //
-  // Recovery strategy (bounded to 2 attempts):
-  //   Attempt 1 (~1.8 s): re-seek target + play.
-  //   Attempt 2 (~3.6 s): retryDataSource + re-seek + play.
-  //
-  // Recovery is cancelled only when playback position advances.
-
   void _onSeekEvent(BetterPlayerEvent event) {
-    // Resolve & remember the target so we can re-seek after a data-source
-    // reset in phase 3.
     final params = event.parameters;
     final raw =
         params?['duration'] ?? params?['progress'] ?? params?['position'];
+
     Duration? target;
     if (raw is Duration) {
       target = raw;
@@ -565,149 +613,112 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     } else if (raw is double) {
       target = Duration(milliseconds: raw.round());
     }
+
     target ??= _betterPlayerController?.videoPlayerController?.value.position;
-    if (target != null && target > Duration.zero) {
+    if (target != null && target >= Duration.zero) {
       _lastSeekTarget = target;
     }
-    _postSeekBaselinePosition =
+
+    _seekBaselinePosition =
         _betterPlayerController?.videoPlayerController?.value.position;
-    _awaitingPostSeekRecovery = true;
-    _postSeekNudgeAttempt = 0;
-    _schedulePostSeekRecovery();
-  }
-
-  void _onPlaybackExceptionEvent() {
-    final vpc = _betterPlayerController?.videoPlayerController;
-    if (vpc == null) return;
-    _awaitingPostSeekRecovery = true;
-    _postSeekBaselinePosition = vpc.value.position;
-    _lastSeekTarget ??= vpc.value.position;
-    _postSeekNudgeAttempt = 0;
-    _schedulePostSeekRecovery(force: true);
-  }
-
-  void _cancelPostSeekNudge() {
-    _postSeekNudgeTimer?.cancel();
-    _postSeekNudgeTimer = null;
-    _postSeekNudgeAttempt = 0;
-    _awaitingPostSeekRecovery = false;
-    _isRecoveringPostSeek = false;
-    _postSeekBaselinePosition = null;
+    _seekRecoveryAttempted = false;
+    _scheduleSeekRecovery();
   }
 
   void _onProgressEvent() {
-    if (_awaitingPostSeekRecovery && _hasRecoveredAfterSeek()) {
-      _cancelPostSeekNudge();
+    if (_hasPlaybackAdvancedSinceSeek()) {
+      _cancelSeekRecovery();
     }
   }
 
-  bool _hasRecoveredAfterSeek() {
+  void _onPlaybackExceptionEvent() {
+    if (_seekRecoveryAttempted) return;
+    _scheduleSeekRecovery(immediate: true);
+  }
+
+  bool _hasPlaybackAdvancedSinceSeek() {
     final vpc = _betterPlayerController?.videoPlayerController;
-    final baseline = _postSeekBaselinePosition;
+    final baseline = _seekBaselinePosition;
     if (vpc == null || baseline == null) return false;
     final current = vpc.value.position;
     return current >= baseline + const Duration(milliseconds: 700);
   }
 
-  void _schedulePostSeekRecovery({bool force = false}) {
-    if (!mounted || _betterPlayerController == null) return;
-    if (!_awaitingPostSeekRecovery && !force) return;
-    _postSeekNudgeTimer?.cancel();
-    _postSeekNudgeTimer = Timer(
-      const Duration(milliseconds: 1800),
-      _runPostSeekNudge,
+  void _cancelSeekRecovery() {
+    _seekRecoveryTimer?.cancel();
+    _seekRecoveryTimer = null;
+    _seekRecoveryInProgress = false;
+    _seekRecoveryAttempted = false;
+    _seekBaselinePosition = null;
+  }
+
+  void _scheduleSeekRecovery({bool immediate = false}) {
+    _seekRecoveryTimer?.cancel();
+    _seekRecoveryTimer = Timer(
+      immediate ? const Duration(milliseconds: 200) : const Duration(milliseconds: 1800),
+      _recoverFromSeekStall,
     );
   }
 
-  Future<void> _runPostSeekNudge() async {
-    final c = _betterPlayerController;
-    if (!mounted || c == null || c.isVideoInitialized() != true) {
-      _cancelPostSeekNudge();
-      return;
-    }
-    final vpc = c.videoPlayerController;
-    if (vpc == null) {
-      _cancelPostSeekNudge();
+  Future<void> _recoverFromSeekStall() async {
+    final controller = _betterPlayerController;
+    if (!mounted || controller == null || controller.isVideoInitialized() != true) {
       return;
     }
 
-    if (!_awaitingPostSeekRecovery) {
-      _cancelPostSeekNudge();
+    if (_seekRecoveryInProgress || _seekRecoveryAttempted) {
       return;
     }
 
-    if (_hasRecoveredAfterSeek()) {
-      _cancelPostSeekNudge();
+    if (_hasPlaybackAdvancedSinceSeek() || controller.isPlaying() == true) {
+      _cancelSeekRecovery();
       return;
     }
 
-    if (_isRecoveringPostSeek) {
-      _schedulePostSeekRecovery();
-      return;
-    }
+    _seekRecoveryAttempted = true;
+    _seekRecoveryInProgress = true;
 
-    _postSeekNudgeAttempt++;
-    _isRecoveringPostSeek = true;
+    try {
+      await controller.retryDataSource();
+      await Future.delayed(const Duration(milliseconds: 550));
+      if (!mounted || _betterPlayerController != controller) return;
 
-    // Attempt 1: re-seek target + play.
-    if (_postSeekNudgeAttempt == 1) {
-      debugPrint(
-        '[PostSeekNudge] attempt 1 – re-seek + play',
-      );
-      try {
-        final target = _lastSeekTarget;
-        if (target != null && target > Duration.zero) {
-          await c.seekTo(target);
-        }
-        await c.play();
-      } catch (e) {
-        debugPrint('[PostSeekNudge] attempt 1 failed: $e');
-      } finally {
-        _isRecoveringPostSeek = false;
+      final target =
+          _lastSeekTarget ?? controller.videoPlayerController?.value.position;
+      if (target != null && target >= Duration.zero) {
+        await controller.seekTo(target);
       }
-      _schedulePostSeekRecovery();
-      return;
-    }
+      await controller.play();
 
-    // Attempt 2: media source likely dead → reload + re-seek + play.
-    if (_postSeekNudgeAttempt == 2) {
-      debugPrint(
-        '[PostSeekNudge] attempt 2 – retryDataSource + seekTo $_lastSeekTarget',
-      );
-      try {
-        await c.retryDataSource();
-        await Future.delayed(const Duration(milliseconds: 600));
-        if (!mounted || _betterPlayerController != c) return;
-        final target = _lastSeekTarget;
-        if (target != null && target > Duration.zero) {
-          await c.seekTo(target);
-        }
-        await c.play();
-      } catch (e) {
-        debugPrint('[PostSeekNudge] attempt 2 failed: $e');
-      } finally {
-        _isRecoveringPostSeek = false;
+      await Future.delayed(const Duration(milliseconds: 1200));
+      if (!mounted || _betterPlayerController != controller) return;
+      final stillStalled =
+          controller.isPlaying() != true || !_hasPlaybackAdvancedSinceSeek();
+      if (stillStalled) {
+        await _hardResetAtSeekTarget(target);
       }
-
-      _schedulePostSeekRecovery();
-      return;
+    } catch (_) {
+      _seekRecoveryAttempted = false;
+    } finally {
+      _seekRecoveryInProgress = false;
     }
+  }
 
-    // Exhausted recovery attempts.
-    _isRecoveringPostSeek = false;
-    if (_postSeekNudgeAttempt >= _maxPostSeekRecoveryAttempts) {
-      debugPrint('[PostSeekNudge] exhausted automatic recovery attempts');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Playback stalled after seek. Try seeking again.'),
-            duration: Duration(seconds: 2),
-            backgroundColor: NamizoTheme.netflixRed,
-          ),
-        );
+  Future<void> _hardResetAtSeekTarget(Duration? target) async {
+    if (!mounted || _seekHardResetInProgress) return;
+    _seekHardResetInProgress = true;
+    try {
+      if (target != null && target >= Duration.zero) {
+        _forcedStartAt = target;
       }
+      _cancelSeekRecovery();
+      _disposePlayer();
+      await Future.delayed(const Duration(milliseconds: 120));
+      if (!mounted) return;
+      await _initializePlayer();
+    } finally {
+      _seekHardResetInProgress = false;
     }
-    _cancelPostSeekNudge();
   }
 
   // ── Season data fetch ───────────────────────────────────────────
@@ -887,6 +898,39 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _initializePlayer();
   }
 
+  Future<void> _switchSubDub(String mode) async {
+    final normalized = mode.toLowerCase() == 'dub' ? 'dub' : 'sub';
+    final currentMode = ref.read(animeSubDubProvider);
+    if (currentMode == normalized) return;
+
+    final vpc = _betterPlayerController?.videoPlayerController;
+    final currentPosition = vpc?.value.position;
+    if (currentPosition != null && currentPosition >= Duration.zero) {
+      _forcedStartAt = currentPosition;
+    }
+
+    await ref.read(animeSubDubProvider.notifier).setPreference(normalized);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Switched audio to ${normalized.toUpperCase()}'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: NamizoTheme.netflixRed,
+      ),
+    );
+
+    _disposePlayer();
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _retryCount = 0;
+      _currentProviderIndex = 0;
+      _streamResult = null;
+    });
+    await _initializePlayer();
+  }
+
   List<PopupMenuEntry<int>> _buildProviderMenuItems() {
     return List.generate(_maxProviders, (index) {
       final isSelected = index == _currentProviderIndex;
@@ -928,6 +972,52 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ),
       );
     });
+  }
+
+  List<PopupMenuEntry<String>> _buildSubDubMenuItems() {
+    final selected = ref.read(animeSubDubProvider);
+    return [
+      PopupMenuItem(
+        value: 'sub',
+        child: Row(
+          children: [
+            Icon(
+              selected == 'sub' ? Icons.check_circle : Icons.circle_outlined,
+              color: selected == 'sub' ? NamizoTheme.netflixRed : Colors.white70,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Sub',
+              style: TextStyle(
+                color: selected == 'sub' ? NamizoTheme.netflixRed : Colors.white,
+                fontWeight: selected == 'sub' ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+      PopupMenuItem(
+        value: 'dub',
+        child: Row(
+          children: [
+            Icon(
+              selected == 'dub' ? Icons.check_circle : Icons.circle_outlined,
+              color: selected == 'dub' ? NamizoTheme.netflixRed : Colors.white70,
+              size: 18,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Dub',
+              style: TextStyle(
+                color: selected == 'dub' ? NamizoTheme.netflixRed : Colors.white,
+                fontWeight: selected == 'dub' ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ];
   }
 
   // ── WebView progress helpers ────────────────────────────────────
@@ -1011,11 +1101,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _disposePlayer() {
     _progressTimer?.cancel();
-    _postSeekNudgeTimer?.cancel();
-    _postSeekNudgeTimer = null;
-    _awaitingPostSeekRecovery = false;
-    _isRecoveringPostSeek = false;
-    _postSeekBaselinePosition = null;
+    _seekRecoveryTimer?.cancel();
+    _seekRecoveryTimer = null;
+    _seekRecoveryInProgress = false;
+    _seekRecoveryAttempted = false;
+    _seekBaselinePosition = null;
     _removeFullscreenTopBarOverlayEntry();
     if (_betterPlayerController != null) {
       _betterPlayerController!.removeEventsListener(_onBetterPlayerEvent);
@@ -1027,11 +1117,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     _progressTimer?.cancel();
-    _postSeekNudgeTimer?.cancel();
-    _postSeekNudgeTimer = null;
-    _awaitingPostSeekRecovery = false;
-    _isRecoveringPostSeek = false;
-    _postSeekBaselinePosition = null;
+    _seekRecoveryTimer?.cancel();
+    _seekRecoveryTimer = null;
+    _seekRecoveryInProgress = false;
+    _seekRecoveryAttempted = false;
+    _seekBaselinePosition = null;
     _nextEpisodeTimer?.cancel();
     _removeOverlayEntry();
     _removeFullscreenTopBarOverlayEntry();
@@ -1059,6 +1149,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final media = ref.watch(selectedMediaProvider);
+    final subDubMode = ref.watch(animeSubDubProvider);
     final shouldShowAppBar = _streamResult != null && !_isInFullscreen;
     final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
@@ -1142,6 +1233,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ],
                     ),
                     actions: [
+                      PopupMenuButton<String>(
+                        icon: const PhosphorIcon(
+                          PhosphorIconsRegular.speakerHigh,
+                          color: Colors.white,
+                          size: 21,
+                        ),
+                        tooltip: 'Audio (${subDubMode.toUpperCase()})',
+                        color: const Color(0xFF1F1F1F),
+                        onSelected: _switchSubDub,
+                        itemBuilder: (context) => _buildSubDubMenuItems(),
+                      ),
                       // Switch Server
                       PopupMenuButton<int>(
                         icon: const PhosphorIcon(
@@ -1292,6 +1394,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       color: const Color(0xFF1F1F1F),
                       onSelected: _switchToProvider,
                       itemBuilder: (context) => _buildProviderMenuItems(),
+                    ),
+                    PopupMenuButton<String>(
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.speakerHigh,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      tooltip: 'Audio',
+                      color: const Color(0xFF1F1F1F),
+                      onSelected: _switchSubDub,
+                      itemBuilder: (context) => _buildSubDubMenuItems(),
                     ),
                   ],
                 ),

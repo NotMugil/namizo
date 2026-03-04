@@ -340,10 +340,10 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                 end: Alignment.centerRight,
                 colors: [
                   Colors.black.withValues(alpha: 1.0),
-                  Colors.black.withValues(alpha: inWatchlist ? 0.45 : 0.9),
+                  Colors.black.withValues(alpha: inWatchlist ? 0.60 : 0.9),
                   Colors.black.withValues(alpha: inWatchlist ? 0.25 : 0.8),
                 ],
-                stops: const [0.0, 0.55, 1.0],
+                stops: const [0.0, 0.70, 1.0],
               ),
               borderRadius: BorderRadius.circular(10),
             ),

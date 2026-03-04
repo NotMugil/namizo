@@ -20,6 +20,7 @@ class WatchlistItemAdapter extends TypeAdapter<WatchlistItem> {
       id: fields[0] as int,
       title: fields[1] as String,
       posterPath: fields[2] as String?,
+      backdropPath: fields[8] as String?,
       mediaType: fields[3] as String,
       addedAt: fields[4] as DateTime,
       voteAverage: fields[5] as double?,
@@ -31,13 +32,15 @@ class WatchlistItemAdapter extends TypeAdapter<WatchlistItem> {
   @override
   void write(BinaryWriter writer, WatchlistItem obj) {
     writer
-      ..writeByte(8)
+      ..writeByte(9)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.title)
       ..writeByte(2)
       ..write(obj.posterPath)
+      ..writeByte(8)
+      ..write(obj.backdropPath)
       ..writeByte(3)
       ..write(obj.mediaType)
       ..writeByte(4)

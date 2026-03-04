@@ -52,6 +52,14 @@ final aniListTrackedIdsProvider = FutureProvider<Set<int>>((ref) async {
   final service = ref.watch(aniListServiceProvider);
   return service.getViewerTrackedAnimeIds();
 });
+
+final aniListTrackedAnimeProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) async {
+    ref.watch(aniListAccountRefreshProvider);
+    final service = ref.watch(aniListServiceProvider);
+    return service.getViewerTrackedAnime();
+  },
+);
  
 // Streaming service provider (anime direct + embed fallback)
 final streamingServiceProvider = Provider((ref) => StreamingService());
