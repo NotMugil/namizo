@@ -5,11 +5,12 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/providers/homeproviders.dart';
-import 'package:namizo/services/episode_check.dart';
+import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/services/episodes.dart';
 import 'package:namizo/providers/watchhistoryprovider.dart';
 import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/ui/home/widgets/content_row.dart';
@@ -40,6 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final PageController _pageController = PageController();
   bool _showAppBarBackground = false;
   int _currentBannerIndex = 0;
+  int _currentBannerPage = 0;
   Timer? _bannerTimer;
 
   @override
@@ -57,7 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (_pageController.hasClients) {
         final featuredContent = ref.read(featuredAnimeProvider).value ?? [];
         if (featuredContent.isNotEmpty) {
-          final nextPage = (_currentBannerIndex + 1) % featuredContent.length;
+          final nextPage = _currentBannerPage + 1;
           _pageController.animateToPage(
             nextPage,
             duration: const Duration(milliseconds: 1200),
@@ -98,6 +100,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final featuredContent = ref.watch(featuredAnimeProvider);
     final featuredLogos = ref.watch(featuredAnimeLogosProvider);
     final featuredPosters = ref.watch(featuredAnimePostersProvider);
+    final aniListViewerAsync = ref.watch(aniListViewerProvider);
 
     // Precache logo images as soon as all URLs are resolved
     ref.listen(featuredAnimeLogosProvider, (_, next) {
@@ -177,11 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             Padding(
               padding: const EdgeInsets.only(top: 8.0),
-              child: IconButton(
-                icon: const UserCircle(color: Colors.white, width: 24, height: 24),
-                tooltip: 'Profile',
-                onPressed: () => context.go('/profile'),
-              ),
+              child: _buildProfileButton(context, aniListViewerAsync),
             ),
             const SizedBox(width: 8),
           ],
@@ -406,17 +405,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Map<int, String?> posters,
   ) {
     if (items.isEmpty) return const SizedBox(height: 500);
+    final itemCount = items.length + 1;
 
     return SizedBox(
       height: 600,
       child: PageView.builder(
         controller: _pageController,
         onPageChanged: (index) {
-          setState(() => _currentBannerIndex = index);
+          if (index == items.length) {
+            setState(() {
+              _currentBannerIndex = 0;
+              _currentBannerPage = index;
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!_pageController.hasClients) return;
+              _pageController.jumpToPage(0);
+              if (mounted) {
+                setState(() => _currentBannerPage = 0);
+              }
+            });
+            return;
+          }
+
+          setState(() {
+            _currentBannerPage = index;
+            _currentBannerIndex = index % items.length;
+          });
         },
-        itemCount: items.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          final content = items[index];
+          final content = items[index == items.length ? 0 : index];
           final tmdbId = content['id'];
           final alternativePosterUrl = tmdbId is int ? posters[tmdbId] : null;
           final posterPath = content['poster_path'];
@@ -548,10 +566,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               _smallSquareButton(
-                                icon: const Plus(
+                                icon: const PhosphorIcon(
+                                  PhosphorIconsRegular.plus,
                                   color: Colors.white,
-                                  width: 18,
-                                  height: 18,
+                                  size: 18,
                                 ),
                                 onTap: () => _addFeaturedToWatchlist(content),
                               ),
@@ -559,10 +577,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ElevatedButton.icon(
                                 onPressed: () =>
                                     context.push('/media/$tmdbId?type=tv'),
-                                icon: const Play(
+                                icon: const PhosphorIcon(
+                                  PhosphorIconsFill.play,
                                   color: Colors.black,
-                                  width: 16,
-                                  height: 16,
+                                  size: 16,
                                 ),
                                 label: const Text('Play'),
                                 style: ElevatedButton.styleFrom(
@@ -579,10 +597,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ),
                               const SizedBox(width: 10),
                               _smallSquareButton(
-                                icon: const InfoCircle(
+                                icon: const PhosphorIcon(
+                                  PhosphorIconsRegular.info,
                                   color: Colors.white,
-                                  width: 18,
-                                  height: 18,
+                                  size: 18,
                                 ),
                                 onTap: () =>
                                     context.push('/media/$tmdbId?type=tv'),
@@ -610,7 +628,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       height: _currentBannerIndex == dotIndex ? 7 : 5,
                       decoration: BoxDecoration(
                         color: _currentBannerIndex == dotIndex
-                            ? const Color(0xFF9D96FF)
+                            ? NamizoTheme.netflixRed
                             : Colors.white38,
                         shape: BoxShape.circle,
                       ),
@@ -630,8 +648,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       height: 600,
       color: const Color(0xFF2F2F2F),
       child: const Center(
-        child: CircularProgressIndicator(color: Color(0xFF9D96FF)),
+        child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
       ),
+    );
+  }
+
+  Widget _buildProfileButton(
+    BuildContext context,
+    AsyncValue<Map<String, dynamic>?> aniListViewerAsync,
+  ) {
+    final avatarUrl = aniListViewerAsync.valueOrNull?['avatar']?['large']
+            ?.toString() ??
+        aniListViewerAsync.valueOrNull?['avatar']?['medium']?.toString();
+
+    if (avatarUrl != null && avatarUrl.isNotEmpty) {
+      return IconButton(
+        tooltip: 'Profile',
+        onPressed: () => context.go('/profile'),
+        icon: CircleAvatar(
+          radius: 12,
+          backgroundColor: Colors.white24,
+          backgroundImage: CachedNetworkImageProvider(avatarUrl),
+        ),
+      );
+    }
+
+    return IconButton(
+      icon: const PhosphorIcon(
+        PhosphorIconsRegular.userCircle,
+        color: Colors.white,
+        size: 24,
+      ),
+      tooltip: 'Profile',
+      onPressed: () => context.go('/profile'),
     );
   }
 
@@ -642,10 +691,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         IconButton(
           icon: unreadCount > 0
-              ? const BellNotification(color: Colors.white, width: 22, height: 22)
-              : const Bell(color: Colors.white, width: 22, height: 22),
+              ? const PhosphorIcon(
+                  PhosphorIconsFill.bellSimpleRinging,
+                  color: Colors.white,
+                  size: 22,
+                )
+              : const PhosphorIcon(
+                  PhosphorIconsRegular.bell,
+                  color: Colors.white,
+                  size: 22,
+                ),
           tooltip: 'New Episodes',
-          onPressed: () => context.go('/calendar'),
+          onPressed: () => context.push('/notifications'),
         ),
         if (unreadCount > 0)
           Positioned(

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:namizo/services/tmdb.dart';
+import 'package:namizo/services/kuroiru.dart';
 import 'package:namizo/services/anilist.dart';
 import 'package:namizo/services/streaming.dart';
-import 'package:namizo/services/watch_history.dart';
+import 'package:namizo/services/history.dart';
 import 'package:namizo/core/cache/cache_service.dart';
 
 // Cache service provider
@@ -30,6 +30,14 @@ final aniListViewerProvider = FutureProvider<Map<String, dynamic>?>((ref) async 
   final service = ref.watch(aniListServiceProvider);
   return service.getViewerProfile();
 });
+
+final aniListActivitiesProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) async {
+    ref.watch(aniListAccountRefreshProvider);
+    final service = ref.watch(aniListServiceProvider);
+    return service.getViewerActivities();
+  },
+);
  
 // Streaming service provider (anime direct + embed fallback)
 final streamingServiceProvider = Provider((ref) => StreamingService());

@@ -6,17 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart'
-    hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/season_info.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/providers/dynamiccolorsprovider.dart';
 import 'package:namizo/providers/mediaprovider.dart';
 import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/ui/media/widgets/episode_list.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
 class MediaDetailScreen extends ConsumerStatefulWidget {
@@ -37,6 +35,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
   bool _isLoading = true;
   String? _error;
   String? _trailerUrl;
+  String? _preferredBackdropUrl;
+  String? _preferredPosterUrl;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -64,6 +64,17 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       }
     }
     return null;
+  }
+
+  String? _resolveImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return null;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    if (imagePath.startsWith('/')) {
+      return 'https://kuroiru.co$imagePath';
+    }
+    return imagePath;
   }
 
   Future<void> _fetchMediaDetails() async {
@@ -95,6 +106,18 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
 
       final mediaDetails = SearchResult.fromJson(detailsWithVideos!);
       ref.read(selectedMediaProvider.notifier).state = mediaDetails;
+
+      final artwork = await Future.wait<String?>([
+        tmdbService.getTVShowCarouselImageUrl(widget.mediaId),
+        tmdbService.getTVShowBannerUrl(widget.mediaId),
+        tmdbService.getTVShowPosterUrl(widget.mediaId),
+      ]);
+
+      final preferredBackdrop = _resolveImageUrl(artwork[0]) ??
+          _resolveImageUrl(artwork[1]) ??
+          _resolveImageUrl(artwork[2]);
+      final preferredPoster = _resolveImageUrl(artwork[2]);
+
       final trailerUrl = _extractTrailerKey(detailsWithVideos['videos']);
       final genres = (detailsWithVideos['genres'] as List<dynamic>? ?? [])
           .map((genre) => (genre as Map<String, dynamic>)['name'] as String?)
@@ -104,6 +127,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       setState(() {
         _media = mediaDetails;
         _trailerUrl = trailerUrl;
+        _preferredBackdropUrl = preferredBackdrop;
+        _preferredPosterUrl = preferredPoster;
         _genres = genres;
         _isLoading = false;
       });
@@ -137,7 +162,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
         backgroundColor: NamizoTheme.netflixBlack,
         appBar: AppBar(backgroundColor: NamizoTheme.netflixBlack, elevation: 0),
         body: const Center(
-          child: CircularProgressIndicator(color: Color(0xFF7C73FF)),
+          child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
         ),
       );
     }
@@ -152,10 +177,10 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const WarningCircle(
-                  color: Color(0xFF9D96FF),
-                  width: 56,
-                  height: 56,
+                const PhosphorIcon(
+                  PhosphorIconsRegular.warningCircle,
+                  color: NamizoTheme.netflixRed,
+                  size: 56,
                 ),
                 const SizedBox(height: 14),
                 const Text('Failed to load details'),
@@ -183,8 +208,11 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     }
 
     final tmdbService = ref.read(kuroiruServiceProvider);
-    final backdropUrl = tmdbService.getBackdropUrl(media.backdropPath);
-    final posterUrl = tmdbService.getPosterUrl(media.posterPath);
+    final fallbackBackdropUrl = tmdbService.getBackdropUrl(media.backdropPath);
+    final fallbackPosterUrl = tmdbService.getPosterUrl(media.posterPath);
+    final backdropUrl =
+      _preferredBackdropUrl ?? fallbackBackdropUrl ?? fallbackPosterUrl;
+    final posterUrl = _preferredPosterUrl ?? fallbackPosterUrl;
     final isInWatchlist = ref.watch(isInWatchlistProvider(media.id));
     final colorsAsync = ref.watch(dynamicColorsProvider(posterUrl));
     final colors = colorsAsync.valueOrNull ?? DynamicColors.fallback;
@@ -277,20 +305,20 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 _glassIconButton(
-                                  icon: const NavArrowLeft(
+                                  icon: const PhosphorIcon(
+                                    PhosphorIconsRegular.caretLeft,
                                     color: NamizoTheme.netflixWhite,
-                                    width: 20,
-                                    height: 20,
+                                    size: 20,
                                   ),
                                   onTap: () => context.pop(),
                                 ),
                                 Row(
                                   children: [
                                     _glassIconButton(
-                                      icon: const MediaVideo(
+                                      icon: const PhosphorIcon(
+                                        PhosphorIconsRegular.video,
                                         color: NamizoTheme.netflixWhite,
-                                        width: 19,
-                                        height: 19,
+                                        size: 19,
                                       ),
                                       onTap: () {
                                         ScaffoldMessenger.of(
@@ -304,10 +332,10 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                     ),
                                     const SizedBox(width: 10),
                                     _glassIconButton(
-                                      icon: const ShareAndroid(
+                                      icon: const PhosphorIcon(
+                                        PhosphorIconsRegular.shareNetwork,
                                         color: NamizoTheme.netflixWhite,
-                                        width: 19,
-                                        height: 19,
+                                        size: 19,
                                       ),
                                       onTap: () async {
                                         final shareUrl =
@@ -433,12 +461,12 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                   icon: const Icon(
                                     Icons.play_circle_outline,
                                     size: 17,
-                                    color: Color(0xFFB9B0FF),
+                                    color: NamizoTheme.netflixRed,
                                   ),
                                   label: const Text(
                                     'Watch trailer',
                                     style: TextStyle(
-                                      color: Color(0xFFB9B0FF),
+                                      color: NamizoTheme.netflixRed,
                                     ),
                                   ),
                                 ),
@@ -556,20 +584,31 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Material(
-          color: const Color(0xFF7C73FF),
+          color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              child: Row(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: BoxDecoration(
+                color: NamizoTheme.glassFill,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: NamizoTheme.netflixRed.withValues(alpha: 0.65),
+                ),
+              ),
+              child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Play(color: Colors.white, width: 16, height: 16),
+                  PhosphorIcon(
+                    PhosphorIconsFill.play,
+                    color: NamizoTheme.netflixRed,
+                    size: 16,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Play all episodes',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: NamizoTheme.netflixRed,
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
@@ -755,7 +794,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                 child: Text(
                   _aboutExpanded ? 'Read less' : 'Read more',
                   style: const TextStyle(
-                    color: Color(0xFFB9B0FF),
+                    color: NamizoTheme.netflixRed,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -861,7 +900,7 @@ class _TrailerOverlayState extends State<TrailerOverlay> {
           aspectRatio: 16 / 9,
           child: Center(
             child: CircularProgressIndicator(
-              color: Color(0xFF7C73FF),
+              color: NamizoTheme.netflixRed,
               strokeWidth: 3,
             ),
           ),

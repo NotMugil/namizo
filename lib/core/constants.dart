@@ -30,3 +30,4 @@ const String anilistSessionCookieKey = 'anilist_session_cookie';
 const String lastEpisodeCheckKey = 'last_episode_check';
 const String episodeCheckFrequencyKey = 'episode_check_frequency';
 const String episodeCheckEnabledKey = 'episode_check_enabled';
+const String themeModeKey = 'theme_mode';

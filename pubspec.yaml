@@ -1,7 +1,7 @@
 name: namizo
 description: "anime streaming app"
 publish_to: 'none'
-version: 1.0.0
+version: 1.0.2
 
 platforms:
   android:
@@ -35,7 +35,7 @@ dependencies:
   cached_network_image: ^3.4.1
   shimmer: ^3.0.0
   flutter_svg: ^2.0.10+1
-  iconoir_flutter: ^7.11.0
+  phosphor_flutter: ^2.1.0
 
   # Navigation
   go_router: ^14.6.2

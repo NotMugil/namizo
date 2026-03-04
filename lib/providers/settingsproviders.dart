@@ -1,8 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/core/constants.dart';
 import 'package:namizo/core/user_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/episode_check.dart';
+import '../services/episodes.dart';
 
 // Playback Speed Provider
 final playbackSpeedProvider = StateNotifierProvider<PlaybackSpeedNotifier, double>((ref) {
@@ -190,6 +191,64 @@ class EpisodeCheckFrequencyNotifier extends StateNotifier<int> {
         return 'Every 2 days';
       default:
         return 'Every $state hours';
+    }
+  }
+}
+
+final themeModeProvider =
+    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+  return ThemeModeNotifier();
+});
+
+String themeModeDisplayName(ThemeMode mode) {
+  switch (mode) {
+    case ThemeMode.system:
+      return 'Follow system';
+    case ThemeMode.dark:
+      return 'Dark';
+    case ThemeMode.light:
+      return 'Follow system';
+  }
+}
+
+class ThemeModeNotifier extends StateNotifier<ThemeMode> {
+  ThemeModeNotifier() : super(ThemeMode.system) {
+    _loadThemeMode();
+  }
+
+  Future<void> _loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rawMode =
+        prefs.getString(themeModeKey) ?? UserConfig.defaultThemeMode;
+    state = _fromStorageValue(rawMode);
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    state = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(themeModeKey, _toStorageValue(mode));
+  }
+
+  ThemeMode _fromStorageValue(String value) {
+    switch (value) {
+      case 'dark':
+        return ThemeMode.dark;
+      case 'light':
+        return ThemeMode.system;
+      case 'system':
+      default:
+        return ThemeMode.system;
+    }
+  }
+
+  String _toStorageValue(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.dark:
+        return 'dark';
+      case ThemeMode.light:
+        return 'system';
+      case ThemeMode.system:
+        return 'system';
     }
   }
 }

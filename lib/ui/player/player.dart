@@ -3,7 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/providers/mediaprovider.dart';
@@ -12,6 +11,7 @@ import 'package:namizo/providers/settingsproviders.dart';
 import 'package:namizo/models/stream_result.dart';
 import 'package:namizo/services/streaming.dart';
 import 'package:namizo/ui/player/widgets/webview_player.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -1076,7 +1076,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     backgroundColor: Colors.black.withOpacity(0.7),
                     elevation: 0,
                     leading: IconButton(
-                      icon: const NavArrowLeft(color: Colors.white, width: 20, height: 20),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.caretLeft,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       onPressed: () => Navigator.pop(context),
                     ),
                     title: Column(
@@ -1140,7 +1144,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     actions: [
                       // Switch Server
                       PopupMenuButton<int>(
-                        icon: const RefreshDouble(color: Colors.white, width: 21, height: 21),
+                        icon: const PhosphorIcon(
+                          PhosphorIconsRegular.arrowsClockwise,
+                          color: Colors.white,
+                          size: 21,
+                        ),
                         tooltip: 'Switch Server',
                         color: const Color(0xFF1F1F1F),
                         onSelected: _switchToProvider,
@@ -1245,7 +1253,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
                       constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                      icon: const NavArrowLeft(color: Colors.white, width: 20, height: 20),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.caretLeft,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
                     const SizedBox(width: 2),
                     Expanded(
@@ -1271,10 +1283,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ),
                     ),
                     PopupMenuButton<int>(
-                      icon: const RefreshDouble(
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.arrowsClockwise,
                         color: Colors.white,
-                        width: 20,
-                        height: 20,
+                        size: 20,
                       ),
                       tooltip: 'Switch Server',
                       color: const Color(0xFF1F1F1F),

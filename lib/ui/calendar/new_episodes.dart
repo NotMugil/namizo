@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/new_episode.dart';
-import 'package:namizo/services/episode_check.dart';
+import 'package:namizo/services/episodes.dart';
 
 /// Provider for new episodes list
 final newEpisodesProvider = StateProvider<List<NewEpisode>>((ref) {
@@ -17,14 +17,14 @@ final unreadEpisodeCountProvider = StateProvider<int>((ref) {
   return EpisodeCheckService.getUnreadCount();
 });
 
-class NewEpisodesScreen extends ConsumerStatefulWidget {
-  const NewEpisodesScreen({super.key});
+class NotificationsScreen extends ConsumerStatefulWidget {
+  const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NewEpisodesScreen> createState() => _NewEpisodesScreenState();
+  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
@@ -51,12 +51,8 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
         backgroundColor: NamizoTheme.netflixBlack,
         automaticallyImplyLeading: false,
         title: const Text(
-          'New Episodes',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          'Notifications',
+          style: NamizoTheme.pageHeaderStyle,
         ),
         actions: [
           if (episodes.isNotEmpty)

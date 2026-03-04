@@ -52,10 +52,6 @@ class _AniListLoginScreenState extends State<AniListLoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: NamizoTheme.netflixBlack,
-      appBar: AppBar(
-        backgroundColor: NamizoTheme.netflixBlack,
-        title: const Text('AniList Login'),
-      ),
       body: InAppWebView(
         initialUrlRequest: URLRequest(url: WebUri('https://anilist.co/login')),
         onLoadStart: (controller, url) {

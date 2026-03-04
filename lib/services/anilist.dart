@@ -26,6 +26,7 @@ query Viewer {
   Viewer {
     id
     name
+    bannerImage
     avatar {
       large
       medium
@@ -33,6 +34,33 @@ query Viewer {
     statistics {
       anime {
         count
+        episodesWatched
+        minutesWatched
+        meanScore
+      }
+    }
+  }
+}
+''';
+
+  static const String _viewerActivitiesQuery = r'''
+query ViewerActivities($userId: Int) {
+  Page(page: 1, perPage: 20) {
+    activities(userId: $userId, type: ANIME_LIST, sort: ID_DESC) {
+      ... on ListActivity {
+        id
+        status
+        progress
+        createdAt
+        media {
+          id
+          title {
+            userPreferred
+          }
+          coverImage {
+            large
+          }
+        }
       }
     }
   }
@@ -64,20 +92,9 @@ query Viewer {
   }
 
   Future<Map<String, dynamic>?> getViewerProfile() async {
-    final sessionCookie = await getSessionCookie();
-    final accessToken = await getAccessToken();
-
-    if ((sessionCookie == null || sessionCookie.isEmpty) &&
-        (accessToken == null || accessToken.isEmpty)) {
+    final headers = await _buildAuthHeaders();
+    if (headers.isEmpty) {
       return null;
-    }
-
-    final headers = <String, dynamic>{};
-    if (sessionCookie != null && sessionCookie.isNotEmpty) {
-      headers['Cookie'] = sessionCookie;
-    }
-    if (accessToken != null && accessToken.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $accessToken';
     }
 
     try {
@@ -112,6 +129,67 @@ query Viewer {
   Future<bool> isLoggedIn() async {
     final viewer = await getViewerProfile();
     return viewer != null;
+  }
+
+  Future<List<Map<String, dynamic>>> getViewerActivities() async {
+    final viewer = await getViewerProfile();
+    final userId = viewer?['id'];
+    if (userId is! int) {
+      return const [];
+    }
+
+    final headers = await _buildAuthHeaders();
+    if (headers.isEmpty) {
+      return const [];
+    }
+
+    try {
+      final response = await _dio.post<dynamic>(
+        '',
+        data: {
+          'query': _viewerActivitiesQuery,
+          'variables': {'userId': userId},
+        },
+        options: Options(headers: headers),
+      );
+
+      final data = response.data;
+      if (data is! Map) return const [];
+
+      final typed = Map<String, dynamic>.from(data);
+      final errors = typed['errors'];
+      if (errors is List && errors.isNotEmpty) return const [];
+
+      final payload = typed['data'];
+      if (payload is! Map) return const [];
+
+      final page = payload['Page'];
+      if (page is! Map) return const [];
+
+      final activities = page['activities'];
+      if (activities is! List) return const [];
+
+      return activities
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    } on DioException {
+      return const [];
+    }
+  }
+
+  Future<Map<String, dynamic>> _buildAuthHeaders() async {
+    final sessionCookie = await getSessionCookie();
+    final accessToken = await getAccessToken();
+
+    final headers = <String, dynamic>{};
+    if (sessionCookie != null && sessionCookie.isNotEmpty) {
+      headers['Cookie'] = sessionCookie;
+    }
+    if (accessToken != null && accessToken.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $accessToken';
+    }
+    return headers;
   }
 
   Future<void> logout() async {

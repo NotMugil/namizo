@@ -4,12 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:namizo/theme/theme.dart';
+import 'package:namizo/providers/settingsproviders.dart';
 import 'package:namizo/models/cache_entry.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/models/new_episode.dart';
 import 'package:namizo/core/cache/cache_service.dart';
 import 'package:namizo/services/watchlist.dart';
-import 'package:namizo/services/episode_check.dart';
+import 'package:namizo/services/episodes.dart';
 import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/ui/home/home.dart';
 import 'package:namizo/ui/search/search.dart';
@@ -20,6 +21,8 @@ import 'package:namizo/ui/settings/settings.dart';
 import 'package:namizo/ui/profile/anilist_login.dart';
 import 'package:namizo/ui/profile/profile.dart';
 import 'package:namizo/ui/calendar/new_episodes.dart';
+import 'package:namizo/ui/calendar/schedule.dart';
+import 'package:namizo/theme/font_family.dart';
 
 void main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -78,7 +81,7 @@ final _router = GoRouter(
           routes: [
             GoRoute(
               path: '/calendar',
-              builder: (context, state) => const NewEpisodesScreen(),
+              builder: (context, state) => const ScheduleScreen(),
             ),
           ],
         ),
@@ -92,7 +95,11 @@ final _router = GoRouter(
         ),
       ],
     ),
-    GoRoute(path: '/new-episodes', redirect: (_, __) => '/calendar'),
+    GoRoute(
+      path: '/notifications',
+      builder: (context, state) => const NotificationsScreen(),
+    ),
+    GoRoute(path: '/new-episodes', redirect: (_, __) => '/notifications'),
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
@@ -128,14 +135,19 @@ final _router = GoRouter(
   ],
 );
 
-class NamizoApp extends StatelessWidget {
+class NamizoApp extends ConsumerWidget {
   const NamizoApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    final darkTheme = NamizoTheme.darkTheme(fontFamily: AppFontFamily.satoshi);
+
     return MaterialApp.router(
       title: 'Namizo',
-      theme: NamizoTheme.darkTheme,
+      theme: darkTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );

@@ -14,6 +14,7 @@ class TvdbMetadataService {
 
   final CacheService _cache;
   final Dio _mappingDio;
+  final Dio _jikanDio;
   final Dio _tvdbDio;
   String? _token;
   Map<int, String>? _artworkTypeById;
@@ -23,6 +24,16 @@ class TvdbMetadataService {
           BaseOptions(
             connectTimeout: const Duration(seconds: 20),
             receiveTimeout: const Duration(seconds: 20),
+          ),
+        ),
+        _jikanDio = Dio(
+          BaseOptions(
+            baseUrl: AppConfigurations.jikanBaseUrl,
+            connectTimeout: standardTimeout,
+            receiveTimeout: standardTimeout,
+            headers: {
+              'User-Agent': AppConfigurations.defaultAppUserAgent,
+            },
           ),
         ),
         _tvdbDio = Dio(
@@ -42,23 +53,259 @@ class TvdbMetadataService {
     final cacheKey = 'tvdb_mapping_mal_$malId';
     final cached = await _cache.getRaw(cacheKey);
     if (cached != null) {
-      return TvdbMappingEntry.fromJson(cached.cast<String, dynamic>());
+      final resolved = TvdbMappingEntry.fromJson(cached.cast<String, dynamic>());
+      if (resolved.tvdbId > 0) return resolved;
     }
 
     try {
       final yamlText = await _loadMappingYaml();
-      final parsed = _parseMappingEntry(yamlText, malId);
-      if (parsed != null) {
+      TvdbMappingEntry? parsed = _parseMappingEntry(yamlText, malId);
+
+      if (parsed == null || parsed.tvdbId <= 0) {
+        parsed = await _resolveDynamicMappingForMalId(malId);
+      }
+
+      if (parsed != null && parsed.tvdbId > 0) {
         await _cache.set(
           cacheKey,
           parsed.toJson(),
           ttl: CacheService.longCache,
         );
       }
+
       return parsed;
     } catch (_) {
       return null;
     }
+  }
+
+  Future<TvdbMappingEntry?> _resolveDynamicMappingForMalId(int malId) async {
+    if (!isEnabled) return null;
+
+    final profile = await _fetchMalLookupProfile(malId);
+    if (profile == null || profile.titles.isEmpty) return null;
+
+    final allCandidates = <int, _TvdbSeriesCandidate>{};
+    for (final query in profile.titles.take(4)) {
+      final candidates = await _searchTvdbSeries(query);
+      for (final candidate in candidates) {
+        allCandidates[candidate.tvdbId] = candidate;
+      }
+    }
+
+    if (allCandidates.isEmpty) return null;
+
+    _TvdbSeriesCandidate? best;
+    var bestScore = double.negativeInfinity;
+
+    for (final candidate in allCandidates.values) {
+      final score = _scoreTvdbCandidate(candidate, profile);
+      if (score > bestScore) {
+        best = candidate;
+        bestScore = score;
+      }
+    }
+
+    if (best == null || best.tvdbId <= 0 || bestScore < 58) {
+      return null;
+    }
+
+    if (_artworkDebug) {
+      print(
+        '[TVDB][DynamicMapping] MAL $malId -> TVDB ${best.tvdbId} '
+        'title="${best.name}" score=${bestScore.toStringAsFixed(2)}',
+      );
+    }
+
+    return TvdbMappingEntry(
+      malId: malId,
+      tvdbId: best.tvdbId,
+      tvdbSeason: 1,
+      start: 0,
+      useMapping: false,
+    );
+  }
+
+  Future<_MalLookupProfile?> _fetchMalLookupProfile(int malId) async {
+    try {
+      final response = await _jikanDio.get('/anime/$malId/full');
+      final root = response.data;
+      if (root is! Map) return null;
+      final data = root['data'];
+      if (data is! Map) return null;
+
+      final normalized = data.cast<String, dynamic>();
+      final titles = <String>{};
+
+      void collect(dynamic value) {
+        final title = value?.toString().trim();
+        if (title != null && title.isNotEmpty) {
+          titles.add(title);
+        }
+      }
+
+      collect(normalized['title_english']);
+      collect(normalized['title']);
+      collect(normalized['title_japanese']);
+
+      final titleList = normalized['titles'];
+      if (titleList is List) {
+        for (final item in titleList) {
+          if (item is! Map) continue;
+          collect(item['title']);
+        }
+      }
+
+      int? year = (normalized['year'] as num?)?.toInt();
+      year ??= _extractYearFromDateString(
+        (normalized['aired'] is Map)
+            ? (normalized['aired'] as Map)['from']?.toString()
+            : null,
+      );
+
+      if (titles.isEmpty) return null;
+      return _MalLookupProfile(
+        malId: malId,
+        titles: titles.toList(growable: false),
+        year: year,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<_TvdbSeriesCandidate>> _searchTvdbSeries(String query) async {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty) return const [];
+
+    final ready = await _ensureToken();
+    if (!ready) return const [];
+
+    final endpoints = [
+      {'query': normalizedQuery, 'type': 'series'},
+      {'query': normalizedQuery},
+    ];
+
+    final results = <_TvdbSeriesCandidate>[];
+    final seenIds = <int>{};
+
+    for (final params in endpoints) {
+      try {
+        final response = await _tvdbDio.get(
+          '/search',
+          queryParameters: params,
+        );
+        final root = response.data;
+        if (root is! Map) continue;
+
+        final data = root['data'];
+        if (data is! List) continue;
+
+        for (final row in data) {
+          if (row is! Map) continue;
+          final item = row.cast<String, dynamic>();
+          final tvdbId =
+              _toInt(item['tvdb_id']) ?? _toInt(item['id']) ?? _toInt(item['seriesId']);
+          if (tvdbId == null || tvdbId <= 0 || !seenIds.add(tvdbId)) {
+            continue;
+          }
+
+          final name = (item['name'] ?? item['seriesName'] ?? item['title'])
+              ?.toString()
+              .trim();
+          if (name == null || name.isEmpty) continue;
+
+          final year =
+              _toInt(item['year']) ?? _extractYearFromDateString(item['firstAired']?.toString());
+
+          results.add(
+            _TvdbSeriesCandidate(
+              tvdbId: tvdbId,
+              name: name,
+              year: year,
+            ),
+          );
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+
+    return results;
+  }
+
+  double _scoreTvdbCandidate(
+    _TvdbSeriesCandidate candidate,
+    _MalLookupProfile profile,
+  ) {
+    final candidateName = _normalizeComparableTitle(candidate.name);
+    if (candidateName.isEmpty) return -1000;
+
+    var bestTitleScore = -1000.0;
+    for (final title in profile.titles) {
+      final normalizedTitle = _normalizeComparableTitle(title);
+      if (normalizedTitle.isEmpty) continue;
+
+      var score = 0.0;
+      if (candidateName == normalizedTitle) {
+        score += 90;
+      } else if (candidateName.contains(normalizedTitle) ||
+          normalizedTitle.contains(candidateName)) {
+        score += 62;
+      }
+
+      final queryTokens = _tokenizeTitle(normalizedTitle);
+      final candidateTokens = _tokenizeTitle(candidateName);
+      if (queryTokens.isNotEmpty && candidateTokens.isNotEmpty) {
+        final intersection = queryTokens.intersection(candidateTokens).length;
+        final union = queryTokens.union(candidateTokens).length;
+        final jaccard = union == 0 ? 0 : intersection / union;
+        score += jaccard * 60;
+      }
+
+      if (score > bestTitleScore) {
+        bestTitleScore = score;
+      }
+    }
+
+    var total = bestTitleScore;
+    if (profile.year != null && candidate.year != null) {
+      final yearDelta = (profile.year! - candidate.year!).abs();
+      if (yearDelta == 0) {
+        total += 20;
+      } else if (yearDelta == 1) {
+        total += 14;
+      } else if (yearDelta <= 3) {
+        total += 6;
+      } else {
+        total -= (yearDelta * 2).toDouble();
+      }
+    }
+
+    return total;
+  }
+
+  String _normalizeComparableTitle(String input) {
+    return input
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  Set<String> _tokenizeTitle(String input) {
+    return input
+        .split(' ')
+        .map((token) => token.trim())
+        .where((token) => token.length >= 2)
+        .toSet();
+  }
+
+  int? _extractYearFromDateString(String? value) {
+    if (value == null || value.trim().length < 4) return null;
+    final match = RegExp(r'(19|20)\d{2}').firstMatch(value);
+    if (match == null) return null;
+    return int.tryParse(match.group(0)!);
   }
 
   Future<String?> getLogoUrlForMalId(int malId) async {
@@ -171,6 +418,32 @@ class TvdbMetadataService {
   Future<String?> getCarouselBackdropUrlForMalId(int malId) async {
     final artwork = await getArtworkForMalId(malId);
     return artwork?.carouselBackdropUrl;
+  }
+
+  Future<String?> getNoTextPosterUrlForMalId(int malId) async {
+    final mapping = await getMappingForMalId(malId);
+    if (mapping == null || mapping.tvdbId <= 0 || !isEnabled) {
+      return null;
+    }
+
+    await _getArtworkTypeMap();
+
+    final series = await _fetchBestArtworkSeries(mapping.tvdbId);
+    if (series == null) return null;
+
+    final poster = _selectArtworkUrl(
+      series,
+      policy: const _ArtworkSelectionPolicy(
+        mode: 'carousel-poster-no-text-direct',
+        typeHints: ['poster', 'cover', 'keyart'],
+        targetAspectRatio: 2 / 3,
+        preferPortrait: true,
+        preferNoText: true,
+        strictNoText: true,
+      ),
+    );
+
+    return poster;
   }
 
   Future<SeasonData> enrichSeasonData({
@@ -1417,6 +1690,30 @@ class _SurfaceArtworkResult {
     required this.detailPosterUrl,
     required this.detailBackdropUrl,
     required this.carouselBackdropUrl,
+  });
+}
+
+class _MalLookupProfile {
+  final int malId;
+  final List<String> titles;
+  final int? year;
+
+  const _MalLookupProfile({
+    required this.malId,
+    required this.titles,
+    required this.year,
+  });
+}
+
+class _TvdbSeriesCandidate {
+  final int tvdbId;
+  final String name;
+  final int? year;
+
+  const _TvdbSeriesCandidate({
+    required this.tvdbId,
+    required this.name,
+    required this.year,
   });
 }
 

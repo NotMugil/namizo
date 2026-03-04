@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 class NamizoTheme {
-  // Dark cinematic palette
-  static const Color netflixRed = Color(0xFF7C73FF);
+  // Core app palette
+  static const Color netflixRed = Color(0xFFF6A13A);
   static const Color netflixBlack = Color(0xFF0D0F14);
   static const Color netflixDarkGrey = Color(0xFF151922);
   static const Color netflixGrey = Color(0xFF7E8798);
@@ -10,16 +10,26 @@ class NamizoTheme {
   static const Color netflixWhite = Color(0xFFF6F8FF);
   static const Color glassFill = Color(0x33293246);
   static const Color glassStroke = Color(0x40FFFFFF);
+  static const TextStyle sectionHeaderStyle = TextStyle(
+    color: Colors.white70,
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 1.2,
+  );
+  static const TextStyle pageHeaderStyle = TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w500,
+  );
 
-  static ThemeData darkTheme = ThemeData(
+  static ThemeData darkTheme({required String fontFamily}) => ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    fontFamily: 'Satoshi',
+    fontFamily: fontFamily,
     scaffoldBackgroundColor: netflixBlack,
     primaryColor: netflixRed,
     colorScheme: const ColorScheme.dark(
       primary: netflixRed,
-      secondary: Color(0xFF8A7FFF),
+      secondary: Color(0xFFFFC27A),
       surface: netflixDarkGrey,
       surfaceContainer: netflixDarkGrey,
     ),

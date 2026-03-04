@@ -38,7 +38,18 @@ jobs:
         run: flutter pub get
 
       - name: Build release APK
-        run: flutter build apk --release
+        env:
+          TVDB_API_KEY: ${{ secrets['TVDB_API_KEY'] }}
+          TVDB_PIN: ${{ secrets['TVDB_PIN'] }}
+        run: |
+          BUILD_CMD="flutter build apk --release"
+          if [ -n "$TVDB_API_KEY" ]; then
+            BUILD_CMD="$BUILD_CMD --dart-define=TVDB_API_KEY=$TVDB_API_KEY"
+          fi
+          if [ -n "$TVDB_PIN" ]; then
+            BUILD_CMD="$BUILD_CMD --dart-define=TVDB_PIN=$TVDB_PIN"
+          fi
+          eval "$BUILD_CMD"
 
       - name: Rename APK
         run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/namizo-v${{ steps.version.outputs.version }}.apk

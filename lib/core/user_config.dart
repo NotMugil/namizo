@@ -2,9 +2,12 @@ class UserConfig {
   const UserConfig._();
 
   // Optional TVDB credentials for richer metadata enrichment.
-  // Keep empty to disable TVDB enrichment.
-  static const String tvdbApiKey = '57a0987c-f38d-45b3-acf0-f84ffee71196';
-  static const String tvdbPin = '';
+    // Set via --dart-define=TVDB_API_KEY=... and --dart-define=TVDB_PIN=...
+    // Keep empty to disable TVDB enrichment.
+    static const String tvdbApiKey =
+      String.fromEnvironment('TVDB_API_KEY', defaultValue: '');
+    static const String tvdbPin =
+      String.fromEnvironment('TVDB_PIN', defaultValue: '');
 
   static const bool defaultEpisodeCheckEnabled = true;
   static const int defaultEpisodeCheckFrequencyHours = 24;
@@ -14,4 +17,5 @@ class UserConfig {
   static const double defaultPlaybackSpeed = 1.0;
   static const String defaultVideoQuality = 'auto';
   static const String defaultAnimeSubDubPreference = 'sub';
+  static const String defaultThemeMode = 'system';
 }

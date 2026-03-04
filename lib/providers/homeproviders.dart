@@ -98,7 +98,7 @@ final tvPosterProvider = FutureProvider.family<String?, int>((ref, id) async {
 
 final tvCarouselImageProvider = FutureProvider.family<String?, int>((ref, id) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return tmdbService.getTVShowCarouselImageUrl(id);
+  return tmdbService.getTVShowNoTextPosterUrl(id);
 });
 
 /// Eagerly fetches all logo URLs for the featured carousel in parallel.

@@ -5,7 +5,7 @@ import 'package:namizo/core/constants.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/core/cache/cache_service.dart';
-import 'package:namizo/services/tvdb_metadata.dart';
+import 'package:namizo/services/tvdb.dart';
 
 class KuroiruService {
   final Dio _jikanDio;
@@ -662,6 +662,11 @@ class KuroiruService {
   Future<String?> getTVShowPosterUrl(int id) async {
     final artwork = await _tvdbMetadata.getArtworkForMalId(id);
     return artwork?.posterUrl;
+  }
+
+  /// Returns a strict no-text poster/keyart URL for carousel use, or null.
+  Future<String?> getTVShowNoTextPosterUrl(int id) async {
+    return _tvdbMetadata.getNoTextPosterUrlForMalId(id);
   }
 
   SearchResult _toSearchResult(aimi.AnimeDetails details) {

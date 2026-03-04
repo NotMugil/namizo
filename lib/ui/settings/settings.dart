@@ -1,33 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:namizo/theme/theme.dart';
-import 'package:namizo/providers/homeproviders.dart';
-import 'package:namizo/providers/settingsproviders.dart';
-import 'package:namizo/providers/serviceproviders.dart';
-import 'package:namizo/providers/watchhistoryprovider.dart';
-import 'package:namizo/services/episode_check.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
-
-/// Settings Screen - All settings are functional and persist via SharedPreferences
+import 'package:namizo/providers/homeproviders.dart';
+import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/settingsproviders.dart';
+import 'package:namizo/providers/watchhistoryprovider.dart';
+import 'package:namizo/services/episodes.dart';
+import 'package:namizo/theme/theme.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  /// Android supports background tasks
   bool get _supportsBackgroundTasks => true;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final playbackSpeed = ref.watch(playbackSpeedProvider);
-    final videoQualityNotifier = ref.read(videoQualityProvider.notifier);
-    final subtitlesEnabled = ref.watch(subtitlesEnabledProvider);
     final animationsEnabled = ref.watch(animationsEnabledProvider);
     final episodeCheckEnabled = ref.watch(episodeCheckEnabledProvider);
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
+    final currentThemeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -35,87 +30,216 @@ class SettingsScreen extends ConsumerWidget {
         backgroundColor: NamizoTheme.netflixBlack,
         title: const Text(
           'Settings',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+          style: NamizoTheme.pageHeaderStyle,
         ),
         leading: IconButton(
-          icon: const NavArrowLeft(color: Colors.white, width: 20, height: 20),
+          icon: const PhosphorIcon(
+            PhosphorIconsRegular.caretLeft,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => context.pop(),
         ),
       ),
       body: ListView(
         children: [
-          // Playback Settings
-          _buildSectionHeader('Playback'),
-          _buildSettingsTile(
-            icon: const DashboardSpeed(color: Colors.white, width: 24, height: 24),
-            title: 'Default Playback Speed',
-            subtitle: '${playbackSpeed}x',
-            trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
-            onTap: () {
-              _showPlaybackSpeedDialog(context, ref);
-            },
-          ),
-          _buildSettingsTile(
-            icon: const MediaVideo(color: Colors.white, width: 24, height: 24),
-            title: 'Preferred Video Quality',
-            subtitle: videoQualityNotifier.displayName,
-            trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
-            onTap: () {
-              _showVideoQualityDialog(context, ref);
-            },
-          ),
-          _buildSettingsTile(
-            icon: const ClosedCaptionsTag(color: Colors.white, width: 24, height: 24),
-            title: 'Enable Subtitles',
-            subtitle: subtitlesEnabled ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: subtitlesEnabled,
-              onChanged: (_) {
-                ref.read(subtitlesEnabledProvider.notifier).toggle();
-              },
-              activeColor: NamizoTheme.netflixRed,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () async {
+                  final uri = Uri.parse('https://keepandroidopen.org/');
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                  }
+                },
+                child: Ink(
+                  decoration: BoxDecoration(
+                    color: NamizoTheme.netflixRed.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: NamizoTheme.netflixRed.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  child: const Row(
+                    children: [
+                      PhosphorIcon(
+                        PhosphorIconsRegular.warning,
+                        color: NamizoTheme.netflixRed,
+                        size: 22,
+                      ),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Keep Android Open',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Learn more about the developer verification issue',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      PhosphorIcon(
+                        PhosphorIconsRegular.arrowSquareOut,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
-          // Notifications Section (only show on platforms that support background tasks)
+          _buildSectionHeader('Account'),
+          aniListViewerAsync.when(
+            data: (viewer) {
+              if (viewer == null) {
+                return _buildSettingsTile(
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.signIn,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  title: 'Login AniList',
+                  subtitle: 'Connect your AniList account',
+                  trailing: const PhosphorIcon(
+                    PhosphorIconsRegular.caretRight,
+                    color: Colors.white70,
+                    size: 18,
+                  ),
+                  onTap: () async {
+                    final result = await context.push<String>('/anilist/login');
+                    if (result == 'success') {
+                      ref.read(aniListAccountRefreshProvider.notifier).state++;
+                    }
+                  },
+                );
+              }
+
+              final username = (viewer['name'] ?? 'Unknown').toString();
+              final watchlistCount =
+                  ((viewer['statistics'] as Map<String, dynamic>?)?['anime']
+                              as Map<String, dynamic>?)?['count']
+                          ?.toString() ??
+                      'Unavailable';
+
+              return Column(
+                children: [
+                  _buildSettingsTile(
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.userCircle,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    title: 'AniList Username',
+                    subtitle: username,
+                    trailing: null,
+                  ),
+                  _buildSettingsTile(
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.bookmarkSimple,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    title: 'AniList Watchlist',
+                    subtitle: '$watchlistCount entries',
+                    trailing: null,
+                  ),
+                  _buildSettingsTile(
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.signOut,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    title: 'Logout AniList',
+                    subtitle: 'Disconnect AniList account',
+                    trailing: const PhosphorIcon(
+                      PhosphorIconsRegular.caretRight,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                    onTap: () async {
+                      await ref.read(aniListServiceProvider).logout();
+                      ref.read(aniListAccountRefreshProvider.notifier).state++;
+                    },
+                  ),
+                ],
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+
           if (_supportsBackgroundTasks) ...[
             _buildSectionHeader('Notifications'),
             _buildSettingsTile(
-              icon: const Bell(color: Colors.white, width: 24, height: 24),
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.bell,
+                color: Colors.white,
+                size: 24,
+              ),
               title: 'New Episode Alerts',
               subtitle: episodeCheckEnabled ? 'Enabled' : 'Disabled',
               trailing: Switch(
                 value: episodeCheckEnabled,
                 onChanged: (value) {
-                  ref
-                      .read(episodeCheckEnabledProvider.notifier)
-                      .setEnabled(value);
+                  ref.read(episodeCheckEnabledProvider.notifier).setEnabled(value);
                 },
-                activeColor: NamizoTheme.netflixRed,
+                activeThumbColor: NamizoTheme.netflixRed,
               ),
             ),
             if (episodeCheckEnabled) ...[
               _buildSettingsTile(
-                icon: const Calendar(color: Colors.white, width: 24, height: 24),
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.calendar,
+                  color: Colors.white,
+                  size: 24,
+                ),
                 title: 'Check Frequency',
-                subtitle: ref
-                    .read(episodeCheckFrequencyProvider.notifier)
-                    .displayName,
-                trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
+                subtitle: ref.read(episodeCheckFrequencyProvider.notifier).displayName,
+                trailing: const PhosphorIcon(
+                  PhosphorIconsRegular.caretRight,
+                  color: Colors.white70,
+                  size: 18,
+                ),
                 onTap: () {
                   _showFrequencyDialog(context, ref);
                 },
               ),
               _buildSettingsTile(
-                icon: const Refresh(color: Colors.white, width: 24, height: 24),
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.arrowsClockwise,
+                  color: Colors.white,
+                  size: 24,
+                ),
                 title: 'Check Now',
                 subtitle: 'Manually check for new episodes',
-                trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
+                trailing: const PhosphorIcon(
+                  PhosphorIconsRegular.caretRight,
+                  color: Colors.white70,
+                  size: 18,
+                ),
                 onTap: () async {
                   _showCheckingDialog(context, ref);
                 },
@@ -128,7 +252,11 @@ class SettingsScreen extends ConsumerWidget {
                       ? 'Last checked: ${DateFormat.yMMMd().add_jm().format(lastCheck)}'
                       : 'Never checked';
                   return _buildSettingsTile(
-                    icon: const Clock(color: Colors.white, width: 24, height: 24),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.clock,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                     title: 'Last Check',
                     subtitle: subtitle,
                     trailing: null,
@@ -136,41 +264,66 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
             ],
-            const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
           ],
 
-          // Data & Storage
           _buildSectionHeader('Data & Storage'),
           _buildSettingsTile(
-            icon: const CloudSync(color: Colors.white, width: 24, height: 24),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.clockCounterClockwise,
+              color: Colors.white,
+              size: 24,
+            ),
             title: 'Clear Watch History',
             subtitle: 'Remove all watch history data',
-            trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
+            trailing: const PhosphorIcon(
+              PhosphorIconsRegular.caretRight,
+              color: Colors.white70,
+              size: 18,
+            ),
             onTap: () {
               _showClearHistoryDialog(context, ref);
             },
           ),
           _buildSettingsTile(
-            icon: const DatabaseBackup(color: Colors.white, width: 24, height: 24),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.database,
+              color: Colors.white,
+              size: 24,
+            ),
             title: 'Clear Cache',
             subtitle: 'Remove cached metadata and artwork',
-            trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
+            trailing: const PhosphorIcon(
+              PhosphorIconsRegular.caretRight,
+              color: Colors.white70,
+              size: 18,
+            ),
             onTap: () {
               _showClearCacheDialog(context, ref);
             },
           ),
-          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
-          // Appearance
           _buildSectionHeader('Appearance'),
           _buildSettingsTile(
-            icon: const HalfMoon(color: Colors.white, width: 24, height: 24),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.moon,
+              color: Colors.white,
+              size: 24,
+            ),
             title: 'Theme',
-            subtitle: 'Dark (Netflix Style)',
-            trailing: null,
+            subtitle: themeModeDisplayName(currentThemeMode),
+            trailing: const PhosphorIcon(
+              PhosphorIconsRegular.caretRight,
+              color: Colors.white70,
+              size: 18,
+            ),
+            onTap: () => _showThemeModeDialog(context, ref),
           ),
           _buildSettingsTile(
-            icon: const MagicWand(color: Colors.white, width: 24, height: 24),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.sparkle,
+              color: Colors.white,
+              size: 24,
+            ),
             title: 'Animations',
             subtitle: animationsEnabled ? 'Enabled' : 'Disabled',
             trailing: Switch(
@@ -178,85 +331,20 @@ class SettingsScreen extends ConsumerWidget {
               onChanged: (_) {
                 ref.read(animationsEnabledProvider.notifier).toggle();
               },
-              activeColor: NamizoTheme.netflixRed,
+              activeThumbColor: NamizoTheme.netflixRed,
             ),
           ),
-          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
 
-          _buildSectionHeader('AniList'),
-          aniListViewerAsync.when(
-            data: (viewer) {
-              if (viewer == null) {
-                return _buildSettingsTile(
-                  icon: const User(color: Colors.white, width: 24, height: 24),
-                  title: 'Connect AniList',
-                  subtitle: 'Login with AniList via webview',
-                  trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
-                  onTap: () => _showAniListConnectDialog(context, ref),
-                );
-              }
-
-              final username = (viewer['name'] ?? 'Unknown').toString();
-              final watchlistCount = ((viewer['statistics'] as Map<String, dynamic>?)?['anime']
-                      as Map<String, dynamic>?)?['count']
-                  ?.toString();
-
-              return Column(
-                children: [
-                  _buildSettingsTile(
-                    icon: const User(color: Colors.white, width: 24, height: 24),
-                    title: 'AniList Username',
-                    subtitle: username,
-                    trailing: null,
-                  ),
-                  _buildSettingsTile(
-                    icon: const BookmarkBook(color: Colors.white, width: 24, height: 24),
-                    title: 'AniList Watchlist',
-                    subtitle: watchlistCount != null
-                        ? '$watchlistCount entries'
-                        : 'Unavailable',
-                    trailing: null,
-                  ),
-                  _buildSettingsTile(
-                    icon: const LogOut(color: Colors.white, width: 24, height: 24),
-                    title: 'Logout AniList',
-                    subtitle: 'Disconnect AniList account',
-                    trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
-                    onTap: () async {
-                      await ref.read(aniListServiceProvider).logout();
-                      ref.read(aniListAccountRefreshProvider.notifier).state++;
-                    },
-                  ),
-                ],
-              );
-            },
-            loading: () => _buildSettingsTile(
-              icon: const User(color: Colors.white, width: 24, height: 24),
-              title: 'AniList',
-              subtitle: 'Loading account status...',
-              trailing: const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-            error: (_, __) => _buildSettingsTile(
-              icon: const WarningCircle(color: Colors.white, width: 24, height: 24),
-              title: 'AniList',
-              subtitle: 'Unable to load AniList account',
-              trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
-              onTap: () => _showAniListConnectDialog(context, ref),
-            ),
-          ),
-          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
-
-          // About
           _buildSectionHeader('About'),
           FutureBuilder<String>(
             future: _getAppVersionLabel(),
             builder: (context, snapshot) {
               return _buildSettingsTile(
-                icon: const InfoCircle(color: Colors.white, width: 24, height: 24),
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.info,
+                  color: Colors.white,
+                  size: 24,
+                ),
                 title: 'App Version',
                 subtitle: snapshot.data ?? 'Loading...',
                 trailing: null,
@@ -264,31 +352,25 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           _buildSettingsTile(
-            icon: const SubmitDocument(color: Colors.white, width: 24, height: 24),
-            title: 'Privacy Policy',
-            subtitle: 'View privacy policy',
-            trailing: const ArrowUpRight(color: Colors.white70, width: 18, height: 18),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.githubLogo,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'GitHub Repository',
+            subtitle: 'View source code',
+            trailing: const PhosphorIcon(
+              PhosphorIconsRegular.arrowSquareOut,
+              color: Colors.white70,
+              size: 18,
+            ),
             onTap: () async {
-              final uri = Uri.parse('https://namizo-app.com/privacy');
+              final uri = Uri.parse('https://github.com/NotMugil/namizo');
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri);
               }
             },
           ),
-          _buildSettingsTile(
-            icon: const PageEdit(color: Colors.white, width: 24, height: 24),
-            title: 'Terms of Service',
-            subtitle: 'View terms of service',
-            trailing: const ArrowUpRight(color: Colors.white70, width: 18, height: 18),
-            onTap: () async {
-              final uri = Uri.parse('https://namizo-app.com/terms');
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              }
-            },
-          ),
-          const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
-
           const SizedBox(height: 40),
         ],
       ),
@@ -312,12 +394,7 @@ class SettingsScreen extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
         title,
-        style: const TextStyle(
-          color: Colors.white70,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.2,
-        ),
+        style: NamizoTheme.sectionHeaderStyle,
       ),
     );
   }
@@ -350,22 +427,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showAniListConnectDialog(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    if (!context.mounted) return;
-    final result = await context.push<bool>('/anilist-login');
-
-    if (result == true) {
-      ref.read(aniListAccountRefreshProvider.notifier).state++;
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('AniList connected')),
-      );
-    }
-  }
-
   void _showClearHistoryDialog(BuildContext context, WidgetRef ref) async {
     showDialog(
       context: context,
@@ -389,11 +450,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () async {
-              // Use the service to clear history (local + cloud)
               final historyService = ref.read(watchHistoryServiceProvider);
               await historyService.clearAllHistory();
-
-              // Invalidate the provider to refresh UI
               ref.invalidate(continueWatchingProvider);
 
               if (dialogContext.mounted) {
@@ -471,84 +529,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showPlaybackSpeedDialog(BuildContext context, WidgetRef ref) {
-    final speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
-        title: const Text(
-          'Playback Speed',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: speeds.map((speed) {
-            final currentSpeed = ref.read(playbackSpeedProvider);
-            return RadioListTile<double>(
-              value: speed,
-              groupValue: currentSpeed,
-              activeColor: NamizoTheme.netflixRed,
-              title: Text(
-                '${speed}x',
-                style: const TextStyle(color: Colors.white),
-              ),
-              onChanged: (value) {
-                if (value != null) {
-                  ref.read(playbackSpeedProvider.notifier).setSpeed(value);
-                  Navigator.pop(dialogContext);
-                }
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  void _showVideoQualityDialog(BuildContext context, WidgetRef ref) {
-    final qualities = [
-      {'value': 'auto', 'label': 'Auto (Best Available)'},
-      {'value': '2160p', 'label': '4K (2160p)'},
-      {'value': '1080p', 'label': 'Full HD (1080p)'},
-      {'value': '720p', 'label': 'HD (720p)'},
-      {'value': '480p', 'label': 'SD (480p)'},
-    ];
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
-        title: const Text(
-          'Video Quality',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: qualities.map((quality) {
-            final currentQuality = ref.read(videoQualityProvider);
-            return RadioListTile<String>(
-              value: quality['value']!,
-              groupValue: currentQuality,
-              activeColor: NamizoTheme.netflixRed,
-              title: Text(
-                quality['label']!,
-                style: const TextStyle(color: Colors.white),
-              ),
-              onChanged: (value) {
-                if (value != null) {
-                  ref.read(videoQualityProvider.notifier).setQuality(value);
-                  Navigator.pop(dialogContext);
-                }
-              },
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
   void _showFrequencyDialog(BuildContext context, WidgetRef ref) {
     final frequencies = [
       {'value': 12, 'label': 'Every 12 hours (Frequent)'},
@@ -574,27 +554,75 @@ class SettingsScreen extends ConsumerWidget {
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ),
-            ...frequencies.map((freq) {
-              final currentFreq = ref.read(episodeCheckFrequencyProvider);
-              return RadioListTile<int>(
-                value: freq['value'] as int,
-                groupValue: currentFreq,
+            RadioGroup<int>(
+              groupValue: ref.read(episodeCheckFrequencyProvider),
+              onChanged: (value) {
+                if (value == null) return;
+                ref.read(episodeCheckFrequencyProvider.notifier).setFrequency(value);
+                Navigator.pop(dialogContext);
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: frequencies
+                    .map(
+                      (freq) => RadioListTile<int>(
+                        value: freq['value'] as int,
+                        activeColor: NamizoTheme.netflixRed,
+                        title: Text(
+                          freq['label'] as String,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showThemeModeDialog(BuildContext context, WidgetRef ref) {
+    final themeModeNotifier = ref.read(themeModeProvider.notifier);
+    final currentThemeMode = ref.read(themeModeProvider);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: NamizoTheme.netflixDarkGrey,
+        title: const Text(
+          'Theme',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: RadioGroup<ThemeMode>(
+          groupValue: currentThemeMode,
+          onChanged: (value) {
+            if (value == null) return;
+            themeModeNotifier.setThemeMode(value);
+            Navigator.pop(dialogContext);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              RadioListTile<ThemeMode>(
+                value: ThemeMode.system,
                 activeColor: NamizoTheme.netflixRed,
                 title: Text(
-                  freq['label'] as String,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  'Follow system',
+                  style: TextStyle(color: Colors.white),
                 ),
-                onChanged: (value) {
-                  if (value != null) {
-                    ref
-                        .read(episodeCheckFrequencyProvider.notifier)
-                        .setFrequency(value);
-                    Navigator.pop(dialogContext);
-                  }
-                },
-              );
-            }),
-          ],
+              ),
+              RadioListTile<ThemeMode>(
+                value: ThemeMode.dark,
+                activeColor: NamizoTheme.netflixRed,
+                title: Text(
+                  'Dark',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -619,7 +647,6 @@ class SettingsScreen extends ConsumerWidget {
               future: EpisodeCheckService.checkNow(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.done) {
-                  // Auto-close dialog and show result
                   Future.delayed(const Duration(milliseconds: 500), () {
                     if (dialogContext.mounted) {
                       Navigator.pop(dialogContext);

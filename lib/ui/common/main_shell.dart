@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/theme/theme.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MainShellScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -30,7 +30,7 @@ class MainShellScreen extends StatelessWidget {
           backgroundColor: NamizoTheme.netflixBlack,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFF9D96FF),
+          selectedItemColor: NamizoTheme.netflixRed,
           unselectedItemColor: NamizoTheme.netflixGrey,
           showUnselectedLabels: true,
           selectedLabelStyle: const TextStyle(
@@ -40,23 +40,23 @@ class MainShellScreen extends StatelessWidget {
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           items: const [
             BottomNavigationBarItem(
-              icon: HomeSimple(color: NamizoTheme.netflixGrey, width: 22, height: 22),
-              activeIcon: HomeSimple(color: Color(0xFF9D96FF), width: 22, height: 22),
+              icon: PhosphorIcon(PhosphorIconsRegular.house, color: NamizoTheme.netflixGrey, size: 22),
+              activeIcon: PhosphorIcon(PhosphorIconsFill.house, color: NamizoTheme.netflixRed, size: 22),
               label: 'Home',
             ),
             BottomNavigationBarItem(
-              icon: Search(color: NamizoTheme.netflixGrey, width: 22, height: 22),
-              activeIcon: Search(color: Color(0xFF9D96FF), width: 22, height: 22),
+              icon: PhosphorIcon(PhosphorIconsRegular.magnifyingGlass, color: NamizoTheme.netflixGrey, size: 22),
+              activeIcon: PhosphorIcon(PhosphorIconsFill.magnifyingGlass, color: NamizoTheme.netflixRed, size: 22),
               label: 'Discover',
             ),
             BottomNavigationBarItem(
-              icon: Calendar(color: NamizoTheme.netflixGrey, width: 22, height: 22),
-              activeIcon: CalendarCheck(color: Color(0xFF9D96FF), width: 22, height: 22),
+              icon: PhosphorIcon(PhosphorIconsRegular.calendarBlank, color: NamizoTheme.netflixGrey, size: 22),
+              activeIcon: PhosphorIcon(PhosphorIconsFill.calendarCheck, color: NamizoTheme.netflixRed, size: 22),
               label: 'Schedule',
             ),
             BottomNavigationBarItem(
-              icon: UserCircle(color: NamizoTheme.netflixGrey, width: 22, height: 22),
-              activeIcon: UserCircle(color: Color(0xFF9D96FF), width: 22, height: 22),
+              icon: PhosphorIcon(PhosphorIconsRegular.userCircle, color: NamizoTheme.netflixGrey, size: 22),
+              activeIcon: PhosphorIcon(PhosphorIconsFill.userCircle, color: NamizoTheme.netflixRed, size: 22),
               label: 'Profile',
             ),
           ],
