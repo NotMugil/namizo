@@ -107,7 +107,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (query.isEmpty) return;
 
     _searchDebounce?.cancel();
-    FocusScope.of(context).unfocus();
     ref.read(searchQueryProvider.notifier).state = query;
     setState(() {
       _allResults = [];
@@ -291,7 +290,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final sortBy = ref.watch(searchSortProvider);
     final hasFilters = languageFilter != null || sortBy != null;
 
-    return Scaffold(
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: NamizoTheme.netflixBlack,
         surfaceTintColor: Colors.transparent,
@@ -351,6 +353,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               : _buildResultsState(query, languageFilter, sortBy),
         ),
       ),
+    ),
     );
   }
 
@@ -376,9 +379,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             horizontal: 14,
             vertical: 11,
           ),
-          prefixIcon: Icon(
-            Icons.search,
-            color: Colors.white.withValues(alpha: 0.7),
+          prefixIcon: IconButton(
+            icon: Icon(
+              Icons.search,
+              color: Colors.white.withValues(alpha: 0.7),
+            ),
+            onPressed: () {
+              final query = _controller.text.trim();
+              if (query.isEmpty) return;
+              FocusScope.of(context).unfocus();
+              _onSearch(query);
+            },
           ),
           prefixIconConstraints: const BoxConstraints(
             minHeight: 44,
@@ -405,7 +416,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               : null,
         ),
         onChanged: _onQueryChanged,
-        onSubmitted: _onSearch,
+        onSubmitted: (value) {
+          FocusScope.of(context).unfocus();
+          _onSearch(value);
+        },
       ),
     );
   }

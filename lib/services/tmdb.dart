@@ -28,7 +28,6 @@ class KuroiruService {
       _kuroiru = aimi.Kuroiru(),
       _tvdbMetadata = TvdbMetadataService(_cache);
 
-  /// Anime-only search (Japanese TV animation entries).
   Future<SearchResults> search(
     String query, {
     int page = 1,
@@ -62,73 +61,68 @@ class KuroiruService {
     }
 
     try {
-      final kuroiruResults = await _kuroiru.search(normalizedQuery);
-      final mappedKuroiru = _mapKuroiruSearchResults(kuroiruResults);
+      Map<String, dynamic>? jikanData;
+      List<SearchResult> jikanParsed = const [];
 
-      if (mappedKuroiru.isNotEmpty) {
-        final processed = _postProcessSearchResults(
-          mappedKuroiru,
-          query: normalizedQuery,
-          sortBy: normalizedSort,
+      try {
+        final response = await _jikanGetWithRetry(
+          '/anime',
+          queryParameters: {
+            'q': normalizedQuery,
+            'page': page,
+            'sfw': true,
+            'limit': 25,
+            ..._searchSortToJikanParams(normalizedSort),
+          },
         );
-        const pageSize = 25;
-        final totalResults = processed.length;
-        final totalPages = totalResults == 0
-            ? 0
-            : ((totalResults + pageSize - 1) ~/ pageSize);
-        final safePage = totalPages == 0
-            ? 1
-            : page.clamp(1, totalPages).toInt();
-        final start = (safePage - 1) * pageSize;
-        final end = (start + pageSize > totalResults)
-            ? totalResults
-            : start + pageSize;
-        final paged = start >= totalResults
-            ? const <SearchResult>[]
-            : processed.sublist(start, end);
-
-        final merged = SearchResults(
-          page: safePage,
-          results: paged,
-          totalPages: totalPages,
-          totalResults: totalResults,
-        );
-
-        await _cache.set(
-          cacheKey,
-          merged.toJson(),
-          ttl: CacheService.mediumCache,
-        );
-        return merged;
+        jikanData = Map<String, dynamic>.from(response.data as Map);
+        jikanParsed = _parseJikanSearchResults(jikanData['data']);
+      } catch (_) {
+        jikanData = null;
       }
 
-      final response = await _jikanGetWithRetry(
-        '/anime',
-        queryParameters: {
-          'q': normalizedQuery,
-          'page': page,
-          'type': 'tv',
-          'sfw': true,
-          'limit': 25,
-          ..._searchSortToJikanParams(normalizedSort),
-        },
-      );
+      List<SearchResult> mappedKuroiru = const [];
+      if (page == 1) {
+        try {
+          final kuroiruResults = await _kuroiru.search(normalizedQuery);
+          mappedKuroiru = _mapKuroiruSearchResults(kuroiruResults);
+        } catch (_) {
+          mappedKuroiru = const [];
+        }
+      }
 
-      final data = Map<String, dynamic>.from(response.data as Map);
-      final parsed = _parseJikanSearchResults(data['data']);
+      if (jikanData == null && mappedKuroiru.isEmpty) {
+        throw Exception('No search sources available');
+      }
+
+      final combined = page == 1
+          ? _mergeUniqueSearchResults(mappedKuroiru, jikanParsed)
+          : jikanParsed;
+
       final processed = _postProcessSearchResults(
-        parsed,
+        combined,
         query: normalizedQuery,
         sortBy: normalizedSort,
       );
 
-      final pagination = (data['pagination'] as Map?)?.cast<String, dynamic>();
+      final pagination = (jikanData?['pagination'] as Map?)?.cast<String, dynamic>();
+      final jikanTotalPages = (pagination?['last_visible_page'] as num?)?.toInt() ??
+          (processed.isEmpty ? 0 : 1);
+      final jikanTotalResults = (pagination?['items']?['total'] as num?)?.toInt() ??
+          processed.length;
+
+      const pageSize = 25;
+      final pageResults = page == 1 && processed.length > pageSize
+          ? processed.take(pageSize).toList(growable: false)
+          : processed;
+
       final merged = SearchResults(
         page: page,
-        results: processed,
-        totalPages: (pagination?['last_visible_page'] as num?)?.toInt() ?? 0,
-        totalResults: (pagination?['items']?['total'] as num?)?.toInt() ??
-            processed.length,
+        results: pageResults,
+        totalPages: jikanTotalPages,
+        totalResults: jikanTotalResults > pageResults.length
+            ? jikanTotalResults
+            : pageResults.length,
       );
 
       await _cache.set(cacheKey, merged.toJson(), ttl: CacheService.mediumCache);
@@ -162,6 +156,26 @@ class KuroiruService {
     }
 
     return mapped;
+  }
+
+  List<SearchResult> _mergeUniqueSearchResults(
+    List<SearchResult> primary,
+    List<SearchResult> secondary,
+  ) {
+    final merged = <SearchResult>[];
+    final seen = <String>{};
+
+    for (final item in primary) {
+      final key = '${item.id}';
+      if (seen.add(key)) merged.add(item);
+    }
+
+    for (final item in secondary) {
+      final key = '${item.id}';
+      if (seen.add(key)) merged.add(item);
+    }
+
+    return merged;
   }
 
   String? _extractIsoDateFromLooseYear(String? source) {
@@ -198,7 +212,7 @@ class KuroiruService {
           name: mal['title'] as String?,
           title: mal['title_english'] as String? ?? mal['title'] as String?,
           originalLanguage: 'ja',
-          mediaType: 'tv',
+          mediaType: (mal['type'] as String?)?.toLowerCase() ?? 'tv',
           firstAirDate: _extractIsoDate(mal['aired']?['from']),
           posterPath: posterUrl,
           backdropPath: posterUrl,
@@ -237,13 +251,8 @@ class KuroiruService {
   }) {
     var processed = List<SearchResult>.from(results);
 
-    processed = processed
-        .where((item) => item.mediaType == 'tv')
-        .where((item) => (item.originalLanguage ?? '').toLowerCase() == 'ja')
-        .toList();
-
     final seen = <String>{};
-    processed = processed.where((item) => seen.add('tv_${item.id}')).toList();
+    processed = processed.where((item) => seen.add('${item.id}')).toList();
 
     switch (sortBy) {
       case 'popularity':
