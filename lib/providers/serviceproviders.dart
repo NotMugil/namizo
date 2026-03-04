@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:namizo/services/tmdb_service.dart';
-import 'package:namizo/services/anilist_service.dart';
-import 'package:namizo/services/streaming_service.dart';
-import 'package:namizo/services/watch_history_service.dart';
-import 'package:namizo/services/cache_service.dart';
+import 'package:namizo/services/tmdb.dart';
+import 'package:namizo/services/anilist.dart';
+import 'package:namizo/services/streaming.dart';
+import 'package:namizo/services/watch_history.dart';
+import 'package:namizo/core/cache/cache_service.dart';
 
 // Cache service provider
 final cacheServiceProvider = Provider((ref) {
@@ -13,10 +13,13 @@ final cacheServiceProvider = Provider((ref) {
 });
 
 // Service Providers
-final tmdbServiceProvider = Provider((ref) {
+final kuroiruServiceProvider = Provider<KuroiruService>((ref) {
   final cache = ref.watch(cacheServiceProvider);
-  return TmdbService(cache);
+  return KuroiruService(cache);
 });
+
+@Deprecated('Use kuroiruServiceProvider instead')
+final tmdbServiceProvider = kuroiruServiceProvider;
 
 final aniListServiceProvider = Provider((ref) => AniListService());
 

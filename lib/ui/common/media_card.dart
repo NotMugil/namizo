@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/models/watch_history.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/store/service_providers.dart';
+import 'package:namizo/providers/serviceproviders.dart';
 
 class MediaCard extends ConsumerStatefulWidget {
   final WatchHistory history;
@@ -45,7 +45,7 @@ class _MediaCardState extends ConsumerState<MediaCard> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final tmdbService = ref.watch(tmdbServiceProvider);
+    final tmdbService = ref.watch(kuroiruServiceProvider);
     final posterUrl = tmdbService.getPosterUrl(widget.history.posterPath);
 
     return MouseRegion(

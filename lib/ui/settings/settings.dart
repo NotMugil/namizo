@@ -3,10 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/store/settings_providers.dart';
-import 'package:namizo/store/service_providers.dart';
-import 'package:namizo/store/watch_history_provider.dart';
-import 'package:namizo/services/episode_check_service.dart';
+import 'package:namizo/providers/homeproviders.dart';
+import 'package:namizo/providers/settingsproviders.dart';
+import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/watchhistoryprovider.dart';
+import 'package:namizo/services/episode_check.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
@@ -147,6 +148,15 @@ class SettingsScreen extends ConsumerWidget {
             trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
             onTap: () {
               _showClearHistoryDialog(context, ref);
+            },
+          ),
+          _buildSettingsTile(
+            icon: const DatabaseBackup(color: Colors.white, width: 24, height: 24),
+            title: 'Clear Cache',
+            subtitle: 'Remove cached metadata and artwork',
+            trailing: const NavArrowRight(color: Colors.white70, width: 18, height: 18),
+            onTap: () {
+              _showClearCacheDialog(context, ref);
             },
           ),
           const Divider(color: NamizoTheme.netflixDarkGrey, height: 1),
@@ -391,6 +401,61 @@ class SettingsScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Watch history cleared successfully'),
+                    backgroundColor: NamizoTheme.netflixRed,
+                  ),
+                );
+              }
+            },
+            child: const Text(
+              'Clear',
+              style: TextStyle(color: NamizoTheme.netflixRed),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showClearCacheDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: NamizoTheme.netflixDarkGrey,
+        title: const Text(
+          'Clear Cache?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This will remove cached metadata and artwork. Data will be fetched again when needed.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              final cacheService = ref.read(cacheServiceProvider);
+              await cacheService.clearAll();
+
+              ref.invalidate(featuredAnimeProvider);
+              ref.invalidate(popularAnimeProvider);
+              ref.invalidate(trendingAnimeProvider);
+              ref.invalidate(topRatedAnimeProvider);
+              ref.invalidate(romanceAnimeProvider);
+              ref.invalidate(actionAnimeProvider);
+              ref.invalidate(adventureAnimeProvider);
+              ref.invalidate(fantasyAnimeProvider);
+
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cache cleared successfully'),
                     backgroundColor: NamizoTheme.netflixRed,
                   ),
                 );

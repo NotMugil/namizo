@@ -2,8 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/watchlist_provider.dart';
-import '../providers/service_providers.dart';
+import 'package:namizo/providers/watchlistprovider.dart';
+import 'package:namizo/providers/serviceproviders.dart';
 
 class WatchlistScreen extends ConsumerWidget {
   const WatchlistScreen({super.key});
@@ -12,7 +12,7 @@ class WatchlistScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final watchlist = ref.watch(watchlistProvider);
     final theme = Theme.of(context);
-    final tmdbService = ref.watch(tmdbServiceProvider);
+    final tmdbService = ref.watch(kuroiruServiceProvider);
 
     return Scaffold(
       appBar: AppBar(

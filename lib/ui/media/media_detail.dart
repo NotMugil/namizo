@@ -12,10 +12,10 @@ import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/models/watchlist_item.dart';
-import 'package:namizo/store/dynamic_colors_provider.dart';
-import 'package:namizo/store/media_provider.dart';
-import 'package:namizo/store/service_providers.dart';
-import 'package:namizo/store/watchlist_provider.dart';
+import 'package:namizo/providers/dynamiccolorsprovider.dart';
+import 'package:namizo/providers/mediaprovider.dart';
+import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/ui/media/widgets/episode_list.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
 
@@ -73,7 +73,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     });
 
     try {
-      final tmdbService = ref.read(tmdbServiceProvider);
+      final tmdbService = ref.read(kuroiruServiceProvider);
       Map<String, dynamic>? detailsWithVideos;
 
       int retries = 3;
@@ -182,7 +182,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final tmdbService = ref.read(tmdbServiceProvider);
+    final tmdbService = ref.read(kuroiruServiceProvider);
     final backdropUrl = tmdbService.getBackdropUrl(media.backdropPath);
     final posterUrl = tmdbService.getPosterUrl(media.posterPath);
     final isInWatchlist = ref.watch(isInWatchlistProvider(media.id));
@@ -311,7 +311,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                       ),
                                       onTap: () async {
                                         final shareUrl =
-                                            'https://www.themoviedb.org/tv/${media.id}';
+                                            'https://myanimelist.net/anime/${media.id}';
                                         await Clipboard.setData(
                                           ClipboardData(text: shareUrl),
                                         );

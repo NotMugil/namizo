@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/store/service_providers.dart';
-import 'package:namizo/store/watchlist_provider.dart';
+import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/watchlistprovider.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -13,7 +13,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final watchlist = ref.watch(watchlistProvider);
-    final tmdbService = ref.watch(tmdbServiceProvider);
+    final tmdbService = ref.watch(kuroiruServiceProvider);
 
     return Scaffold(
       backgroundColor: NamizoTheme.netflixBlack,

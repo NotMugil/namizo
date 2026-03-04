@@ -1,8 +1,9 @@
 import 'package:hive/hive.dart';
+import 'package:namizo/core/configurations.dart';
 import '../models/watchlist_item.dart';
 
 class WatchlistService {
-  static const String _boxName = 'watchlist';
+  static const String _boxName = AppConfigurations.watchlistBoxName;
 
   Box<WatchlistItem> get _box => Hive.box<WatchlistItem>(_boxName);
 

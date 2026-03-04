@@ -6,13 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
-import 'package:namizo/core/constants.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/watchlist_item.dart';
-import 'package:namizo/store/home_providers.dart';
-import 'package:namizo/services/episode_check_service.dart';
-import 'package:namizo/store/watch_history_provider.dart';
-import 'package:namizo/store/watchlist_provider.dart';
+import 'package:namizo/providers/homeproviders.dart';
+import 'package:namizo/services/episode_check.dart';
+import 'package:namizo/providers/watchhistoryprovider.dart';
+import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/ui/home/widgets/content_row.dart';
 import 'package:namizo/ui/home/widgets/continue_watching_row.dart';
 
@@ -67,6 +66,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         }
       }
     });
+
+    unawaited(_prewarmHomeContent());
+  }
+
+  Future<void> _prewarmHomeContent() async {
+    await Future.wait([
+      ref.read(featuredAnimeProvider.future),
+      ref.read(popularAnimeProvider.future),
+      ref.read(trendingAnimeProvider.future),
+      ref.read(topRatedAnimeProvider.future),
+      ref.read(romanceAnimeProvider.future),
+      ref.read(actionAnimeProvider.future),
+      ref.read(adventureAnimeProvider.future),
+      ref.read(fantasyAnimeProvider.future),
+      ref.read(featuredAnimeLogosProvider.future),
+      ref.read(featuredAnimePostersProvider.future),
+    ]);
   }
 
   @override
@@ -81,11 +97,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final featuredContent = ref.watch(featuredAnimeProvider);
     final featuredLogos = ref.watch(featuredAnimeLogosProvider);
+    final featuredPosters = ref.watch(featuredAnimePostersProvider);
 
     // Precache logo images as soon as all URLs are resolved
     ref.listen(featuredAnimeLogosProvider, (_, next) {
       next.whenData((logos) {
         for (final url in logos.values) {
+          if (url != null && url.isNotEmpty) {
+            precacheImage(CachedNetworkImageProvider(url), context);
+          }
+        }
+      });
+    });
+
+    ref.listen(featuredAnimePostersProvider, (_, next) {
+      next.whenData((posters) {
+        for (final url in posters.values) {
           if (url != null && url.isNotEmpty) {
             precacheImage(CachedNetworkImageProvider(url), context);
           }
@@ -171,6 +198,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   context,
                   content,
                   featuredLogos.value ?? {},
+                  featuredPosters.value ?? {},
                 ),
                 loading: () => _buildHeroBannerShimmer(),
                 error: (_, __) => const SizedBox(height: 500),
@@ -196,18 +224,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     .watch(watchlistProvider)
                     .where((item) => item.mediaType == 'tv')
                     .toList();
-                if (watchlist.length <= 1) {
+                if (watchlist.isEmpty) {
                   return const SizedBox.shrink();
                 }
 
+                final seenIds = <int>{};
                 final watchlistItems = watchlist
+                    .where((item) => seenIds.add(item.id))
                     .map(
                       (WatchlistItem item) => {
                         'id': item.id,
+                        'name': item.title,
+                        'title': item.title,
                         'poster_path': item.posterPath,
+                        'vote_average': item.voteAverage,
+                        'first_air_date': item.releaseDate,
+                        'media_type': 'tv',
                       },
                     )
-                    .toList();
+                    .toList(growable: false);
 
                 return ContentRow(
                   title: 'Your List',
@@ -368,6 +403,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     BuildContext context,
     List<dynamic> items,
     Map<int, String?> logos,
+    Map<int, String?> posters,
   ) {
     if (items.isEmpty) return const SizedBox(height: 500);
 
@@ -381,8 +417,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         itemCount: items.length,
         itemBuilder: (context, index) {
           final content = items[index];
-          final backdropPath = content['backdrop_path'] ?? content['poster_path'];
+          final tmdbId = content['id'];
+          final alternativePosterUrl = tmdbId is int ? posters[tmdbId] : null;
+          final posterPath = content['poster_path'];
+          final fallbackPosterUrl = posterPath is String &&
+                  (posterPath.startsWith('http://') ||
+                      posterPath.startsWith('https://'))
+              ? posterPath
+              : posterPath is String && posterPath.startsWith('/')
+                  ? 'https://kuroiru.co$posterPath'
+                  : posterPath != null
+                      ? posterPath.toString()
+                      : null;
+          final backdropUrl =
+              (alternativePosterUrl != null && alternativePosterUrl.isNotEmpty)
+                  ? alternativePosterUrl
+                  : fallbackPosterUrl;
           final title = content['title'] ?? content['name'] ?? 'Featured';
+            final episodeCount = (content['episode_count'] as num?)?.toInt();
             final year = ((content['first_air_date'] ?? content['release_date'])
                   ?.toString()
                   .split('-')
@@ -397,10 +449,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               .toList();
             final meta = [
             if (genreIds.isNotEmpty) genreIds.join(' • '),
-            '24 min',
+            if (episodeCount != null && episodeCount > 0) '$episodeCount eps',
             if (year.isNotEmpty) year,
             ];
-          final tmdbId = content['id'];
 
           return Stack(
             children: [
@@ -409,15 +460,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 duration: const Duration(milliseconds: 500),
                 child: Container(
                   decoration: BoxDecoration(
-                    image: backdropPath != null
+                    image: backdropUrl != null && backdropUrl.isNotEmpty
                         ? DecorationImage(
                             image: CachedNetworkImageProvider(
-                              '$tmdbImageBaseUrl/$backdropSize$backdropPath',
+                              backdropUrl,
                             ),
                             fit: BoxFit.cover,
                           )
                         : null,
-                    color: backdropPath == null ? const Color(0xFF2F2F2F) : null,
+                    color: backdropUrl == null ? const Color(0xFF2F2F2F) : null,
                   ),
                 ),
               ),

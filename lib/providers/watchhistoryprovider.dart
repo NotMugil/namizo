@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/models/watch_history.dart';
-import 'package:namizo/store/service_providers.dart';
+import 'package:namizo/providers/serviceproviders.dart';
 
 // Watch history list provider (with auto-refresh)
 final watchHistoryProvider = StreamProvider<List<WatchHistory>>((ref) async* {

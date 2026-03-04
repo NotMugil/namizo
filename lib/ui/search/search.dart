@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/search_result.dart';
-import 'package:namizo/store/home_providers.dart';
-import 'package:namizo/store/search_provider.dart';
-import 'package:namizo/store/service_providers.dart';
+import 'package:namizo/providers/homeproviders.dart';
+import 'package:namizo/providers/searchprovider.dart';
+import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/ui/search/widgets/search_result_card.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -66,7 +66,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     try {
       final language = ref.read(searchLanguageFilterProvider);
       final sortBy = ref.read(searchSortProvider);
-      final tmdb = ref.read(tmdbServiceProvider);
+      final tmdb = ref.read(kuroiruServiceProvider);
 
       // Fetch next page in background
       final nextPage = _currentPage + 1;
@@ -146,7 +146,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       final query = ref.read(searchQueryProvider);
       final language = ref.read(searchLanguageFilterProvider);
       final sortBy = ref.read(searchSortProvider);
-      final tmdb = ref.read(tmdbServiceProvider);
+      final tmdb = ref.read(kuroiruServiceProvider);
 
       final results = await tmdb.search(
         query,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/services/anilist_service.dart';
+import 'package:namizo/services/anilist.dart';
 
 class AniListLoginScreen extends StatefulWidget {
   const AniListLoginScreen({super.key});

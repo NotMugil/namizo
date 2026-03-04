@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:namizo/core/constants.dart';
 
 class ContentRow extends StatelessWidget {
   final String title;
@@ -77,10 +76,18 @@ class _AnimatedPosterCard extends StatefulWidget {
   State<_AnimatedPosterCard> createState() => _AnimatedPosterCardState();
 }
 
-class _AnimatedPosterCardState extends State<_AnimatedPosterCard> with SingleTickerProviderStateMixin {
+class _AnimatedPosterCardState extends State<_AnimatedPosterCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _elevationAnimation;
+
+  String? _normalizeImageUrl(String? path) {
+    if (path == null || path.isEmpty) return null;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    if (path.startsWith('/')) return 'https://kuroiru.co$path';
+    return path;
+  }
 
   @override
   void initState() {
@@ -107,6 +114,8 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard> with SingleTic
 
   @override
   Widget build(BuildContext context) {
+    final posterUrl = _normalizeImageUrl(widget.posterPath);
+
     return MouseRegion(
       onEnter: (_) {
         _animationController.forward();
@@ -129,7 +138,9 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard> with SingleTic
                   color: const Color(0xFF2F2F2F),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.5 * _elevationAnimation.value),
+                      color: Colors.black.withValues(
+                        alpha: 0.5 * _elevationAnimation.value,
+                      ),
                       blurRadius: 15 * _elevationAnimation.value,
                       spreadRadius: 1 * _elevationAnimation.value,
                       offset: Offset(0, 6 * _elevationAnimation.value),
@@ -141,9 +152,9 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard> with SingleTic
                   child: Stack(
                     children: [
                       // Poster Image
-                      widget.posterPath != null
+                      posterUrl != null
                           ? CachedNetworkImage(
-                              imageUrl: '$tmdbImageBaseUrl/$posterSize${widget.posterPath}',
+                            imageUrl: posterUrl,
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,
@@ -181,7 +192,7 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard> with SingleTic
                               end: Alignment.bottomCenter,
                               colors: [
                                 Colors.transparent,
-                                Colors.black.withOpacity(0.7),
+                                Colors.black.withValues(alpha: 0.7),
                               ],
                             ),
                           ),

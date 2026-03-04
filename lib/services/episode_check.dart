@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:dio/dio.dart';
+import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
+import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/core/user_config.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../core/constants.dart';
 import '../models/new_episode.dart';
 import '../models/watchlist_item.dart';
 
@@ -14,22 +16,15 @@ import '../models/watchlist_item.dart';
 /// Uses WorkManager for battery-efficient background tasks (Android/iOS only)
 class EpisodeCheckService {
   static const String _taskName = 'episodeCheckTask';
-  static const String _boxName = 'new_episodes';
-  static const String _lastCheckKey = 'last_episode_check';
-  static const String _frequencyKey = 'episode_check_frequency';
-  static const String _enabledKey = 'episode_check_enabled';
+  static const String _boxName = AppConfigurations.newEpisodesBoxName;
+  static const String _lastCheckKey = lastEpisodeCheckKey;
+  static const String _frequencyKey = episodeCheckFrequencyKey;
+  static const String _enabledKey = episodeCheckEnabledKey;
 
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
-  static final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: tmdbBaseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-      queryParameters: {'api_key': tmdbApiKey},
-    ),
-  );
+  static final aimi.Kuroiru _kuroiru = aimi.Kuroiru();
 
   /// Android always supports background tasks
   static bool get _supportsBackgroundTasks => true;
@@ -54,7 +49,7 @@ class EpisodeCheckService {
 
       // Register periodic task if enabled
       final prefs = await SharedPreferences.getInstance();
-      final enabled = prefs.getBool(_enabledKey) ?? true;
+      final enabled = prefs.getBool(_enabledKey) ?? UserConfig.defaultEpisodeCheckEnabled;
       if (enabled) {
         await registerPeriodicTask();
       }
@@ -101,7 +96,7 @@ class EpisodeCheckService {
     if (!_supportsBackgroundTasks) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final frequencyHours = prefs.getInt(_frequencyKey) ?? 24;
+    final frequencyHours = prefs.getInt(_frequencyKey) ?? UserConfig.defaultEpisodeCheckFrequencyHours;
 
     // Cancel existing task first
     await Workmanager().cancelByUniqueName(_taskName);
@@ -135,7 +130,7 @@ class EpisodeCheckService {
   /// Get check frequency in hours
   static Future<int> getFrequency() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(_frequencyKey) ?? 24;
+    return prefs.getInt(_frequencyKey) ?? UserConfig.defaultEpisodeCheckFrequencyHours;
   }
 
   /// Set check frequency in hours
@@ -144,7 +139,7 @@ class EpisodeCheckService {
     await prefs.setInt(_frequencyKey, hours);
 
     // Re-register task with new frequency
-    final enabled = prefs.getBool(_enabledKey) ?? true;
+    final enabled = prefs.getBool(_enabledKey) ?? UserConfig.defaultEpisodeCheckEnabled;
     if (enabled) {
       await registerPeriodicTask();
     }
@@ -153,7 +148,7 @@ class EpisodeCheckService {
   /// Check if episode checking is enabled
   static Future<bool> isEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_enabledKey) ?? true;
+    return prefs.getBool(_enabledKey) ?? UserConfig.defaultEpisodeCheckEnabled;
   }
 
   /// Enable or disable episode checking
@@ -248,10 +243,10 @@ class EpisodeCheckService {
       }
 
       // Get watchlist items (TV shows only)
-      if (!Hive.isBoxOpen('watchlist')) {
-        await Hive.openBox<WatchlistItem>('watchlist');
+      if (!Hive.isBoxOpen(AppConfigurations.watchlistBoxName)) {
+        await Hive.openBox<WatchlistItem>(AppConfigurations.watchlistBoxName);
       }
-      final watchlistBox = Hive.box<WatchlistItem>('watchlist');
+      final watchlistBox = Hive.box<WatchlistItem>(AppConfigurations.watchlistBoxName);
       final tvShows = watchlistBox.values
           .where((item) => item.mediaType == 'tv')
           .toList();
@@ -332,63 +327,55 @@ class EpisodeCheckService {
     final List<NewEpisode> newEpisodes = [];
 
     try {
-      // Get show details to find latest season
-      final response = await _dio.get('/3/tv/$showId');
-      final showData = response.data;
+      final details = await _kuroiru.getDetails('$showId');
+      final latestEpisode = details.lastEpisode ?? details.episodes ?? 0;
+      if (latestEpisode <= 0) return [];
 
-      final seasons = showData['seasons'] as List<dynamic>? ?? [];
-      if (seasons.isEmpty) return [];
+      final status = (details.status ?? '').toLowerCase();
+      if (status.contains('not yet') || status.contains('upcoming')) {
+        return [];
+      }
 
-      // Get the last 2 seasons (current and previous)
-      final seasonsToCheck =
-          seasons.where((s) => (s['season_number'] as int? ?? 0) > 0).toList()
-            ..sort(
-              (a, b) => (b['season_number'] as int).compareTo(
-                a['season_number'] as int,
-              ),
-            );
+      if (!Hive.isBoxOpen(_boxName)) {
+        await Hive.openBox<NewEpisode>(_boxName);
+      }
+      final episodesBox = Hive.box<NewEpisode>(_boxName);
 
-      final recentSeasons = seasonsToCheck.take(2).toList();
-
-      for (final season in recentSeasons) {
-        final seasonNumber = season['season_number'] as int;
-
-        try {
-          // Get season episodes
-          final seasonResponse = await _dio.get(
-            '/3/tv/$showId/season/$seasonNumber',
-          );
-          final episodes =
-              seasonResponse.data['episodes'] as List<dynamic>? ?? [];
-
-          for (final episode in episodes) {
-            final airDateStr = episode['air_date'] as String?;
-            if (airDateStr == null || airDateStr.isEmpty) continue;
-
-            final airDate = DateTime.tryParse(airDateStr);
-            if (airDate == null) continue;
-
-            // Check if episode aired after last check AND not in the future
-            if (airDate.isAfter(since) && airDate.isBefore(DateTime.now())) {
-              newEpisodes.add(
-                NewEpisode(
-                  showId: showId,
-                  showName: showName,
-                  seasonNumber: seasonNumber,
-                  episodeNumber: episode['episode_number'] as int,
-                  episodeName:
-                      episode['name'] as String? ??
-                      'Episode ${episode['episode_number']}',
-                  posterPath: posterPath,
-                  airDate: airDate,
-                  detectedAt: DateTime.now(),
-                ),
-              );
-            }
-          }
-        } catch (e) {
-          print('⚠️ Error checking season $seasonNumber: $e');
+      var highestKnownEpisode = 0;
+      for (final existing in episodesBox.values) {
+        if (existing.showId == showId && existing.episodeNumber > highestKnownEpisode) {
+          highestKnownEpisode = existing.episodeNumber;
         }
+      }
+
+      if (latestEpisode <= highestKnownEpisode) {
+        return [];
+      }
+
+      final startEpisode = highestKnownEpisode == 0
+          ? latestEpisode
+          : highestKnownEpisode + 1;
+
+      final scheduledAt = details.schedule != null
+          ? DateTime.fromMillisecondsSinceEpoch(details.schedule! * 1000)
+          : DateTime.now();
+      final airDate = scheduledAt.isAfter(DateTime.now())
+          ? DateTime.now()
+          : scheduledAt;
+
+      for (var episodeNumber = startEpisode; episodeNumber <= latestEpisode; episodeNumber++) {
+        newEpisodes.add(
+          NewEpisode(
+            showId: showId,
+            showName: showName,
+            seasonNumber: 1,
+            episodeNumber: episodeNumber,
+            episodeName: 'Episode $episodeNumber',
+            posterPath: posterPath,
+            airDate: airDate.isAfter(since) ? airDate : DateTime.now(),
+            detectedAt: DateTime.now(),
+          ),
+        );
       }
     } catch (e) {
       print('⚠️ Error fetching show $showId: $e');
@@ -404,7 +391,7 @@ class EpisodeCheckService {
     if (episodes.isEmpty) return;
 
     const androidDetails = AndroidNotificationDetails(
-      'new_episodes',
+      AppConfigurations.newEpisodesBoxName,
       'New Episodes',
       channelDescription:
           'Notifications for new episodes of shows in your watchlist',

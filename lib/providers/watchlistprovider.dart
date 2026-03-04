@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/watchlist_item.dart';
-import '../services/watchlist_service.dart';
+import '../services/watchlist.dart';
 
 final watchlistServiceProvider = Provider<WatchlistService>((ref) {
   return WatchlistService();

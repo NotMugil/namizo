@@ -4,9 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/core/constants.dart';
 import 'package:namizo/models/new_episode.dart';
-import 'package:namizo/services/episode_check_service.dart';
+import 'package:namizo/services/episode_check.dart';
 
 /// Provider for new episodes list
 final newEpisodesProvider = StateProvider<List<NewEpisode>>((ref) {
@@ -193,7 +192,12 @@ class _NewEpisodesScreenState extends ConsumerState<NewEpisodesScreen> {
   ) {
     final hasUnread = episodes.any((e) => !e.isRead);
     final posterUrl = firstEpisode.posterPath != null
-        ? '$tmdbImageBaseUrl/$posterSize${firstEpisode.posterPath}'
+        ? (firstEpisode.posterPath!.startsWith('http://') ||
+                  firstEpisode.posterPath!.startsWith('https://')
+              ? firstEpisode.posterPath!
+          : firstEpisode.posterPath!.startsWith('/')
+          ? 'https://kuroiru.co${firstEpisode.posterPath}'
+          : firstEpisode.posterPath!)
         : '';
 
     return Container(

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-/// Dynamic color scheme generated from poster/backdrop art
 class DynamicColors {
   final Color dominant;
   final Color darkMuted;
@@ -21,7 +20,6 @@ class DynamicColors {
     required this.onSurface,
   });
 
-  /// Default Netflix-like colors
   static const fallback = DynamicColors(
     dominant: Color(0xFFE50914),
     darkMuted: Color(0xFF141414),

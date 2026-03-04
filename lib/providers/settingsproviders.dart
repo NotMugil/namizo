@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/core/user_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/episode_check_service.dart';
+import '../services/episode_check.dart';
 
 // Playback Speed Provider
 final playbackSpeedProvider = StateNotifierProvider<PlaybackSpeedNotifier, double>((ref) {
@@ -8,19 +10,19 @@ final playbackSpeedProvider = StateNotifierProvider<PlaybackSpeedNotifier, doubl
 });
 
 class PlaybackSpeedNotifier extends StateNotifier<double> {
-  PlaybackSpeedNotifier() : super(1.0) {
+  PlaybackSpeedNotifier() : super(UserConfig.defaultPlaybackSpeed) {
     _loadSpeed();
   }
 
   Future<void> _loadSpeed() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getDouble('playback_speed') ?? 1.0;
+    state = prefs.getDouble(playbackSpeedKey) ?? UserConfig.defaultPlaybackSpeed;
   }
 
   Future<void> setSpeed(double speed) async {
     state = speed;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('playback_speed', speed);
+    await prefs.setDouble(playbackSpeedKey, speed);
   }
 }
 
@@ -30,19 +32,19 @@ final videoQualityProvider = StateNotifierProvider<VideoQualityNotifier, String>
 });
 
 class VideoQualityNotifier extends StateNotifier<String> {
-  VideoQualityNotifier() : super('auto') {
+  VideoQualityNotifier() : super(UserConfig.defaultVideoQuality) {
     _loadQuality();
   }
 
   Future<void> _loadQuality() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getString('video_quality') ?? 'auto';
+    state = prefs.getString(videoQualityKey) ?? UserConfig.defaultVideoQuality;
   }
 
   Future<void> setQuality(String quality) async {
     state = quality;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('video_quality', quality);
+    await prefs.setString(videoQualityKey, quality);
   }
 
   String get displayName {
@@ -69,19 +71,19 @@ final subtitlesEnabledProvider = StateNotifierProvider<SubtitlesEnabledNotifier,
 });
 
 class SubtitlesEnabledNotifier extends StateNotifier<bool> {
-  SubtitlesEnabledNotifier() : super(false) {
+  SubtitlesEnabledNotifier() : super(UserConfig.defaultSubtitlesEnabled) {
     _loadSetting();
   }
 
   Future<void> _loadSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool('subtitles_enabled') ?? false;
+    state = prefs.getBool(subtitlesEnabledKey) ?? UserConfig.defaultSubtitlesEnabled;
   }
 
   Future<void> toggle() async {
     state = !state;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('subtitles_enabled', state);
+    await prefs.setBool(subtitlesEnabledKey, state);
   }
 }
 
@@ -91,19 +93,19 @@ final animationsEnabledProvider = StateNotifierProvider<AnimationsEnabledNotifie
 });
 
 class AnimationsEnabledNotifier extends StateNotifier<bool> {
-  AnimationsEnabledNotifier() : super(true) {
+  AnimationsEnabledNotifier() : super(UserConfig.defaultAnimationsEnabled) {
     _loadSetting();
   }
 
   Future<void> _loadSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool('animations_enabled') ?? true;
+    state = prefs.getBool(animationsEnabledKey) ?? UserConfig.defaultAnimationsEnabled;
   }
 
   Future<void> toggle() async {
     state = !state;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('animations_enabled', state);
+    await prefs.setBool(animationsEnabledKey, state);
   }
 }
 
@@ -113,20 +115,20 @@ final animeSubDubProvider = StateNotifierProvider<AnimeSubDubNotifier, String>((
 });
 
 class AnimeSubDubNotifier extends StateNotifier<String> {
-  AnimeSubDubNotifier() : super('sub') {
+  AnimeSubDubNotifier() : super(UserConfig.defaultAnimeSubDubPreference) {
     _loadPreference();
   }
 
   Future<void> _loadPreference() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getString('anime_subdub') ?? 'sub';
+    state = prefs.getString(animeSubDubKey) ?? UserConfig.defaultAnimeSubDubPreference;
   }
 
   Future<void> setPreference(String preference) async {
     if (preference != 'sub' && preference != 'dub') return;
     state = preference;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('anime_subdub', preference);
+    await prefs.setString(animeSubDubKey, preference);
   }
 
   String get displayName {
@@ -140,7 +142,7 @@ final episodeCheckEnabledProvider = StateNotifierProvider<EpisodeCheckEnabledNot
 });
 
 class EpisodeCheckEnabledNotifier extends StateNotifier<bool> {
-  EpisodeCheckEnabledNotifier() : super(true) {
+  EpisodeCheckEnabledNotifier() : super(UserConfig.defaultEpisodeCheckEnabled) {
     _loadSetting();
   }
 
@@ -165,7 +167,7 @@ final episodeCheckFrequencyProvider = StateNotifierProvider<EpisodeCheckFrequenc
 });
 
 class EpisodeCheckFrequencyNotifier extends StateNotifier<int> {
-  EpisodeCheckFrequencyNotifier() : super(24) {
+  EpisodeCheckFrequencyNotifier() : super(UserConfig.defaultEpisodeCheckFrequencyHours) {
     _loadSetting();
   }
 

@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/constants.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/stream_result.dart';
-import 'package:namizo/services/aimi_anime_service.dart';
+import 'package:namizo/services/aimi_anime.dart';
 
 /// Service for fetching anime streaming URLs.
 /// Primary: AIMI direct sources.
@@ -10,8 +12,8 @@ class StreamingService {
   final AimiAnimeService _aimiAnimeService = AimiAnimeService();
   final Dio _probeDio = Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 8),
-      receiveTimeout: const Duration(seconds: 8),
+      connectTimeout: shortTimeout,
+      receiveTimeout: shortTimeout,
     ),
   );
 
@@ -130,8 +132,7 @@ class StreamingService {
 
   Map<String, String> _buildDirectHeaders(Map<String, String> incoming) {
     final headers = <String, String>{
-      'User-Agent':
-          'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      'User-Agent': AppConfigurations.mobileChromeUserAgent,
       ...incoming,
     };
 

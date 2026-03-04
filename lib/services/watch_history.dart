@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:namizo/core/configurations.dart';
 import 'package:namizo/models/watch_history.dart';
 
 class WatchHistoryService {
@@ -9,7 +10,7 @@ class WatchHistoryService {
   Future<void> init() async {
     if (_initialized) return;
     await Hive.initFlutter();
-    _historyBox = await Hive.openBox<String>('watch_history');
+    _historyBox = await Hive.openBox<String>(AppConfigurations.watchHistoryBoxName);
     _initialized = true;
   }
 

@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconoir_flutter/iconoir_flutter.dart' hide Text, List, Map, Timer, Navigator, Page, Radius;
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/season_info.dart';
-import 'package:namizo/store/media_provider.dart';
-import 'package:namizo/store/service_providers.dart';
-import 'package:namizo/store/settings_providers.dart';
+import 'package:namizo/providers/mediaprovider.dart';
+import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/settingsproviders.dart';
 import 'package:namizo/models/stream_result.dart';
-import 'package:namizo/services/streaming_service.dart';
+import 'package:namizo/services/streaming.dart';
 import 'package:namizo/ui/player/widgets/webview_player.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -156,7 +156,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
       if (!hasMatchingSelectedMedia) {
         setState(() => _currentProvider = 'Loading media details...');
-        final tmdbService = ref.read(tmdbServiceProvider);
+        final tmdbService = ref.read(kuroiruServiceProvider);
         media = await tmdbService.getTVShowDetails(widget.mediaId);
         ref.read(selectedMediaProvider.notifier).state = media;
       }
@@ -713,7 +713,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // ── Season data fetch ───────────────────────────────────────────
   Future<void> _fetchSeasonData() async {
     try {
-      final tmdbService = ref.read(tmdbServiceProvider);
+      final tmdbService = ref.read(kuroiruServiceProvider);
       _currentSeasonData = await tmdbService.getSeasonInfo(
         widget.mediaId,
         widget.season,
@@ -1510,7 +1510,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               child: Opacity(
                 opacity: 0.15,
                 child: CachedNetworkImage(
-                  imageUrl: 'https://image.tmdb.org/t/p/w500$posterPath',
+                  imageUrl:
+                      posterPath.startsWith('http://') ||
+                          posterPath.startsWith('https://')
+                      ? posterPath
+                      : posterPath.startsWith('/')
+                      ? 'https://kuroiru.co$posterPath'
+                      : posterPath,
                   fit: BoxFit.cover,
                   errorWidget: (_, __, ___) => const SizedBox.shrink(),
                 ),
@@ -1934,7 +1940,14 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                   episode.episodeNumber ==
                                   widget.currentEpisode;
                               final stillUrl = episode.stillPath != null
-                                  ? 'https://image.tmdb.org/t/p/w300${episode.stillPath}'
+                                  ? (episode.stillPath!.startsWith('http://') ||
+                                            episode.stillPath!.startsWith(
+                                              'https://',
+                                            )
+                                        ? episode.stillPath!
+                                        : episode.stillPath!.startsWith('/')
+                                        ? 'https://kuroiru.co${episode.stillPath}'
+                                        : episode.stillPath!)
                                   : '';
 
                               return GestureDetector(
@@ -2324,19 +2337,34 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (nextEpisode?.stillPath != null)
-                      ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(12),
-                        ),
-                        child: CachedNetworkImage(
-                          imageUrl:
-                              'https://image.tmdb.org/t/p/w300${nextEpisode!.stillPath}',
-                          width: 280,
-                          height: 120,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) =>
-                              Container(height: 60, color: Colors.grey[900]),
-                        ),
+                      Builder(
+                        builder: (_) {
+                          final stillPath = nextEpisode?.stillPath;
+                          if (stillPath == null) {
+                            return const SizedBox.shrink();
+                          }
+                          final imageUrl =
+                              stillPath.startsWith('http://') ||
+                                  stillPath.startsWith('https://')
+                              ? stillPath
+                              : stillPath.startsWith('/')
+                              ? 'https://kuroiru.co$stillPath'
+                              : stillPath;
+
+                          return ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12),
+                            ),
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              width: 280,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) =>
+                                  Container(height: 60, color: Colors.grey[900]),
+                            ),
+                          );
+                        },
                       ),
                     Padding(
                       padding: const EdgeInsets.all(12),

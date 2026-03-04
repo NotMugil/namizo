@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/models/search_result.dart';
-import 'package:namizo/store/service_providers.dart';
+import 'package:namizo/providers/serviceproviders.dart';
 
 // Search query state
 final searchQueryProvider = StateProvider<String>((ref) => '');
@@ -40,7 +40,7 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
   final language = ref.watch(searchLanguageFilterProvider);
   final sortBy = ref.watch(searchSortProvider);
   
-  final tmdb = ref.watch(tmdbServiceProvider);
+  final tmdb = ref.watch(kuroiruServiceProvider);
   final results = await tmdb.search(query, page: page, language: language, sortBy: sortBy);
   
   // Update metadata

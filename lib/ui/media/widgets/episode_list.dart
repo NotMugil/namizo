@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/season_info.dart';
-import 'package:namizo/store/dynamic_colors_provider.dart';
-import 'package:namizo/store/media_provider.dart';
+import 'package:namizo/providers/dynamiccolorsprovider.dart';
+import 'package:namizo/providers/mediaprovider.dart';
 import 'package:namizo/theme/theme.dart';
 
 class EpisodeList extends ConsumerStatefulWidget {
@@ -217,7 +217,12 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
 
   Widget _buildEpisodeCard(int index, EpisodeData episode) {
     final stillUrl = episode.stillPath != null
-        ? 'https://image.tmdb.org/t/p/w500${episode.stillPath}'
+        ? (episode.stillPath!.startsWith('http://') ||
+                  episode.stillPath!.startsWith('https://')
+              ? episode.stillPath!
+              : episode.stillPath!.startsWith('/')
+              ? 'https://kuroiru.co${episode.stillPath}'
+              : episode.stillPath!)
         : '';
 
     final bgColor =
@@ -301,45 +306,6 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                                     )
                                   : _thumbError(),
                             ),
-                            Positioned(
-                              bottom: 5,
-                              left: 5,
-                              child: _badge(
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.star,
-                                      size: 10,
-                                      color: Color(0xFFE9C46A),
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      (episode.voteAverage ?? 0).toStringAsFixed(1),
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 5,
-                              right: 5,
-                              child: _badge(
-                                Text(
-                                  '${episode.runtime ?? 24}m',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -396,15 +362,6 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
       ),
     );
   }
-
-  Widget _badge(Widget child) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.72),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: child,
-      );
 
   bool _isUnaired(String? airDate) {
     if (airDate == null || airDate.isEmpty) return true;

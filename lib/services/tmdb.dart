@@ -1,0 +1,842 @@
+import 'package:dio/dio.dart';
+import 'package:aimi_lib/aimi_lib.dart' as aimi;
+import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/models/search_result.dart';
+import 'package:namizo/models/season_info.dart';
+import 'package:namizo/core/cache/cache_service.dart';
+import 'package:namizo/services/tvdb_metadata.dart';
+
+class KuroiruService {
+  final Dio _jikanDio;
+  final aimi.Kuroiru _kuroiru;
+  final TvdbMetadataService _tvdbMetadata;
+  final CacheService _cache;
+  final Map<String, Future<List<dynamic>>> _inFlightHomeRequests = {};
+
+  KuroiruService(this._cache)
+    : _jikanDio = Dio(
+        BaseOptions(
+          baseUrl: AppConfigurations.jikanBaseUrl,
+          connectTimeout: standardTimeout,
+          receiveTimeout: standardTimeout,
+          headers: {
+            'User-Agent': AppConfigurations.defaultAppUserAgent,
+          },
+        ),
+      ),
+      _kuroiru = aimi.Kuroiru(),
+      _tvdbMetadata = TvdbMetadataService(_cache);
+
+  /// Anime-only search (Japanese TV animation entries).
+  Future<SearchResults> search(
+    String query, {
+    int page = 1,
+    String? language,
+    String? sortBy,
+  }) async {
+    final normalizedQuery = _normalizeSearchText(query);
+    final normalizedSort = sortBy == 'rating' ? 'score' : sortBy;
+    final cacheKey =
+        'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}';
+
+    if (normalizedQuery.isEmpty) {
+      return const SearchResults(
+        page: 0,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
+    }
+
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      final results = SearchResults.fromJson(cached);
+      return results.copyWith(
+        results: _postProcessSearchResults(
+          results.results,
+          query: normalizedQuery,
+          sortBy: normalizedSort,
+        ),
+      );
+    }
+
+    try {
+      final kuroiruResults = await _kuroiru.search(normalizedQuery);
+      final mappedKuroiru = _mapKuroiruSearchResults(kuroiruResults);
+
+      if (mappedKuroiru.isNotEmpty) {
+        final processed = _postProcessSearchResults(
+          mappedKuroiru,
+          query: normalizedQuery,
+          sortBy: normalizedSort,
+        );
+        const pageSize = 25;
+        final totalResults = processed.length;
+        final totalPages = totalResults == 0
+            ? 0
+            : ((totalResults + pageSize - 1) ~/ pageSize);
+        final safePage = totalPages == 0
+            ? 1
+            : page.clamp(1, totalPages).toInt();
+        final start = (safePage - 1) * pageSize;
+        final end = (start + pageSize > totalResults)
+            ? totalResults
+            : start + pageSize;
+        final paged = start >= totalResults
+            ? const <SearchResult>[]
+            : processed.sublist(start, end);
+
+        final merged = SearchResults(
+          page: safePage,
+          results: paged,
+          totalPages: totalPages,
+          totalResults: totalResults,
+        );
+
+        await _cache.set(
+          cacheKey,
+          merged.toJson(),
+          ttl: CacheService.mediumCache,
+        );
+        return merged;
+      }
+
+      final response = await _jikanGetWithRetry(
+        '/anime',
+        queryParameters: {
+          'q': normalizedQuery,
+          'page': page,
+          'type': 'tv',
+          'sfw': true,
+          'limit': 25,
+          ..._searchSortToJikanParams(normalizedSort),
+        },
+      );
+
+      final data = Map<String, dynamic>.from(response.data as Map);
+      final parsed = _parseJikanSearchResults(data['data']);
+      final processed = _postProcessSearchResults(
+        parsed,
+        query: normalizedQuery,
+        sortBy: normalizedSort,
+      );
+
+      final pagination = (data['pagination'] as Map?)?.cast<String, dynamic>();
+      final merged = SearchResults(
+        page: page,
+        results: processed,
+        totalPages: (pagination?['last_visible_page'] as num?)?.toInt() ?? 0,
+        totalResults: (pagination?['items']?['total'] as num?)?.toInt() ??
+            processed.length,
+      );
+
+      await _cache.set(cacheKey, merged.toJson(), ttl: CacheService.mediumCache);
+      return merged;
+    } catch (e) {
+      throw Exception('Failed to search anime (Kuroiru/Jikan): $e');
+    }
+  }
+
+  List<SearchResult> _mapKuroiruSearchResults(List<aimi.AnimeSearchResult> raw) {
+    final mapped = <SearchResult>[];
+
+    for (final item in raw) {
+      final id = int.tryParse(item.id);
+      if (id == null) continue;
+
+      mapped.add(
+        SearchResult(
+          id: id,
+          title: item.title,
+          name: item.title,
+          originalLanguage: 'ja',
+          mediaType: 'tv',
+          firstAirDate: _extractIsoDateFromLooseYear(item.time),
+          posterPath: item.image,
+          backdropPath: item.image,
+          overview: null,
+          voteAverage: null,
+        ),
+      );
+    }
+
+    return mapped;
+  }
+
+  String? _extractIsoDateFromLooseYear(String? source) {
+    if (source == null || source.trim().isEmpty) return null;
+    final match = RegExp(r'(19|20)\d{2}').firstMatch(source);
+    if (match == null) return null;
+    final year = match.group(0);
+    return year == null ? null : '$year-01-01';
+  }
+
+  List<SearchResult> _parseJikanSearchResults(dynamic rawResults) {
+    if (rawResults is! List) return const [];
+
+    final parsed = <SearchResult>[];
+    for (final item in rawResults) {
+      if (item is! Map) continue;
+      final mal = Map<String, dynamic>.from(item);
+      final malId = (mal['mal_id'] as num?)?.toInt();
+      if (malId == null) continue;
+
+      final images = (mal['images'] as Map?)?.cast<String, dynamic>();
+      final jpg = (images?['jpg'] as Map?)?.cast<String, dynamic>();
+      final posterUrl = (jpg?['large_image_url'] ?? jpg?['image_url']) as String?;
+
+      final genres = (mal['genres'] as List<dynamic>? ?? [])
+          .map((g) => (g as Map?)?['mal_id'])
+          .whereType<num>()
+          .map((id) => id.toInt())
+          .toList();
+
+      parsed.add(
+        SearchResult(
+          id: malId,
+          name: mal['title'] as String?,
+          title: mal['title_english'] as String? ?? mal['title'] as String?,
+          originalLanguage: 'ja',
+          mediaType: 'tv',
+          firstAirDate: _extractIsoDate(mal['aired']?['from']),
+          posterPath: posterUrl,
+          backdropPath: posterUrl,
+          overview: mal['synopsis'] as String?,
+          voteAverage: (mal['score'] as num?)?.toDouble(),
+        ),
+      );
+
+      _genreCacheByMalId[malId] = genres;
+      _episodeCountByMalId[malId] = (mal['episodes'] as num?)?.toInt();
+    }
+    return parsed;
+  }
+
+  final Map<int, List<int>> _genreCacheByMalId = <int, List<int>>{};
+  final Map<int, int?> _episodeCountByMalId = <int, int?>{};
+
+  Map<String, dynamic> _searchSortToJikanParams(String? sortBy) {
+    switch (sortBy) {
+      case 'title':
+        return {'order_by': 'title', 'sort': 'asc'};
+      case 'year':
+        return {'order_by': 'start_date', 'sort': 'desc'};
+      case 'score':
+      case 'popularity':
+        return {'order_by': 'score', 'sort': 'desc'};
+      default:
+        return const {};
+    }
+  }
+
+  List<SearchResult> _postProcessSearchResults(
+    List<SearchResult> results, {
+    required String query,
+    String? sortBy,
+  }) {
+    var processed = List<SearchResult>.from(results);
+
+    processed = processed
+        .where((item) => item.mediaType == 'tv')
+        .where((item) => (item.originalLanguage ?? '').toLowerCase() == 'ja')
+        .toList();
+
+    final seen = <String>{};
+    processed = processed.where((item) => seen.add('tv_${item.id}')).toList();
+
+    switch (sortBy) {
+      case 'popularity':
+      case 'rating':
+        processed.sort((a, b) {
+          final ratingCompare = (b.voteAverage ?? 0).compareTo(
+            a.voteAverage ?? 0,
+          );
+          if (ratingCompare != 0) return ratingCompare;
+          return _compareByYearDesc(a, b);
+        });
+        break;
+      case 'title':
+        processed.sort((a, b) {
+          final titleA = _normalizeSearchText(a.title ?? a.name ?? '');
+          final titleB = _normalizeSearchText(b.title ?? b.name ?? '');
+          return titleA.compareTo(titleB);
+        });
+        break;
+      case 'year':
+        processed.sort(_compareByYearDesc);
+        break;
+      default:
+        processed.sort((a, b) {
+          final scoreA = _relevanceScore(a, query);
+          final scoreB = _relevanceScore(b, query);
+          final relevanceCompare = scoreB.compareTo(scoreA);
+          if (relevanceCompare != 0) return relevanceCompare;
+          return (b.voteAverage ?? 0).compareTo(a.voteAverage ?? 0);
+        });
+    }
+
+    return processed;
+  }
+
+  int _compareByYearDesc(SearchResult a, SearchResult b) {
+    final yearA = _extractYear(a) ?? 0;
+    final yearB = _extractYear(b) ?? 0;
+    final yearCompare = yearB.compareTo(yearA);
+    if (yearCompare != 0) return yearCompare;
+    return (b.voteAverage ?? 0).compareTo(a.voteAverage ?? 0);
+  }
+
+  int _relevanceScore(SearchResult item, String query) {
+    final title = _normalizeSearchText(item.title ?? item.name ?? '');
+    final overview = _normalizeSearchText(item.overview ?? '');
+    if (title.isEmpty) return -1;
+
+    var score = 0;
+    if (title == query) score += 1000;
+    if (title.startsWith(query)) score += 400;
+    if (title.contains(query)) score += 250;
+
+    final tokens = query.split(' ').where((token) => token.isNotEmpty).toList();
+    for (final token in tokens) {
+      if (title.contains(token)) score += 70;
+      if (title.startsWith(token)) score += 20;
+      if (overview.contains(token)) score += 10;
+    }
+
+    score += ((item.voteAverage ?? 0) * 8).round();
+    final year = _extractYear(item);
+    if (year != null) {
+      score += year ~/ 100;
+    }
+
+    return score;
+  }
+
+  int? _extractYear(SearchResult result) {
+    final date = result.firstAirDate ?? result.releaseDate;
+    if (date == null || date.length < 4) return null;
+    return int.tryParse(date.substring(0, 4));
+  }
+
+  String _normalizeSearchText(String text) {
+    return text.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  Future<SeriesInfo> getSeriesInfo(int showId) async {
+    final cacheKey = 'series_info_$showId';
+
+    final cached = await _cache.get<SeriesInfo>(
+      cacheKey,
+      (json) => SeriesInfo.fromJson(json),
+    );
+    if (cached != null) return cached;
+
+    try {
+      final details = await _kuroiru.getDetails('$showId');
+      final episodes = details.episodes ?? details.lastEpisode ?? 0;
+      final mapped = SeriesInfo(
+        numberOfSeasons: 1,
+        seasons: [
+          SeasonInfo(
+            episodeCount: episodes,
+            id: showId,
+            name: 'Season 1',
+            seasonNumber: 1,
+            airDate: _airedIntToIso(details.airedInt),
+            posterPath: details.image,
+          ),
+        ],
+      );
+      await _cache.set(cacheKey, mapped.toJson(), ttl: CacheService.longCache);
+      return mapped;
+    } catch (e) {
+      throw Exception('Failed to get anime series info from Kuroiru: $e');
+    }
+  }
+
+  Future<SeasonData> getSeasonInfo(int showId, int seasonNumber) async {
+    final cacheKey = 'season_info_${showId}_$seasonNumber';
+
+    final cached = await _cache.get<SeasonData>(
+      cacheKey,
+      (json) => SeasonData.fromJson(json),
+    );
+    if (cached != null) return cached;
+
+    try {
+      if (seasonNumber != 1) {
+        const empty = SeasonData(episodes: []);
+        await _cache.set(cacheKey, empty.toJson(), ttl: CacheService.longCache);
+        return empty;
+      }
+
+      final details = await _kuroiru.getDetails('$showId');
+      final episodeCount = details.episodes ?? details.lastEpisode ?? 0;
+      final runtime = _parseDurationMinutes(details.duration);
+      final episodes = List<EpisodeData>.generate(episodeCount, (index) {
+        final episodeNumber = index + 1;
+        return EpisodeData(
+          episodeNumber: episodeNumber,
+          episodeName: 'Episode $episodeNumber',
+          overview: details.description,
+          stillPath: details.image,
+          voteAverage: details.score,
+          runtime: runtime,
+          airDate: _airedIntToIso(details.airedInt),
+        );
+      });
+
+      final mapped = SeasonData(episodes: episodes);
+      final enriched = await _tvdbMetadata.enrichSeasonData(
+        malId: showId,
+        seasonNumber: seasonNumber,
+        fallback: mapped,
+      );
+      await _cache.set(cacheKey, enriched.toJson(), ttl: CacheService.longCache);
+      return enriched;
+    } catch (e) {
+      throw Exception('Failed to get season info from Kuroiru: $e');
+    }
+  }
+
+  String getPosterUrl(String? posterPath, {String size = posterSize}) {
+    if (posterPath == null || posterPath.isEmpty) {
+      return '';
+    }
+    if (posterPath.startsWith('http://') || posterPath.startsWith('https://')) {
+      return posterPath;
+    }
+    if (posterPath.startsWith('/img/')) {
+      return 'https://kuroiru.co$posterPath';
+    }
+    if (posterPath.startsWith('/')) {
+      return 'https://kuroiru.co$posterPath';
+    }
+    return posterPath;
+  }
+
+  String getBackdropUrl(String? backdropPath, {String size = backdropSize}) {
+    if (backdropPath == null || backdropPath.isEmpty) {
+      return '';
+    }
+    if (backdropPath.startsWith('http://') || backdropPath.startsWith('https://')) {
+      return backdropPath;
+    }
+    if (backdropPath.startsWith('/img/')) {
+      return 'https://kuroiru.co$backdropPath';
+    }
+    if (backdropPath.startsWith('/')) {
+      return 'https://kuroiru.co$backdropPath';
+    }
+    return backdropPath;
+  }
+
+  Future<List<dynamic>> getFeaturedAnime() async {
+    final trending = await getTrendingAnime();
+    if (trending.length <= 10) return trending;
+    return trending.take(10).toList();
+  }
+
+  Future<List<dynamic>> getAnime() async {
+    return _runSingleFlightList('anime_popular', () async {
+    final cacheKey = 'anime_popular';
+
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      return (cached['results'] as List<dynamic>?) ?? [];
+    }
+
+    try {
+      final results = await _fetchJikanAnimeList(
+        queryParameters: {
+          'type': 'tv',
+          'order_by': 'members',
+          'sort': 'desc',
+          'sfw': true,
+          'limit': 25,
+          'page': 1,
+        },
+      );
+      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get anime: $e');
+    }
+    });
+  }
+
+  Future<List<dynamic>> getTrendingAnime() async {
+    return _runSingleFlightList('anime_trending', () async {
+    final cacheKey = 'anime_trending';
+
+    final staleCache = await _cache.getStaleRaw(cacheKey);
+    if (_cache.isExpired(cacheKey)) {
+      _cache.updateInBackground(cacheKey, () async {
+        final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
+        return {'results': results};
+      }, CacheService.shortCache);
+    }
+
+    if (staleCache != null) {
+      return (staleCache['results'] as List<dynamic>?) ?? [];
+    }
+
+    try {
+      final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
+      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.shortCache);
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get trending anime: $e');
+    }
+    });
+  }
+
+  Future<List<dynamic>> getTopRatedAnime() async {
+    return _runSingleFlightList('anime_top_rated', () async {
+    final cacheKey = 'anime_top_rated';
+
+    final staleCache = await _cache.getStaleRaw(cacheKey);
+    if (_cache.isExpired(cacheKey)) {
+      _cache.updateInBackground(cacheKey, () async {
+        final results = await _fetchJikanTopAnime(limit: 25);
+        return {'results': results};
+      }, CacheService.mediumCache);
+    }
+
+    if (staleCache != null) {
+      return (staleCache['results'] as List<dynamic>?) ?? [];
+    }
+
+    try {
+      final results = await _fetchJikanTopAnime(limit: 25);
+      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get top rated anime: $e');
+    }
+    });
+  }
+
+  Future<List<dynamic>> getAnimeByGenre(
+    int genreId, {
+    String sortBy = 'popularity.desc',
+    int voteCountGte = 20,
+  }) async {
+    return _runSingleFlightList(
+      'anime_genre_${genreId}_${sortBy.replaceAll('.', '_')}_$voteCountGte',
+      () async {
+    final cacheKey =
+        'anime_genre_${genreId}_${sortBy.replaceAll('.', '_')}_$voteCountGte';
+
+    final staleCache = await _cache.getStaleRaw(cacheKey);
+    if (_cache.isExpired(cacheKey)) {
+      _cache.updateInBackground(cacheKey, () async {
+        final mappedGenreId = _mapTmdbGenreToMal(genreId);
+        final results = await _fetchJikanAnimeList(
+          queryParameters: {
+            'type': 'tv',
+            'genres': mappedGenreId,
+            'sfw': true,
+            'limit': 25,
+            'page': 1,
+            ..._sortToJikan(sortBy),
+          },
+        );
+        return {'results': results};
+      }, CacheService.mediumCache);
+    }
+
+    if (staleCache != null) {
+      return (staleCache['results'] as List<dynamic>?) ?? [];
+    }
+
+    try {
+      final mappedGenreId = _mapTmdbGenreToMal(genreId);
+      final results = await _fetchJikanAnimeList(
+        queryParameters: {
+          'type': 'tv',
+          'genres': mappedGenreId,
+          'sfw': true,
+          'limit': 25,
+          'page': 1,
+          ..._sortToJikan(sortBy),
+        },
+      );
+      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      return results;
+    } catch (e) {
+      throw Exception('Failed to get genre anime: $e');
+    }
+      },
+    );
+  }
+
+  Future<List<dynamic>> _runSingleFlightList(
+    String key,
+    Future<List<dynamic>> Function() request,
+  ) {
+    final existing = _inFlightHomeRequests[key];
+    if (existing != null) return existing;
+
+    final future = request();
+    _inFlightHomeRequests[key] = future;
+    future.whenComplete(() => _inFlightHomeRequests.remove(key));
+    return future;
+  }
+
+  Future<SearchResult> getTVShowDetails(int tvId) async {
+    final cacheKey = 'anime_details_$tvId';
+
+    final cached = await _cache.get<SearchResult>(
+      cacheKey,
+      (json) => SearchResult.fromJson(json),
+    );
+    if (cached != null) return cached;
+
+    try {
+      final details = await _kuroiru.getDetails('$tvId');
+      final mapped = await _enrichSearchResultWithTvdbArtwork(
+        tvId,
+        _toSearchResult(details),
+      );
+
+      await _cache.set(cacheKey, mapped.toJson(), ttl: CacheService.longCache);
+      return mapped;
+    } catch (e) {
+      throw Exception('Failed to get anime details from Kuroiru: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getTVShowDetailsWithVideos(int tvId) async {
+    final cacheKey = 'anime_details_videos_$tvId';
+
+    final staleCache = await _cache.getStaleRaw(cacheKey);
+    if (staleCache != null && _cache.isExpired(cacheKey)) {
+      _cache.updateInBackground(cacheKey, () async {
+        final details = await _kuroiru.getDetails('$tvId');
+        return _toDetailWithVideosMap(tvId, details);
+      }, CacheService.longCache);
+      return staleCache;
+    }
+
+    if (staleCache != null) return staleCache;
+
+    try {
+      final details = await _kuroiru.getDetails('$tvId');
+      final data = await _toDetailWithVideosMap(tvId, details);
+      await _cache.set(cacheKey, data, ttl: CacheService.longCache);
+
+      return data;
+    } catch (e) {
+      throw Exception('Failed to get anime details with videos from Kuroiru: $e');
+    }
+  }
+
+  /// Returns the best English logo image URL for a TV show, or null if none.
+  Future<String?> getTVShowLogoUrl(int id) async {
+    return _tvdbMetadata.getClearLogoUrlForMalId(id);
+  }
+
+  /// Returns TVDB banner/fanart URL for a TV show, or null if none.
+  Future<String?> getTVShowBannerUrl(int id) async {
+    final artwork = await _tvdbMetadata.getArtworkForMalId(id);
+    return artwork?.bannerUrl;
+  }
+
+  /// Returns TVDB carousel-optimized image URL for a TV show, or null if none.
+  Future<String?> getTVShowCarouselImageUrl(int id) async {
+    return _tvdbMetadata.getCarouselBackdropUrlForMalId(id);
+  }
+
+  /// Returns TVDB poster/cover URL for a TV show, or null if none.
+  Future<String?> getTVShowPosterUrl(int id) async {
+    final artwork = await _tvdbMetadata.getArtworkForMalId(id);
+    return artwork?.posterUrl;
+  }
+
+  SearchResult _toSearchResult(aimi.AnimeDetails details) {
+    final id = int.tryParse(details.id) ?? 0;
+    return SearchResult(
+      id: id,
+      name: details.title,
+      title: details.titleEn?.trim().isNotEmpty == true
+          ? details.titleEn
+          : details.title,
+      originalLanguage: 'ja',
+      mediaType: 'tv',
+      releaseDate: _airedIntToIso(details.airedInt),
+      firstAirDate: _airedIntToIso(details.airedInt),
+      posterPath: details.image,
+      backdropPath: details.image,
+      overview: details.description,
+      voteAverage: details.score,
+    );
+  }
+
+  Future<Map<String, dynamic>> _toDetailWithVideosMap(
+    int malId,
+    aimi.AnimeDetails details,
+  ) async {
+    final enriched = await _enrichSearchResultWithTvdbArtwork(
+      malId,
+      _toSearchResult(details),
+    );
+    final mapped = enriched.toJson();
+
+    mapped['genres'] = (details.genres ?? const <String>[])
+        .map((genre) => {'id': 0, 'name': genre})
+        .toList();
+
+    final trailerKey = details.id.trim().isEmpty ? null : null;
+    mapped['videos'] = {
+      'results': trailerKey == null
+          ? <Map<String, dynamic>>[]
+          : [
+              {
+                'site': 'YouTube',
+                'type': 'Trailer',
+                'official': true,
+                'key': trailerKey,
+              },
+            ],
+    };
+
+    return mapped;
+  }
+
+  Future<SearchResult> _enrichSearchResultWithTvdbArtwork(
+    int malId,
+    SearchResult fallback,
+  ) async {
+    final artwork = await _tvdbMetadata.getArtworkForMalId(malId);
+    if (artwork == null) return fallback;
+
+    return fallback.copyWith(
+      posterPath: artwork.posterUrl ?? fallback.posterPath,
+      backdropPath: artwork.bannerUrl ?? fallback.backdropPath,
+    );
+  }
+
+  Map<String, dynamic> _sortToJikan(String sortBy) {
+    switch (sortBy) {
+      case 'vote_average.desc':
+        return {'order_by': 'score', 'sort': 'desc'};
+      case 'first_air_date.desc':
+        return {'order_by': 'start_date', 'sort': 'desc'};
+      case 'popularity.desc':
+      default:
+        return {'order_by': 'members', 'sort': 'desc'};
+    }
+  }
+
+  int _mapTmdbGenreToMal(int tmdbGenre) {
+    switch (tmdbGenre) {
+      case 18:
+        return 22; // Romance
+      case 12:
+        return 2; // Adventure
+      case 10759:
+        return 1; // Action
+      case 10765:
+        return 10; // Fantasy
+      default:
+        return tmdbGenre;
+    }
+  }
+
+  Future<List<dynamic>> _fetchJikanCurrentSeasonAnime({int limit = 25}) async {
+    final response = await _jikanGetWithRetry('/seasons/now', queryParameters: {
+      'limit': limit,
+      'sfw': true,
+    });
+    return _toUiList(response.data);
+  }
+
+  Future<List<dynamic>> _fetchJikanTopAnime({int limit = 25}) async {
+    final response = await _jikanGetWithRetry('/top/anime', queryParameters: {
+      'type': 'tv',
+      'limit': limit,
+      'sfw': true,
+    });
+    return _toUiList(response.data);
+  }
+
+  Future<List<dynamic>> _fetchJikanAnimeList({
+    required Map<String, dynamic> queryParameters,
+  }) async {
+    final response = await _jikanGetWithRetry('/anime', queryParameters: queryParameters);
+    return _toUiList(response.data);
+  }
+
+  Future<Response<dynamic>> _jikanGetWithRetry(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+    int maxAttempts = 3,
+  }) async {
+    DioException? lastError;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await _jikanDio.get(path, queryParameters: queryParameters);
+      } on DioException catch (error) {
+        lastError = error;
+        final statusCode = error.response?.statusCode;
+        final isRateLimit = statusCode == 429;
+        final isTransient =
+            error.type == DioExceptionType.connectionTimeout ||
+            error.type == DioExceptionType.receiveTimeout ||
+            error.type == DioExceptionType.connectionError;
+
+        final shouldRetry = attempt < maxAttempts && (isRateLimit || isTransient);
+        if (!shouldRetry) rethrow;
+
+        final wait = Duration(milliseconds: 600 * attempt * attempt);
+        await Future.delayed(wait);
+      }
+    }
+
+    throw lastError ?? Exception('Unknown Jikan request error');
+  }
+
+  List<dynamic> _toUiList(dynamic responseData) {
+    final data = Map<String, dynamic>.from(responseData as Map);
+    final results = _parseJikanSearchResults(data['data']);
+    return results
+        .map((item) {
+          final json = item.toJson();
+          json['genre_ids'] = _genreCacheByMalId[item.id] ?? const <int>[];
+          json['episode_count'] = _episodeCountByMalId[item.id];
+          return json;
+        })
+        .toList(growable: false);
+  }
+
+  String? _extractIsoDate(dynamic raw) {
+    if (raw == null) return null;
+    final value = raw.toString();
+    if (value.length < 10) return null;
+    return value.substring(0, 10);
+  }
+
+  String? _airedIntToIso(int? airedInt) {
+    if (airedInt == null) return null;
+    final value = airedInt.toString();
+    if (value.length != 8) return null;
+    final yyyy = value.substring(0, 4);
+    final mm = value.substring(4, 6);
+    final dd = value.substring(6, 8);
+    return '$yyyy-$mm-$dd';
+  }
+
+  int? _parseDurationMinutes(String? duration) {
+    if (duration == null || duration.isEmpty) return null;
+    final match = RegExp(r'(\d+)\s*min').firstMatch(duration.toLowerCase());
+    if (match == null) return null;
+    return int.tryParse(match.group(1)!);
+  }
+}
+
+@Deprecated('Use KuroiruService instead')
+class TmdbService extends KuroiruService {
+  TmdbService(CacheService cache) : super(cache);
+}
