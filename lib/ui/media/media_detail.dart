@@ -216,6 +216,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     final isInWatchlist = ref.watch(isInWatchlistProvider(media.id));
     final colorsAsync = ref.watch(dynamicColorsProvider(posterUrl));
     final colors = colorsAsync.valueOrNull ?? DynamicColors.fallback;
+    final visibleHeartColor = _visibleOnDark(colors.dominant);
 
     final screenHeight = MediaQuery.sizeOf(context).height;
     final heroHeight = screenHeight * 0.42;
@@ -439,12 +440,12 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                         ? Icons.favorite
                                         : Icons.favorite_border,
                                     color: isInWatchlist
-                                        ? colors.dominant
+                                        ? visibleHeartColor
                                         : NamizoTheme.netflixWhite,
                                     size: 24,
                                   ),
                                   iconColor: isInWatchlist
-                                      ? colors.dominant
+                                      ? visibleHeartColor
                                       : NamizoTheme.netflixWhite,
                                   onTap: () =>
                                       _toggleWatchlist(media, isInWatchlist),
@@ -562,6 +563,13 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     final topGenres = _genres.take(3).toList();
     if (topGenres.isEmpty) return year;
     return '${topGenres.join(' | ')} | $year';
+  }
+
+  Color _visibleOnDark(Color color) {
+    if (color.computeLuminance() >= 0.25) {
+      return color;
+    }
+    return Color.alphaBlend(Colors.white.withValues(alpha: 0.45), color);
   }
 
   Widget _plainIconButton({

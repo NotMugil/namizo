@@ -167,14 +167,14 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.search_off,
-                        color: widget.colors.onSurface.withValues(alpha: 0.4),
-                        size: 48,
+                      Image.asset(
+                        'assets/images/oops.png',
+                        height: 72,
+                        fit: BoxFit.contain,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'No episodes match "$_searchQuery"',
+                        'Oops! No episodes matches',
                         style: TextStyle(
                           color: widget.colors.onSurface.withValues(alpha: 0.6),
                         ),

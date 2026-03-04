@@ -38,6 +38,20 @@ final aniListActivitiesProvider = FutureProvider<List<Map<String, dynamic>>>(
     return service.getViewerActivities();
   },
 );
+
+final aniListPlanningProvider = FutureProvider<List<Map<String, dynamic>>>(
+  (ref) async {
+    ref.watch(aniListAccountRefreshProvider);
+    final service = ref.watch(aniListServiceProvider);
+    return service.getViewerPlanningAnime();
+  },
+);
+
+final aniListTrackedIdsProvider = FutureProvider<Set<int>>((ref) async {
+  ref.watch(aniListAccountRefreshProvider);
+  final service = ref.watch(aniListServiceProvider);
+  return service.getViewerTrackedAnimeIds();
+});
  
 // Streaming service provider (anime direct + embed fallback)
 final streamingServiceProvider = Provider((ref) => StreamingService());

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/settingsproviders.dart';
 
 List<dynamic> _dedupeRowItems(List<dynamic> items) {
   final seenIds = <int>{};
@@ -28,57 +29,98 @@ List<dynamic> _dedupeRowItems(List<dynamic> items) {
   return deduped;
 }
 
+List<dynamic> _applyAdultFilter(List<dynamic> items, bool hideAdultContent) {
+  if (!hideAdultContent) return items;
+
+  return items.where((item) {
+    if (item is! Map) return true;
+
+    final map = Map<String, dynamic>.from(item);
+    final adultValue = map['adult'];
+    final isAdult = adultValue == true || adultValue == 1;
+
+    if (isAdult) return false;
+
+    final genres = map['genre_ids'];
+    if (genres is List) {
+      final genreIds = genres.whereType<num>().map((e) => e.toInt()).toSet();
+      if (genreIds.contains(12)) {
+        return false;
+      }
+    }
+
+    return true;
+  }).toList(growable: false);
+}
+
 final featuredAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getFeaturedAnime());
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getFeaturedAnime();
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final popularAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getAnime());
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getAnime();
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final trendingAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getTrendingAnime());
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getTrendingAnime();
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final topRatedAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getTopRatedAnime());
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getTopRatedAnime();
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final romanceAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getAnimeByGenre(
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getAnimeByGenre(
     18,
     sortBy: 'vote_average.desc',
     voteCountGte: 40,
-  ));
+  );
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final actionAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(
-    await tmdbService.getAnimeByGenre(10759, sortBy: 'popularity.desc'),
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getAnimeByGenre(
+    10759,
+    sortBy: 'popularity.desc',
   );
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final adventureAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getAnimeByGenre(
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getAnimeByGenre(
     12,
     sortBy: 'first_air_date.desc',
-  ));
+  );
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final fantasyAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
-  return _dedupeRowItems(await tmdbService.getAnimeByGenre(
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
+  final items = await tmdbService.getAnimeByGenre(
     10765,
     sortBy: 'vote_average.desc',
     voteCountGte: 40,
-  ));
+  );
+  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
 });
 
 final tvLogoProvider = FutureProvider.family<String?, int>((ref, id) async {

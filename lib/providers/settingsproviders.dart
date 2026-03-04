@@ -195,6 +195,82 @@ class EpisodeCheckFrequencyNotifier extends StateNotifier<int> {
   }
 }
 
+final episodeCheckLastCheckRefreshProvider =
+    StateProvider<int>((ref) => 0);
+
+final lastEpisodeCheckTimeProvider = FutureProvider<DateTime?>((ref) async {
+  ref.watch(episodeCheckLastCheckRefreshProvider);
+  return EpisodeCheckService.getLastCheckTime();
+});
+
+final easterEggVersionTapCountProvider = StateProvider<int>((ref) => 0);
+
+final easterEggHomeLogoProvider =
+    StateNotifierProvider<EasterEggHomeLogoNotifier, bool>((ref) {
+  return EasterEggHomeLogoNotifier();
+});
+
+class EasterEggHomeLogoNotifier extends StateNotifier<bool> {
+  EasterEggHomeLogoNotifier() : super(false) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(easterEggHomeLogoKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(easterEggHomeLogoKey, enabled);
+  }
+}
+
+final hideAdultContentProvider =
+    StateNotifierProvider<HideAdultContentNotifier, bool>((ref) {
+  return HideAdultContentNotifier();
+});
+
+class HideAdultContentNotifier extends StateNotifier<bool> {
+  HideAdultContentNotifier() : super(true) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(hideAdultContentKey) ?? true;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(hideAdultContentKey, enabled);
+  }
+}
+
+final scheduleTrackedOnlyProvider =
+    StateNotifierProvider<ScheduleTrackedOnlyNotifier, bool>((ref) {
+  return ScheduleTrackedOnlyNotifier();
+});
+
+class ScheduleTrackedOnlyNotifier extends StateNotifier<bool> {
+  ScheduleTrackedOnlyNotifier() : super(false) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(scheduleTrackedOnlyKey) ?? false;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(scheduleTrackedOnlyKey, enabled);
+  }
+}
+
 final themeModeProvider =
     StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
   return ThemeModeNotifier();

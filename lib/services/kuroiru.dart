@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:namizo/core/configurations.dart';
@@ -9,6 +11,7 @@ import 'package:namizo/services/tvdb.dart';
 
 class KuroiruService {
   final Dio _jikanDio;
+  final Dio _kuroiruDio;
   final aimi.Kuroiru _kuroiru;
   final TvdbMetadataService _tvdbMetadata;
   final CacheService _cache;
@@ -25,8 +28,66 @@ class KuroiruService {
           },
         ),
       ),
+      _kuroiruDio = Dio(
+        BaseOptions(
+          baseUrl: 'https://kuroiru.co',
+          connectTimeout: standardTimeout,
+          receiveTimeout: standardTimeout,
+          headers: {
+            'User-Agent': AppConfigurations.defaultAppUserAgent,
+          },
+        ),
+      ),
       _kuroiru = aimi.Kuroiru(),
       _tvdbMetadata = TvdbMetadataService(_cache);
+
+  Future<List<Map<String, dynamic>>> getAiringCalendar() async {
+    const cacheKey = 'kuroiru_airing_calendar';
+
+    final staleCache = await _cache.getStaleRaw(cacheKey);
+    if (_cache.isExpired(cacheKey)) {
+      _cache.updateInBackground(cacheKey, () async {
+        final airing = await _fetchAiringCalendarFromHome();
+        return {'airing': airing};
+      }, CacheService.shortCache);
+    }
+
+    if (staleCache != null) {
+      return _mapAiringList(staleCache['airing']);
+    }
+
+    final airing = await _fetchAiringCalendarFromHome();
+    await _cache.set(cacheKey, {'airing': airing}, ttl: CacheService.shortCache);
+    return airing;
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchAiringCalendarFromHome() async {
+    try {
+      final response = await _kuroiruDio.get('/app');
+      final html = response.data?.toString() ?? '';
+
+      final match = RegExp(
+        r'var\s+airingList\s*=\s*(\{[\s\S]*?\});',
+      ).firstMatch(html);
+
+      if (match == null || match.groupCount < 1) {
+        throw Exception('airingList payload not found');
+      }
+
+      final payload = jsonDecode(match.group(1)!) as Map<String, dynamic>;
+      return _mapAiringList(payload['airing']);
+    } catch (e) {
+      throw Exception('Failed to get Kuroiru airing calendar: $e');
+    }
+  }
+
+  List<Map<String, dynamic>> _mapAiringList(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
 
   Future<SearchResults> search(
     String query, {
@@ -206,8 +267,14 @@ class KuroiruService {
           .map((id) => id.toInt())
           .toList();
 
+      final rating = mal['rating']?.toString().toLowerCase() ?? '';
+      final hasAdultRating = rating.contains('rx') || rating.contains('hentai');
+      final hasAdultGenre = genres.contains(12);
+      final isAdult = hasAdultRating || hasAdultGenre;
+
       parsed.add(
         SearchResult(
+          adult: isAdult,
           id: malId,
           name: mal['title'] as String?,
           title: mal['title_english'] as String? ?? mal['title'] as String?,

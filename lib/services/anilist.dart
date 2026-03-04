@@ -43,6 +43,50 @@ query Viewer {
 }
 ''';
 
+  static const String _viewerTrackedIdsQuery = r'''
+query ViewerTrackedIds($userId: Int) {
+  MediaListCollection(
+    userId: $userId,
+    type: ANIME,
+    status_in: [CURRENT, PLANNING, PAUSED, DROPPED, COMPLETED, REPEATING]
+  ) {
+    lists {
+      entries {
+        media {
+          idMal
+        }
+      }
+    }
+  }
+}
+''';
+
+  static const String _viewerPlanningQuery = r'''
+query ViewerPlanning($userId: Int) {
+  Page(page: 1, perPage: 50) {
+    mediaList(userId: $userId, type: ANIME, status: PLANNING, sort: UPDATED_TIME_DESC) {
+      media {
+        id
+        idMal
+        title {
+          userPreferred
+          english
+          romaji
+        }
+        coverImage {
+          large
+        }
+        averageScore
+        episodes
+        startDate {
+          year
+        }
+      }
+    }
+  }
+}
+''';
+
   static const String _viewerActivitiesQuery = r'''
 query ViewerActivities($userId: Int) {
   Page(page: 1, perPage: 20) {
@@ -175,6 +219,150 @@ query ViewerActivities($userId: Int) {
           .toList();
     } on DioException {
       return const [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getViewerPlanningAnime() async {
+    final viewer = await getViewerProfile();
+    final userId = viewer?['id'];
+    if (userId is! int) {
+      return const [];
+    }
+
+    final headers = await _buildAuthHeaders();
+    if (headers.isEmpty) {
+      return const [];
+    }
+
+    try {
+      final response = await _dio.post<dynamic>(
+        '',
+        data: {
+          'query': _viewerPlanningQuery,
+          'variables': {'userId': userId},
+        },
+        options: Options(headers: headers),
+      );
+
+      final data = response.data;
+      if (data is! Map) return const [];
+
+      final typed = Map<String, dynamic>.from(data);
+      final errors = typed['errors'];
+      if (errors is List && errors.isNotEmpty) return const [];
+
+      final payload = typed['data'];
+      if (payload is! Map) return const [];
+
+      final page = payload['Page'];
+      if (page is! Map) return const [];
+
+      final mediaList = page['mediaList'];
+      if (mediaList is! List) return const [];
+
+      final result = <Map<String, dynamic>>[];
+      for (final row in mediaList.whereType<Map>()) {
+        final media = row['media'];
+        if (media is! Map) continue;
+
+        final mediaTyped = Map<String, dynamic>.from(media);
+        final malId = (mediaTyped['idMal'] as num?)?.toInt();
+        if (malId == null || malId <= 0) continue;
+
+        final titleObj = mediaTyped['title'];
+        final coverObj = mediaTyped['coverImage'];
+        final startObj = mediaTyped['startDate'];
+
+        final titleMap =
+            titleObj is Map ? Map<String, dynamic>.from(titleObj) : const <String, dynamic>{};
+        final coverMap =
+            coverObj is Map ? Map<String, dynamic>.from(coverObj) : const <String, dynamic>{};
+        final startMap =
+            startObj is Map ? Map<String, dynamic>.from(startObj) : const <String, dynamic>{};
+
+        final title = (titleMap['userPreferred'] ??
+                titleMap['english'] ??
+                titleMap['romaji'] ??
+                'Unknown')
+            .toString();
+
+        final year = (startMap['year'] as num?)?.toInt();
+        final firstAirDate = year != null ? '$year-01-01' : null;
+
+        result.add({
+          'id': malId,
+          'title': title,
+          'name': title,
+          'poster_path': coverMap['large']?.toString(),
+          'vote_average': ((mediaTyped['averageScore'] as num?)?.toDouble() ?? 0) / 10,
+          'first_air_date': firstAirDate,
+          'media_type': 'tv',
+          'adult': false,
+        });
+      }
+
+      return result;
+    } on DioException {
+      return const [];
+    }
+  }
+
+  Future<Set<int>> getViewerTrackedAnimeIds() async {
+    final viewer = await getViewerProfile();
+    final userId = viewer?['id'];
+    if (userId is! int) {
+      return <int>{};
+    }
+
+    final headers = await _buildAuthHeaders();
+    if (headers.isEmpty) {
+      return <int>{};
+    }
+
+    try {
+      final response = await _dio.post<dynamic>(
+        '',
+        data: {
+          'query': _viewerTrackedIdsQuery,
+          'variables': {'userId': userId},
+        },
+        options: Options(headers: headers),
+      );
+
+      final data = response.data;
+      if (data is! Map) return <int>{};
+
+      final typed = Map<String, dynamic>.from(data);
+      final errors = typed['errors'];
+      if (errors is List && errors.isNotEmpty) return <int>{};
+
+      final payload = typed['data'];
+      if (payload is! Map) return <int>{};
+
+      final collection = payload['MediaListCollection'];
+      if (collection is! Map) return <int>{};
+
+      final lists = collection['lists'];
+      if (lists is! List) return <int>{};
+
+      final ids = <int>{};
+      for (final list in lists.whereType<Map>()) {
+        final entries = list['entries'];
+        if (entries is! List) continue;
+
+        for (final entry in entries.whereType<Map>()) {
+          final media = entry['media'];
+          if (media is! Map) continue;
+          final malId = (media['idMal'] as num?)?.toInt();
+          if (malId != null && malId > 0) {
+            ids.add(malId);
+          }
+        }
+      }
+
+      return ids;
+    } on DioException {
+      return <int>{};
     }
   }
 

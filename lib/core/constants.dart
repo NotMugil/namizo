@@ -31,3 +31,6 @@ const String lastEpisodeCheckKey = 'last_episode_check';
 const String episodeCheckFrequencyKey = 'episode_check_frequency';
 const String episodeCheckEnabledKey = 'episode_check_enabled';
 const String themeModeKey = 'theme_mode';
+const String easterEggHomeLogoKey = 'easter_egg_home_logo_enabled';
+const String hideAdultContentKey = 'hide_adult_content';
+const String scheduleTrackedOnlyKey = 'schedule_tracked_only';

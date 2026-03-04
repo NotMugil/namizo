@@ -23,6 +23,10 @@ class SettingsScreen extends ConsumerWidget {
     final episodeCheckEnabled = ref.watch(episodeCheckEnabledProvider);
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
     final currentThemeMode = ref.watch(themeModeProvider);
+    final lastCheckAsync = ref.watch(lastEpisodeCheckTimeProvider);
+    final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
+    final hideAdultContent = ref.watch(hideAdultContentProvider);
+    final scheduleTrackedOnly = ref.watch(scheduleTrackedOnlyProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -129,8 +133,8 @@ class SettingsScreen extends ConsumerWidget {
                     size: 18,
                   ),
                   onTap: () async {
-                    final result = await context.push<String>('/anilist/login');
-                    if (result == 'success') {
+                    final result = await context.push<bool>('/anilist-login');
+                    if (result == true) {
                       ref.read(aniListAccountRefreshProvider.notifier).state++;
                     }
                   },
@@ -244,10 +248,8 @@ class SettingsScreen extends ConsumerWidget {
                   _showCheckingDialog(context, ref);
                 },
               ),
-              FutureBuilder<DateTime?>(
-                future: EpisodeCheckService.getLastCheckTime(),
-                builder: (context, snapshot) {
-                  final lastCheck = snapshot.data;
+              lastCheckAsync.when(
+                data: (lastCheck) {
                   final subtitle = lastCheck != null
                       ? 'Last checked: ${DateFormat.yMMMd().add_jm().format(lastCheck)}'
                       : 'Never checked';
@@ -262,6 +264,26 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: null,
                   );
                 },
+                loading: () => _buildSettingsTile(
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.clock,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  title: 'Last Check',
+                  subtitle: 'Loading...',
+                  trailing: null,
+                ),
+                error: (_, __) => _buildSettingsTile(
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.clock,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  title: 'Last Check',
+                  subtitle: 'Unavailable',
+                  trailing: null,
+                ),
               ),
             ],
           ],
@@ -334,6 +356,63 @@ class SettingsScreen extends ConsumerWidget {
               activeThumbColor: NamizoTheme.netflixRed,
             ),
           ),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.eyeSlash,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Hide Adult Content',
+            subtitle: hideAdultContent ? 'Enabled' : 'Disabled',
+            trailing: Switch(
+              value: hideAdultContent,
+              onChanged: (value) {
+                ref.read(hideAdultContentProvider.notifier).setEnabled(value);
+              },
+              activeThumbColor: NamizoTheme.netflixRed,
+            ),
+          ),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.calendarCheck,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Tracked Only in Schedule',
+            subtitle: scheduleTrackedOnly ? 'Enabled' : 'Disabled',
+            trailing: Switch(
+              value: scheduleTrackedOnly,
+              onChanged: (value) {
+                ref.read(scheduleTrackedOnlyProvider.notifier).setEnabled(value);
+              },
+              activeThumbColor: NamizoTheme.netflixRed,
+            ),
+          ),
+          if (easterEggEnabled)
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.arrowCounterClockwise,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Revert Home Logo',
+              subtitle: 'Switch back to Namizo title text',
+              trailing: const PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                color: Colors.white70,
+                size: 18,
+              ),
+              onTap: () async {
+                await ref.read(easterEggHomeLogoProvider.notifier).setEnabled(false);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Home logo reverted to Namizo'),
+                    backgroundColor: NamizoTheme.netflixRed,
+                  ),
+                );
+              },
+            ),
 
           _buildSectionHeader('About'),
           FutureBuilder<String>(
@@ -348,6 +427,27 @@ class SettingsScreen extends ConsumerWidget {
                 title: 'App Version',
                 subtitle: snapshot.data ?? 'Loading...',
                 trailing: null,
+                onTap: () async {
+                  final currentCount =
+                      ref.read(easterEggVersionTapCountProvider) + 1;
+                  ref.read(easterEggVersionTapCountProvider.notifier).state =
+                      currentCount;
+
+                  if (!easterEggEnabled && currentCount >= 6) {
+                    await ref
+                        .read(easterEggHomeLogoProvider.notifier)
+                        .setEnabled(true);
+                    ref.read(easterEggVersionTapCountProvider.notifier).state =
+                        0;
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('🎉 Easter egg enabled!'),
+                        backgroundColor: NamizoTheme.netflixRed,
+                      ),
+                    );
+                  }
+                },
               );
             },
           ),
@@ -649,6 +749,9 @@ class SettingsScreen extends ConsumerWidget {
                 if (snapshot.connectionState == ConnectionState.done) {
                   Future.delayed(const Duration(milliseconds: 500), () {
                     if (dialogContext.mounted) {
+                      ref
+                          .read(episodeCheckLastCheckRefreshProvider.notifier)
+                          .state++;
                       Navigator.pop(dialogContext);
                       final count = snapshot.data ?? 0;
                       ScaffoldMessenger.of(context).showSnackBar(

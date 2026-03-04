@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/settingsproviders.dart';
 
 // Search query state
 final searchQueryProvider = StateProvider<String>((ref) => '');
@@ -39,9 +40,13 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
   final page = ref.watch(searchPageProvider);
   final language = ref.watch(searchLanguageFilterProvider);
   final sortBy = ref.watch(searchSortProvider);
+  final hideAdultContent = ref.watch(hideAdultContentProvider);
   
   final tmdb = ref.watch(kuroiruServiceProvider);
   final results = await tmdb.search(query, page: page, language: language, sortBy: sortBy);
+  final filteredResults = hideAdultContent
+      ? results.results.where((item) => !item.adult).toList(growable: false)
+      : results.results;
   
   // Update metadata
   ref.read(searchMetadataProvider.notifier).state = (
@@ -51,10 +56,10 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
   
   // Accumulate results for infinite scroll
   if (page == 1) {
-    ref.read(accumulatedSearchResultsProvider.notifier).state = results.results;
+    ref.read(accumulatedSearchResultsProvider.notifier).state = filteredResults;
   } else {
     final accumulated = ref.read(accumulatedSearchResultsProvider);
-    ref.read(accumulatedSearchResultsProvider.notifier).state = [...accumulated, ...results.results];
+    ref.read(accumulatedSearchResultsProvider.notifier).state = [...accumulated, ...filteredResults];
   }
   
   final accumulated = ref.read(accumulatedSearchResultsProvider);

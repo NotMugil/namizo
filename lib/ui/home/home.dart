@@ -10,6 +10,7 @@ import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/providers/homeproviders.dart';
 import 'package:namizo/providers/serviceproviders.dart';
+import 'package:namizo/providers/settingsproviders.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/providers/watchhistoryprovider.dart';
 import 'package:namizo/providers/watchlistprovider.dart';
@@ -101,6 +102,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final featuredLogos = ref.watch(featuredAnimeLogosProvider);
     final featuredPosters = ref.watch(featuredAnimePostersProvider);
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
+    final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
 
     // Precache logo images as soon as all URLs are resolved
     ref.listen(featuredAnimeLogosProvider, (_, next) {
@@ -162,16 +164,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-          title: const Padding(
-            padding: EdgeInsets.only(top: 8.0, left: 4),
-            child: Text(
-              'Namizo.',
-              style: TextStyle(
-                color: NamizoTheme.netflixWhite,
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          title: Padding(
+            padding: const EdgeInsets.only(top: 8.0, left: 4),
+            child: easterEggEnabled
+                ? Image.asset(
+                    'assets/images/nami.png',
+                    height: 26,
+                    fit: BoxFit.contain,
+                  )
+                : const Text(
+                    'Namizo.',
+                    style: TextStyle(
+                      color: NamizoTheme.netflixWhite,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
           ),
           actions: [
             Padding(
@@ -219,6 +227,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SliverToBoxAdapter(
             child: Consumer(
               builder: (context, ref, child) {
+                final trendingAnime = ref.watch(trendingAnimeProvider);
+                final trendingPosterById = <int, dynamic>{};
+                trendingAnime.whenData((shows) {
+                  for (final show in shows) {
+                    if (show is! Map) continue;
+                    final id = (show['id'] as num?)?.toInt();
+                    if (id == null) continue;
+                    final posterPath = show['poster_path'];
+                    if (posterPath != null) {
+                      trendingPosterById[id] = posterPath;
+                    }
+                  }
+                });
+
                 final watchlist = ref
                     .watch(watchlistProvider)
                     .where((item) => item.mediaType == 'tv')
@@ -235,7 +257,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         'id': item.id,
                         'name': item.title,
                         'title': item.title,
-                        'poster_path': item.posterPath,
+                        'poster_path':
+                            trendingPosterById[item.id] ?? item.posterPath,
                         'vote_average': item.voteAverage,
                         'first_air_date': item.releaseDate,
                         'media_type': 'tv',
@@ -246,6 +269,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 return ContentRow(
                   title: 'Your List',
                   items: watchlistItems,
+                );
+              },
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final planningAsync = ref.watch(aniListPlanningProvider);
+                return planningAsync.when(
+                  data: (items) {
+                    if (items.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return ContentRow(
+                      title: 'Planning to Watch',
+                      items: items,
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
                 );
               },
             ),
