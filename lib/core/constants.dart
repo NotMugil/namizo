@@ -1,3 +1,9 @@
+// Genre IDs (MAL / TMDB)
+const int genreIdRomance = 18;
+const int genreIdAction = 10759;
+const int genreIdAdventure = 12;
+const int genreIdFantasy = 10765;
+
 // Image size hints
 const String posterSize = 'w500';
 const String backdropSize = 'original';
@@ -35,4 +41,6 @@ const String themeModeKey = 'theme_mode';
 const String easterEggHomeLogoKey = 'easter_egg_home_logo_enabled';
 const String hideAdultContentKey = 'hide_adult_content';
 const String scheduleTrackedOnlyKey = 'schedule_tracked_only';
+const String scheduleTrackedHintDismissedKey =
+  'schedule_tracked_hint_dismissed';
 const String homeFeedOrderKey = 'home_feed_order';

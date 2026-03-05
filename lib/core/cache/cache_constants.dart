@@ -1,4 +1,4 @@
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 
 class CacheConstants {
   const CacheConstants._();

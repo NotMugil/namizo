@@ -1,5 +1,5 @@
 import 'package:hive/hive.dart';
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 import '../models/watchlist_item.dart';
 
 class WatchlistService {

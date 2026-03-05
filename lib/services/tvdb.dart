@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/core/user_config.dart';
+import 'package:namizo/core/defaults.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/core/cache/cache_service.dart';
 

@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:aimi_lib/aimi_lib.dart' as aimi;
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
 import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/season_info.dart';
 import 'package:namizo/core/cache/cache_service.dart';
 import 'package:namizo/services/tvdb.dart';
+import 'package:namizo/utils/image_url.dart' as img_util;
 
 class KuroiruService {
   final Dio _jikanDio;
@@ -94,11 +95,35 @@ class KuroiruService {
     int page = 1,
     String? language,
     String? sortBy,
+    List<int>? genreIds,
+    String? status,
+    String? type,
+    int? startYear,
+    int? endYear,
+    double? minScore,
   }) async {
     final normalizedQuery = _normalizeSearchText(query);
     final normalizedSort = sortBy == 'rating' ? 'score' : sortBy;
+    final normalizedType = type?.trim().toLowerCase();
+    final normalizedStatus = status?.trim().toLowerCase();
+    final normalizedGenres = (genreIds ?? const <int>[])
+        .where((id) => id > 0)
+        .toSet()
+        .toList()
+      ..sort();
+    final normalizedStartYear = startYear;
+    final normalizedEndYear = endYear;
+    final normalizedMinScore = minScore;
+
+    final genreCachePart =
+        normalizedGenres.isEmpty ? 'none' : normalizedGenres.join('-');
+    final yearCachePart =
+        '${normalizedStartYear ?? 'none'}-${normalizedEndYear ?? 'none'}';
+    final scoreCachePart = normalizedMinScore == null
+        ? 'none'
+        : normalizedMinScore.toStringAsFixed(1);
     final cacheKey =
-        'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}';
+      'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}_g:${genreCachePart}_s:${normalizedStatus ?? 'all'}_t:${normalizedType ?? 'all'}_y:${yearCachePart}_sc:${scoreCachePart}';
 
     if (normalizedQuery.isEmpty) {
       return const SearchResults(
@@ -133,6 +158,18 @@ class KuroiruService {
             'page': page,
             'sfw': true,
             'limit': 25,
+            if (normalizedGenres.isNotEmpty)
+              'genres': normalizedGenres.join(','),
+            if (normalizedStatus != null && normalizedStatus.isNotEmpty)
+              'status': normalizedStatus,
+            if (normalizedType != null && normalizedType.isNotEmpty)
+              'type': normalizedType,
+            if (normalizedStartYear != null)
+              'start_date': '${normalizedStartYear.toString().padLeft(4, '0')}-01-01',
+            if (normalizedEndYear != null)
+              'end_date': '${normalizedEndYear.toString().padLeft(4, '0')}-12-31',
+            if (normalizedMinScore != null)
+              'min_score': normalizedMinScore,
             ..._searchSortToJikanParams(normalizedSort),
           },
         );
@@ -301,15 +338,30 @@ class KuroiruService {
   final Map<int, bool> _airingByMalId = <int, bool>{};
   final Map<int, String?> _statusByMalId = <int, String?>{};
 
+  List<int> getCachedGenreIds(int malId) =>
+      List<int>.from(_genreCacheByMalId[malId] ?? const <int>[]);
+
+  int? getCachedEpisodeCount(int malId) => _episodeCountByMalId[malId];
+
+  bool? getCachedAiring(int malId) => _airingByMalId[malId];
+
+  String? getCachedStatus(int malId) => _statusByMalId[malId];
+
   Map<String, dynamic> _searchSortToJikanParams(String? sortBy) {
     switch (sortBy) {
+      case 'az':
       case 'title':
         return {'order_by': 'title', 'sort': 'asc'};
+      case 'newest':
       case 'year':
         return {'order_by': 'start_date', 'sort': 'desc'};
+      case 'airing_now':
+        return {'order_by': 'popularity', 'sort': 'desc'};
       case 'score':
-      case 'popularity':
+      case 'rating':
         return {'order_by': 'score', 'sort': 'desc'};
+      case 'popularity':
+        return {'order_by': 'members', 'sort': 'desc'};
       default:
         return const {};
     }
@@ -326,7 +378,7 @@ class KuroiruService {
     processed = processed.where((item) => seen.add('${item.id}')).toList();
 
     switch (sortBy) {
-      case 'popularity':
+      case 'score':
       case 'rating':
         processed.sort((a, b) {
           final ratingCompare = (b.voteAverage ?? 0).compareTo(
@@ -336,6 +388,12 @@ class KuroiruService {
           return _compareByYearDesc(a, b);
         });
         break;
+      case 'newest':
+      case 'start_date':
+      case 'year':
+        processed.sort(_compareByYearDesc);
+        break;
+      case 'az':
       case 'title':
         processed.sort((a, b) {
           final titleA = _normalizeSearchText(a.title ?? a.name ?? '');
@@ -343,8 +401,14 @@ class KuroiruService {
           return titleA.compareTo(titleB);
         });
         break;
-      case 'year':
-        processed.sort(_compareByYearDesc);
+      case 'popularity':
+        processed.sort((a, b) {
+          final ratingCompare = (b.voteAverage ?? 0).compareTo(
+            a.voteAverage ?? 0,
+          );
+          if (ratingCompare != 0) return ratingCompare;
+          return _compareByYearDesc(a, b);
+        });
         break;
       default:
         processed.sort((a, b) {
@@ -480,37 +544,11 @@ class KuroiruService {
     }
   }
 
-  String getPosterUrl(String? posterPath, {String size = posterSize}) {
-    if (posterPath == null || posterPath.isEmpty) {
-      return '';
-    }
-    if (posterPath.startsWith('http://') || posterPath.startsWith('https://')) {
-      return posterPath;
-    }
-    if (posterPath.startsWith('/img/')) {
-      return 'https://kuroiru.co$posterPath';
-    }
-    if (posterPath.startsWith('/')) {
-      return 'https://kuroiru.co$posterPath';
-    }
-    return posterPath;
-  }
+  String getPosterUrl(String? posterPath, {String size = posterSize}) =>
+      img_util.posterUrl(posterPath, size: size);
 
-  String getBackdropUrl(String? backdropPath, {String size = backdropSize}) {
-    if (backdropPath == null || backdropPath.isEmpty) {
-      return '';
-    }
-    if (backdropPath.startsWith('http://') || backdropPath.startsWith('https://')) {
-      return backdropPath;
-    }
-    if (backdropPath.startsWith('/img/')) {
-      return 'https://kuroiru.co$backdropPath';
-    }
-    if (backdropPath.startsWith('/')) {
-      return 'https://kuroiru.co$backdropPath';
-    }
-    return backdropPath;
-  }
+  String getBackdropUrl(String? backdropPath, {String size = backdropSize}) =>
+      img_util.backdropUrl(backdropPath, size: size);
 
   Future<List<dynamic>> getFeaturedAnime() async {
     final trending = await getTrendingAnime();
@@ -1042,19 +1080,7 @@ class KuroiruService {
         .map((genre) => {'id': 0, 'name': genre})
         .toList();
 
-    final trailerKey = details.id.trim().isEmpty ? null : null;
-    mapped['videos'] = {
-      'results': trailerKey == null
-          ? <Map<String, dynamic>>[]
-          : [
-              {
-                'site': 'YouTube',
-                'type': 'Trailer',
-                'official': true,
-                'key': trailerKey,
-              },
-            ],
-    };
+    mapped['videos'] = {'results': <Map<String, dynamic>>[]};
 
     return mapped;
   }
