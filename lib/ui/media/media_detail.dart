@@ -2,7 +2,6 @@ import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,8 +10,11 @@ import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/providers/dynamiccolorsprovider.dart';
 import 'package:namizo/providers/mediaprovider.dart';
+import 'package:namizo/providers/settingsproviders.dart';
 import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/providers/watchlistprovider.dart';
+import 'package:namizo/services/tvdb.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:namizo/ui/media/widgets/episode_list.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
@@ -27,26 +29,41 @@ class MediaDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<MediaDetailScreen> createState() => _MediaDetailScreenState();
 }
 
-class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
+class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
+  with SingleTickerProviderStateMixin {
+  static const List<String> _detailTabs = ['Episodes', 'More Like This'];
+
   SearchResult? _media;
   List<String> _genres = const [];
   bool _aboutExpanded = false;
   bool _aboutOverflow = false;
   bool _isLoading = true;
+  bool? _watchlistOverride;
   String? _error;
   String? _trailerUrl;
   String? _preferredBackdropUrl;
   String? _preferredPosterUrl;
+  int _activeTabIndex = 0;
+  Future<List<TvdbSimilarSeries>>? _similarSeriesFuture;
+  late final TabController _detailTabController;
   final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _detailTabController = TabController(length: _detailTabs.length, vsync: this);
+    _detailTabController.addListener(() {
+      if (!_detailTabController.indexIsChanging &&
+          _activeTabIndex != _detailTabController.index) {
+        setState(() => _activeTabIndex = _detailTabController.index);
+      }
+    });
     _fetchMediaDetails();
   }
 
   @override
   void dispose() {
+    _detailTabController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -85,6 +102,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
 
     try {
       final tmdbService = ref.read(kuroiruServiceProvider);
+      _similarSeriesFuture = tmdbService.getTVShowSimilarFromTvdb(widget.mediaId);
       Map<String, dynamic>? detailsWithVideos;
 
       int retries = 3;
@@ -130,8 +148,10 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
         _preferredBackdropUrl = preferredBackdrop;
         _preferredPosterUrl = preferredPoster;
         _genres = genres;
+        _activeTabIndex = 0;
         _isLoading = false;
       });
+      _detailTabController.animateTo(0);
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -213,7 +233,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     final backdropUrl =
       _preferredBackdropUrl ?? fallbackBackdropUrl ?? fallbackPosterUrl;
     final posterUrl = _preferredPosterUrl ?? fallbackPosterUrl;
-    final isInWatchlist = ref.watch(isInWatchlistProvider(media.id));
+    final watchlistState = ref.watch(isInWatchlistProvider(media.id));
+    final isInWatchlist = _watchlistOverride ?? watchlistState;
     final colorsAsync = ref.watch(dynamicColorsProvider(posterUrl));
     final colors = colorsAsync.valueOrNull ?? DynamicColors.fallback;
     final visibleHeartColor = _visibleOnDark(colors.dominant);
@@ -341,18 +362,9 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                       onTap: () async {
                                         final shareUrl =
                                             'https://myanimelist.net/anime/${media.id}';
-                                        await Clipboard.setData(
-                                          ClipboardData(text: shareUrl),
-                                        );
-                                        if (!mounted) return;
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Link copied to clipboard',
-                                            ),
-                                          ),
+                                        await Share.share(
+                                          shareUrl,
+                                          subject: mediaName,
                                         );
                                       },
                                     ),
@@ -424,21 +436,33 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
                                 Expanded(
                                   child: _playAllButton(
                                     onTap: () {
-                                      final season =
-                                          ref.read(selectedSeasonProvider);
                                       context.push(
-                                        '/player/${media.id}?season=$season&episode=1',
+                                        '/player/${media.id}?season=1&episode=1',
                                       );
                                     },
                                   ),
                                 ),
                                 const SizedBox(width: 12),
+                                _plainIconButton(
+                                  icon: const Icon(
+                                    Icons.favorite_border,
+                                    color: NamizoTheme.netflixWhite,
+                                    size: 24,
+                                  ),
+                                  onTap: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Favorites coming soon'),
+                                      ),
+                                    );
+                                  },
+                                ),
                                 // Filled heart = in watchlist, outline = not
                                 _plainIconButton(
                                   icon: Icon(
                                     isInWatchlist
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
+                                        ? Icons.bookmark
+                                        : Icons.bookmark_border,
                                     color: isInWatchlist
                                         ? visibleHeartColor
                                         : NamizoTheme.netflixWhite,
@@ -632,18 +656,68 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
 
   Future<void> _toggleWatchlist(SearchResult media, bool isInWatchlist) async {
     final watchlistService = ref.read(watchlistServiceProvider);
+    final shouldAutoSyncAniList =
+      ref.read(aniListViewerProvider).valueOrNull != null &&
+      ref.read(aniListAutoSyncProvider);
+    final aniListService = ref.read(aniListServiceProvider);
 
     if (isInWatchlist) {
+      if (mounted) {
+        setState(() => _watchlistOverride = false);
+      }
+
       await watchlistService.removeFromWatchlist(media.id);
+      final hasAniListLogin =
+          (await aniListService.getAccessToken())?.isNotEmpty == true;
+      var aniListDeleted = true;
+      if (hasAniListLogin) {
+        aniListDeleted = await aniListService.removeFromTrackedByMalId(media.id);
+        ref.read(aniListAccountRefreshProvider.notifier).state++;
+      }
+
       ref.read(watchlistRefreshProvider.notifier).refresh();
+      ref.invalidate(watchlistProvider);
+      ref.invalidate(isInWatchlistProvider(media.id));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Removed from watchlist'),
-          duration: Duration(seconds: 2),
-        ),
+
+      if (!aniListDeleted) {
+        _showToast(
+          message: 'Removed locally, but AniList delete failed',
+          icon: PhosphorIconsRegular.warning,
+          accent: const Color(0xFFF59E0B),
+        );
+        return;
+      }
+
+      _showToast(
+        message: hasAniListLogin ? 'Removed from list' : 'Removed from watchlist',
+        icon: PhosphorIconsRegular.bookmarkSimple,
+        accent: const Color(0xFFEF4444),
       );
     } else {
+      final localAlreadyExists = ref
+          .read(watchlistProvider)
+          .any((item) => item.id == media.id);
+      final aniListAlreadyExists = ref
+          .read(watchlistStatusByIdProvider)
+          .containsKey(media.id);
+
+      if (localAlreadyExists || aniListAlreadyExists) {
+        if (mounted) {
+          setState(() => _watchlistOverride = true);
+        }
+        _showToast(
+          message: 'Already in your list',
+          icon: PhosphorIconsFill.bookmarkSimple,
+          accent: const Color(0xFF3B82F6),
+        );
+        return;
+      }
+
+      if (mounted) {
+        setState(() => _watchlistOverride = true);
+      }
+
       final item = WatchlistItem(
         id: media.id,
         title: media.title ?? media.name ?? 'Unknown',
@@ -656,15 +730,59 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
         overview: media.overview,
       );
       await watchlistService.addToWatchlist(item);
+      if (shouldAutoSyncAniList) {
+        final synced = await aniListService.addToPlanningByMalId(media.id);
+        if (synced) {
+          ref.read(aniListAccountRefreshProvider.notifier).state++;
+        }
+      }
       ref.read(watchlistRefreshProvider.notifier).refresh();
+      ref.invalidate(watchlistProvider);
+      ref.invalidate(isInWatchlistProvider(media.id));
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Added to watchlist'),
-          duration: Duration(seconds: 2),
-        ),
+      _showToast(
+        message: 'Added to watchlist',
+        icon: PhosphorIconsFill.bookmarkSimple,
+        accent: const Color(0xFF22C55E),
       );
     }
+  }
+
+  void _showToast({
+    required String message,
+    required IconData icon,
+    required Color accent,
+  }) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        elevation: 0,
+        duration: const Duration(seconds: 2),
+        backgroundColor: const Color(0xFF0A0A0A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: accent.withValues(alpha: 0.45), width: 1),
+        ),
+        content: Row(
+          children: [
+            Icon(icon, color: accent, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildTVControls(
@@ -672,87 +790,143 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen> {
     SearchResult media,
     DynamicColors colors,
   ) {
-    final seriesInfoAsync = ref.watch(seriesInfoProvider(media.id));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TabBar(
+          controller: _detailTabController,
+          isScrollable: false,
+          indicatorColor: NamizoTheme.netflixRed,
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          labelColor: NamizoTheme.netflixWhite,
+          unselectedLabelColor: NamizoTheme.netflixGrey,
+          labelStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          tabs: const [
+            Tab(text: 'Episodes'),
+            Tab(text: 'More Like This'),
+          ],
+        ),
+        SizedBox(height: _activeTabIndex == 0 ? 14 : 0),
+        if (_activeTabIndex == 0)
+          EpisodeList(
+            media: media,
+            season: 1,
+            colors: colors,
+            scrollController: _scrollController,
+          )
+        else
+          _buildMoreLikeThis(media.id, colors),
+      ],
+    );
+  }
 
-    return seriesInfoAsync.when(
-      data: (seriesInfo) {
-        final selectedSeason = ref.watch(selectedSeasonProvider);
+  Widget _buildMoreLikeThis(int mediaId, DynamicColors colors) {
+    _similarSeriesFuture ??= ref
+        .read(kuroiruServiceProvider)
+        .getTVShowSimilarFromTvdb(mediaId);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Episodes',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: NamizoTheme.netflixWhite,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
+    return FutureBuilder<List<TvdbSimilarSeries>>(
+      future: _similarSeriesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Text(
+            'Failed to load similar titles',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: NamizoTheme.netflixLightGrey,
                 ),
-                Container(
-                  width: 154,
-                  height: 36,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0x241F2431),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: const Color(0x36FFFFFF)),
+          );
+        }
+
+        final items = (snapshot.data ?? const [])
+          .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
+          .toList(growable: false);
+        if (items.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.all(32),
+            child: Center(
+              child: Column(
+                children: [
+                  Image.asset(
+                    'assets/images/oops.png',
+                    height: 72,
+                    fit: BoxFit.contain,
                   ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<int>(
-                      isDense: true,
-                      value: selectedSeason <= seriesInfo.seasons.length
-                          ? selectedSeason
-                          : 1,
-                      dropdownColor: NamizoTheme.netflixDarkGrey,
-                      borderRadius: BorderRadius.circular(14),
-                      icon: const Icon(
-                        Icons.expand_more,
-                        color: NamizoTheme.netflixWhite,
-                      ),
-                      style: const TextStyle(
-                        color: NamizoTheme.netflixWhite,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                      items: seriesInfo.seasons
-                          .where((s) => s.seasonNumber > 0)
-                          .map(
-                            (season) => DropdownMenuItem(
-                              value: season.seasonNumber,
-                              child: Text('Season ${season.seasonNumber}'),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) {
-                        if (value == null) return;
-                        ref.read(selectedSeasonProvider.notifier).state = value;
-                        ref.read(selectedEpisodeProvider.notifier).state = 1;
-                      },
+                  const SizedBox(height: 12),
+                  Text(
+                    'Oops! No similar matches found',
+                    style: TextStyle(
+                      color: colors.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 14),
-            EpisodeList(
-              media: media,
-              season: selectedSeason,
-              colors: colors,
-              scrollController: _scrollController,
-            ),
-          ],
+          );
+        }
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: items.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 2 / 3,
+          ),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _buildSimilarPoster(item);
+          },
         );
       },
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF7C73FF)),
-      ),
-      error: (err, stack) => Text(
-        'Error loading seasons: $err',
-        style: const TextStyle(color: NamizoTheme.netflixLightGrey),
+    );
+  }
+
+  Widget _buildSimilarPoster(TvdbSimilarSeries item) {
+    final isAnime = (item.sourceType ?? 'anime') == 'anime';
+    final hasMalRoute = item.malId != null && item.malId! > 0 && isAnime;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: hasMalRoute ? () => context.push('/media/${item.malId}?type=tv') : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: item.imageUrl != null && item.imageUrl!.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: item.imageUrl!,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(
+                  color: NamizoTheme.netflixDarkGrey,
+                ),
+                errorWidget: (context, url, error) => Container(
+                  color: NamizoTheme.netflixDarkGrey,
+                  child: const Icon(
+                    Icons.movie_creation_outlined,
+                    color: NamizoTheme.netflixGrey,
+                  ),
+                ),
+              )
+            : Container(
+                color: NamizoTheme.netflixDarkGrey,
+                child: const Icon(
+                  Icons.movie_creation_outlined,
+                  color: NamizoTheme.netflixGrey,
+                ),
+              ),
       ),
     );
   }

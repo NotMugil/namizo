@@ -20,6 +20,8 @@ class AniListService {
           );
 
   final Dio _dio;
+  static const Duration _defaultRateLimitDelay = Duration(milliseconds: 1200);
+  static const Duration _syncPacingDelay = Duration(milliseconds: 700);
 
   static const String _viewerQuery = r'''
 query Viewer {
@@ -123,12 +125,19 @@ query ViewerPlanning($userId: Int) {
   static const String _viewerActivitiesQuery = r'''
 query ViewerActivities($userId: Int) {
   Page(page: 1, perPage: 20) {
-    activities(userId: $userId, type: ANIME_LIST, sort: ID_DESC) {
+    viewerActivities: activities(userId: $userId, type: ANIME_LIST, sort: ID_DESC) {
       ... on ListActivity {
         id
         status
         progress
         createdAt
+        user {
+          name
+          avatar {
+            large
+            medium
+          }
+        }
         media {
           id
           title {
@@ -140,6 +149,80 @@ query ViewerActivities($userId: Int) {
         }
       }
     }
+    followingActivities: activities(isFollowing: true, type: ANIME_LIST, sort: ID_DESC) {
+      ... on ListActivity {
+        id
+        status
+        progress
+        createdAt
+        user {
+          name
+          avatar {
+            large
+            medium
+          }
+        }
+        media {
+          id
+          title {
+            userPreferred
+          }
+          coverImage {
+            large
+          }
+        }
+      }
+    }
+  }
+}
+''';
+
+  static const String _mediaByMalIdQuery = r'''
+query MediaByMalId($malId: Int) {
+  Media(idMal: $malId, type: ANIME) {
+    id
+    episodes
+  }
+}
+''';
+
+  static const String _mediaByMalIdWithEntryQuery = r'''
+query MediaByMalIdWithEntry($malId: Int) {
+  Media(idMal: $malId, type: ANIME) {
+    id
+    episodes
+    mediaListEntry {
+      id
+      status
+    }
+  }
+}
+''';
+
+  static const String _mediaListEntryByMediaQuery = r'''
+query MediaListEntryByMedia($mediaId: Int) {
+  MediaList(mediaId: $mediaId, type: ANIME) {
+    id
+    progress
+    status
+  }
+}
+''';
+
+  static const String _saveMediaListEntryMutation = r'''
+mutation SaveMediaListEntry($id: Int, $mediaId: Int, $status: MediaListStatus, $progress: Int) {
+  SaveMediaListEntry(id: $id, mediaId: $mediaId, status: $status, progress: $progress) {
+    id
+    status
+    progress
+  }
+}
+''';
+
+  static const String _deleteMediaListEntryMutation = r'''
+mutation DeleteMediaListEntry($id: Int) {
+  DeleteMediaListEntry(id: $id) {
+    deleted
   }
 }
 ''';
@@ -243,13 +326,40 @@ query ViewerActivities($userId: Int) {
       final page = payload['Page'];
       if (page is! Map) return const [];
 
-      final activities = page['activities'];
-      if (activities is! List) return const [];
+      final ownActivities = page['viewerActivities'];
+      final followingActivities = page['followingActivities'];
 
-      return activities
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
+      final merged = <Map<String, dynamic>>[];
+      if (ownActivities is List) {
+        merged.addAll(
+          ownActivities
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item)),
+        );
+      }
+      if (followingActivities is List) {
+        merged.addAll(
+          followingActivities
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item)),
+        );
+      }
+
+      final dedupedById = <int, Map<String, dynamic>>{};
+      for (final item in merged) {
+        final id = (item['id'] as num?)?.toInt();
+        if (id == null || id <= 0) continue;
+        dedupedById[id] = item;
+      }
+
+      final list = dedupedById.values.toList()
+        ..sort((a, b) {
+          final aId = (a['id'] as num?)?.toInt() ?? 0;
+          final bId = (b['id'] as num?)?.toInt() ?? 0;
+          return bId.compareTo(aId);
+        });
+
+      return list.length > 20 ? list.sublist(0, 20) : list;
     } on DioException {
       return const [];
     }
@@ -500,9 +610,319 @@ query ViewerActivities($userId: Int) {
     }
   }
 
-  Future<Map<String, dynamic>> _buildAuthHeaders() async {
+  Future<bool> addToPlanningByMalId(int malId) async {
+    final mediaEntryRef = await _getMediaEntryRefByMalId(malId);
+    if (mediaEntryRef == null) return false;
+
+    final currentStatus = (mediaEntryRef.entryStatus ?? '').toUpperCase();
+    if (mediaEntryRef.entryId != null &&
+        (currentStatus == 'PLANNING' ||
+            currentStatus == 'CURRENT' ||
+            currentStatus == 'REPEATING')) {
+      return true;
+    }
+
+    return _saveMediaListByMediaId(
+      mediaId: mediaEntryRef.mediaId,
+      status: 'PLANNING',
+    );
+  }
+
+  Future<bool> removeFromTrackedByMalId(int malId) async {
+    final mediaEntryRef = await _getMediaEntryRefByMalId(malId);
+    if (mediaEntryRef == null) return false;
+
+    final entryId = mediaEntryRef.entryId;
+    if (entryId == null) {
+      // No list entry means it is already removed from AniList.
+      return true;
+    }
+
+    final payload = await _executeGraphQl(
+      query: _deleteMediaListEntryMutation,
+      variables: {'id': entryId},
+      requireAccessToken: true,
+    );
+    if (payload == null) return false;
+
+    final deleted = payload['DeleteMediaListEntry'];
+    if (deleted is Map) {
+      final flag = deleted['deleted'];
+      if (flag is bool) return flag;
+      if (flag is num) return flag.toInt() == 1;
+    }
+    return deleted != null;
+  }
+
+  Future<bool> updateProgressByMalId({
+    required int malId,
+    required int watchedEpisodes,
+  }) async {
+    if (watchedEpisodes <= 0) return false;
+
+    final mediaRef = await _getMediaRefByMalId(malId);
+    if (mediaRef == null) return false;
+
+    final totalEpisodes = mediaRef.episodes;
+    final cappedProgress = totalEpisodes != null && totalEpisodes > 0
+        ? watchedEpisodes.clamp(0, totalEpisodes)
+        : watchedEpisodes;
+
+    final shouldComplete = totalEpisodes != null &&
+        totalEpisodes > 0 &&
+        cappedProgress >= totalEpisodes;
+
+    return _saveMediaListByMediaId(
+      mediaId: mediaRef.mediaId,
+      status: shouldComplete ? 'COMPLETED' : 'CURRENT',
+      progress: cappedProgress,
+    );
+  }
+
+  Future<bool> updateStatusByMediaId({
+    required int mediaId,
+    required String status,
+    int? progress,
+  }) async {
+    if (mediaId <= 0) return false;
+    if (status.trim().isEmpty) return false;
+
+    final existing = await _getMediaListEntry(mediaId);
+    final payload = await _executeGraphQl(
+      query: _saveMediaListEntryMutation,
+      variables: {
+        'id': existing?.id,
+        'mediaId': existing?.id == null ? mediaId : null,
+        'status': status.trim().toUpperCase(),
+        'progress': progress ?? existing?.progress,
+      },
+      requireAccessToken: true,
+    );
+
+    if (payload == null) return false;
+    final saved = payload['SaveMediaListEntry'];
+    return saved is Map && (saved['id'] as num?)?.toInt() != null;
+  }
+
+  Future<AniListSyncResult> syncPlanningForMalIds(Iterable<int> malIds) async {
+    final deduped = malIds
+        .where((id) => id > 0)
+        .toSet()
+        .toList(growable: false);
+
+    var synced = 0;
+    for (var i = 0; i < deduped.length; i++) {
+      final ok = await addToPlanningByMalId(deduped[i]);
+      if (ok) synced++;
+      if (i < deduped.length - 1) {
+        await Future<void>.delayed(_syncPacingDelay);
+      }
+    }
+
+    return AniListSyncResult(attempted: deduped.length, synced: synced);
+  }
+
+  Future<bool> _saveMediaListByMalId({
+    required int malId,
+    required String status,
+    int? progress,
+  }) async {
+    final mediaRef = await _getMediaRefByMalId(malId);
+    if (mediaRef == null) return false;
+    return _saveMediaListByMediaId(
+      mediaId: mediaRef.mediaId,
+      status: status,
+      progress: progress,
+    );
+  }
+
+  Future<bool> _saveMediaListByMediaId({
+    required int mediaId,
+    required String status,
+    int? progress,
+  }) async {
+    final payload = await _executeGraphQl(
+      query: _saveMediaListEntryMutation,
+      variables: {
+        'mediaId': mediaId,
+        'status': status,
+        'progress': progress,
+      },
+      requireAccessToken: true,
+    );
+
+    if (payload == null) return false;
+    final saved = payload['SaveMediaListEntry'];
+    return saved is Map && (saved['id'] as num?)?.toInt() != null;
+  }
+
+  Future<_AniListMediaRef?> _getMediaRefByMalId(int malId) async {
+    if (malId <= 0) return null;
+    final payload = await _executeGraphQl(
+      query: _mediaByMalIdQuery,
+      variables: {'malId': malId},
+    );
+    if (payload == null) return null;
+
+    final media = payload['Media'];
+    if (media is! Map) return null;
+
+    final mediaId = (media['id'] as num?)?.toInt();
+    if (mediaId == null || mediaId <= 0) return null;
+
+    final episodes = (media['episodes'] as num?)?.toInt();
+    return _AniListMediaRef(mediaId: mediaId, episodes: episodes);
+  }
+
+  Future<_AniListMediaEntryRef?> _getMediaEntryRefByMalId(int malId) async {
+    if (malId <= 0) return null;
+    final payload = await _executeGraphQl(
+      query: _mediaByMalIdWithEntryQuery,
+      variables: {'malId': malId},
+      requireAccessToken: true,
+    );
+    if (payload == null) return null;
+
+    final media = payload['Media'];
+    if (media is! Map) return null;
+
+    final mediaId = (media['id'] as num?)?.toInt();
+    if (mediaId == null || mediaId <= 0) return null;
+
+    final episodes = (media['episodes'] as num?)?.toInt();
+    final mediaListEntry = media['mediaListEntry'];
+
+    int? entryId;
+    String? entryStatus;
+    if (mediaListEntry is Map) {
+      entryId = (mediaListEntry['id'] as num?)?.toInt();
+      entryStatus = mediaListEntry['status']?.toString();
+    }
+
+    return _AniListMediaEntryRef(
+      mediaId: mediaId,
+      episodes: episodes,
+      entryId: entryId,
+      entryStatus: entryStatus,
+    );
+  }
+
+  Future<int?> _getMediaListEntryId(int mediaId) async {
+    final entry = await _getMediaListEntry(mediaId);
+    return entry?.id;
+  }
+
+  Future<_AniListMediaListEntry?> _getMediaListEntry(int mediaId) async {
+    final payload = await _executeGraphQl(
+      query: _mediaListEntryByMediaQuery,
+      variables: {'mediaId': mediaId},
+      requireAccessToken: true,
+    );
+    if (payload == null) return null;
+
+    final mediaList = payload['MediaList'];
+    if (mediaList is! Map) return null;
+    final id = (mediaList['id'] as num?)?.toInt();
+    if (id == null || id <= 0) return null;
+    final progress = (mediaList['progress'] as num?)?.toInt();
+    final status = mediaList['status']?.toString();
+    return _AniListMediaListEntry(id: id, progress: progress, status: status);
+  }
+
+  Future<Map<String, dynamic>?> _executeGraphQl({
+    required String query,
+    required Map<String, dynamic> variables,
+    int maxRetries = 2,
+    bool requireAccessToken = false,
+  }) async {
+    final headers = await _buildAuthHeaders(
+      requireAccessToken: requireAccessToken,
+    );
+    if (headers.isEmpty) return null;
+
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        final response = await _dio.post<dynamic>(
+          '',
+          data: {
+            'query': query,
+            'variables': variables,
+          },
+          options: Options(headers: headers),
+        );
+
+        if (response.statusCode == 429) {
+          if (attempt >= maxRetries) return null;
+          await _waitForRateLimit(response: response);
+          continue;
+        }
+
+        final data = response.data;
+        if (data is! Map) return null;
+
+        final typed = Map<String, dynamic>.from(data);
+        final errors = typed['errors'];
+        if (errors is List && errors.isNotEmpty) {
+          if (_isRateLimitedGraphQl(errors)) {
+            if (attempt >= maxRetries) return null;
+            await _waitForRateLimit(response: response);
+            continue;
+          }
+          return null;
+        }
+
+        final payload = typed['data'];
+        if (payload is! Map) return null;
+        return Map<String, dynamic>.from(payload);
+      } on DioException catch (e) {
+        final statusCode = e.response?.statusCode;
+        if (statusCode == 429 && attempt < maxRetries) {
+          await _waitForRateLimit(response: e.response);
+          continue;
+        }
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  bool _isRateLimitedGraphQl(List<dynamic> errors) {
+    for (final error in errors) {
+      if (error is! Map) continue;
+      final status = (error['status'] as num?)?.toInt();
+      if (status == 429) return true;
+
+      final message = error['message']?.toString().toLowerCase() ?? '';
+      if (message.contains('rate limit') || message.contains('too many requests')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _waitForRateLimit({Response<dynamic>? response}) async {
+    final headerValue = response?.headers.map['retry-after'];
+    final first = (headerValue != null && headerValue.isNotEmpty)
+        ? headerValue.first
+        : null;
+    final seconds = first == null ? null : int.tryParse(first.trim());
+    final delay = seconds != null && seconds > 0
+        ? Duration(seconds: seconds)
+        : _defaultRateLimitDelay;
+    await Future<void>.delayed(delay);
+  }
+
+  Future<Map<String, dynamic>> _buildAuthHeaders({
+    bool requireAccessToken = false,
+  }) async {
     final sessionCookie = await getSessionCookie();
     final accessToken = await getAccessToken();
+
+    if (requireAccessToken &&
+        (accessToken == null || accessToken.trim().isEmpty)) {
+      return const <String, dynamic>{};
+    }
 
     final headers = <String, dynamic>{};
     if (sessionCookie != null && sessionCookie.isNotEmpty) {
@@ -519,4 +939,46 @@ query ViewerActivities($userId: Int) {
     await prefs.remove(anilistSessionCookieKey);
     await prefs.remove(anilistAccessTokenKey);
   }
+}
+
+class AniListSyncResult {
+  const AniListSyncResult({required this.attempted, required this.synced});
+
+  final int attempted;
+  final int synced;
+
+  int get failed => attempted - synced;
+}
+
+class _AniListMediaRef {
+  const _AniListMediaRef({required this.mediaId, required this.episodes});
+
+  final int mediaId;
+  final int? episodes;
+}
+
+class _AniListMediaEntryRef {
+  const _AniListMediaEntryRef({
+    required this.mediaId,
+    required this.episodes,
+    required this.entryId,
+    required this.entryStatus,
+  });
+
+  final int mediaId;
+  final int? episodes;
+  final int? entryId;
+  final String? entryStatus;
+}
+
+class _AniListMediaListEntry {
+  const _AniListMediaListEntry({
+    required this.id,
+    required this.progress,
+    required this.status,
+  });
+
+  final int id;
+  final int? progress;
+  final String? status;
 }

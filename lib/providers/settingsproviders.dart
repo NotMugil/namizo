@@ -137,6 +137,29 @@ class AnimeSubDubNotifier extends StateNotifier<String> {
   }
 }
 
+final aniListAutoSyncProvider =
+    StateNotifierProvider<AniListAutoSyncNotifier, bool>((ref) {
+  return AniListAutoSyncNotifier();
+});
+
+class AniListAutoSyncNotifier extends StateNotifier<bool> {
+  AniListAutoSyncNotifier() : super(UserConfig.defaultAniListAutoSync) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    state =
+        prefs.getBool(aniListAutoSyncKey) ?? UserConfig.defaultAniListAutoSync;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(aniListAutoSyncKey, enabled);
+  }
+}
+
 // Episode Check Enabled Provider
 final episodeCheckEnabledProvider = StateNotifierProvider<EpisodeCheckEnabledNotifier, bool>((ref) {
   return EpisodeCheckEnabledNotifier();
@@ -326,5 +349,57 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
       case ThemeMode.system:
         return 'system';
     }
+  }
+}
+
+final homeFeedOrderProvider =
+    StateNotifierProvider<HomeFeedOrderNotifier, List<String>>((ref) {
+      return HomeFeedOrderNotifier();
+    });
+
+class HomeFeedOrderNotifier extends StateNotifier<List<String>> {
+  HomeFeedOrderNotifier() : super(UserConfig.defaultHomeFeedOrder) {
+    _loadOrder();
+  }
+
+  static const List<String> _allowed = UserConfig.defaultHomeFeedOrder;
+
+  Future<void> _loadOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(homeFeedOrderKey)?.trim() ?? '';
+    if (raw.isEmpty) {
+      state = List<String>.from(UserConfig.defaultHomeFeedOrder);
+      return;
+    }
+
+    final parsed = raw
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty && _allowed.contains(item))
+        .toList(growable: false);
+
+    state = _normalize(parsed);
+  }
+
+  Future<void> setOrder(List<String> order) async {
+    final normalized = _normalize(order);
+    state = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(homeFeedOrderKey, normalized.join(','));
+  }
+
+  List<String> _normalize(List<String> order) {
+    final seen = <String>{};
+    final normalized = <String>[];
+
+    for (final key in order) {
+      if (!_allowed.contains(key)) continue;
+      if (!seen.add(key)) continue;
+      normalized.add(key);
+    }
+    for (final key in _allowed) {
+      if (seen.add(key)) normalized.add(key);
+    }
+    return normalized;
   }
 }

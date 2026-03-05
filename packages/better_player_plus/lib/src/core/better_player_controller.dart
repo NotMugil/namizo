@@ -1194,6 +1194,11 @@ class BetterPlayerController {
     _betterPlayerControlsConfiguration = betterPlayerControlsConfiguration;
   }
 
+  /// Request controls to open the overflow/settings menu.
+  void showOverflowMenu() {
+    _postControllerEvent(BetterPlayerControllerEvent.openOverflowMenu);
+  }
+
   /// Add controller internal event.
   void _postControllerEvent(BetterPlayerControllerEvent event) {
     if (!_controllerEventStreamController.isClosed) {

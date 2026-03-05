@@ -9,7 +9,9 @@ import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/ui/search/widgets/search_result_card.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.initialQuery});
+
+  final String? initialQuery;
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -30,6 +32,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _applyInitialQuery(widget.initialQuery);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialQuery != widget.initialQuery) {
+      _applyInitialQuery(widget.initialQuery);
+    }
+  }
+
+  void _applyInitialQuery(String? query) {
+    final normalized = query?.trim() ?? '';
+    if (normalized.isEmpty) return;
+    if (_controller.text.trim() == normalized &&
+        ref.read(searchQueryProvider) == normalized) {
+      return;
+    }
+
+    _controller.text = normalized;
+    _controller.selection = TextSelection.collapsed(offset: normalized.length);
+    _onSearch(normalized);
   }
 
   @override

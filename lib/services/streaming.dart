@@ -35,11 +35,16 @@ class StreamingService {
     String subDubPreference = 'sub',
   }) async {
     try {
-      if (providerIndex == 0) {
+      if (_isAnimeMedia(media)) {
+        if (providerIndex < 0 || providerIndex >= AimiAnimeService.providerCount) {
+          return null;
+        }
+
         final animeResult = await _aimiAnimeService.fetchAnimeStream(
           media: media,
           episode: episode,
           subDubPreference: subDubPreference,
+          providerIndex: providerIndex,
         );
 
         if (animeResult != null) {
@@ -61,7 +66,7 @@ class StreamingService {
         return null;
       }
 
-      final embedIdx = providerIndex - 1;
+      final embedIdx = providerIndex;
       if (embedIdx >= _embedProviders.length) {
         return null;
       }
@@ -88,19 +93,36 @@ class StreamingService {
     }
   }
 
-  static int get totalProviders => 1 + _embedProviders.length;
+  static int getTotalProviders({SearchResult? media}) {
+    if (_isAnimeMedia(media)) {
+      return AimiAnimeService.providerCount;
+    }
+    return _embedProviders.length;
+  }
 
-  static String getProviderName(int index) {
-    if (index == 0) return 'Direct';
-    final embedIdx = index - 1;
-    if (embedIdx < _embedProviders.length) {
-      return _embedProviders[embedIdx]['name']!;
+  static String getProviderName(int index, {SearchResult? media}) {
+    if (_isAnimeMedia(media)) {
+      return AimiAnimeService.providerNameAt(index);
+    }
+
+    if (index >= 0 && index < _embedProviders.length) {
+      return _embedProviders[index]['name']!;
     }
     return 'Unknown';
   }
 
-  static bool isDirectStream(int providerIndex) {
-    return providerIndex == 0;
+  static bool isDirectStream(int providerIndex, {SearchResult? media}) {
+    return _isAnimeMedia(media) &&
+        providerIndex >= 0 &&
+        providerIndex < AimiAnimeService.providerCount;
+  }
+
+  static bool _isAnimeMedia(SearchResult? media) {
+    if (media == null) return true;
+    if (media.mediaType != 'tv') return false;
+
+    final language = (media.originalLanguage ?? '').toLowerCase();
+    return language == 'ja';
   }
 
   Future<bool> _probeDirectHls(StreamResult result) async {

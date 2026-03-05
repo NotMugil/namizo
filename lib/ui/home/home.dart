@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:namizo/core/user_config.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/providers/homeproviders.dart';
@@ -16,6 +17,7 @@ import 'package:namizo/providers/watchhistoryprovider.dart';
 import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/ui/home/widgets/content_row.dart';
 import 'package:namizo/ui/home/widgets/continue_watching_row.dart';
+import 'package:namizo/ui/shared/toast/app_toast.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -39,10 +41,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   };
 
   final ScrollController _scrollController = ScrollController();
-  final PageController _pageController = PageController();
+  final PageController _pageController = PageController(initialPage: 1);
   bool _showAppBarBackground = false;
   int _currentBannerIndex = 0;
-  int _currentBannerPage = 0;
+  int _currentBannerPage = 1;
   Timer? _bannerTimer;
 
   @override
@@ -101,6 +103,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final featuredContent = ref.watch(featuredAnimeProvider);
     final featuredLogos = ref.watch(featuredAnimeLogosProvider);
     final featuredPosters = ref.watch(featuredAnimePostersProvider);
+    final homeFeedOrder = ref.watch(homeFeedOrderProvider);
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
 
@@ -201,12 +204,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           SliverToBoxAdapter(
             child: RepaintBoundary(
               child: featuredContent.when(
-                data: (content) => _buildHeroBannerCarousel(
-                  context,
-                  content,
-                  featuredLogos.value ?? {},
-                  featuredPosters.value ?? {},
-                ),
+                data: (content) {
+                  final postersReady =
+                      featuredPosters.hasValue &&
+                      !featuredPosters.isLoading &&
+                      (featuredPosters.valueOrNull?.isNotEmpty ?? false);
+
+                  if (!postersReady) {
+                    return _buildHeroBannerShimmer();
+                  }
+
+                  return _buildHeroBannerCarousel(
+                    context,
+                    content,
+                    featuredLogos.value ?? {},
+                    featuredPosters.valueOrNull ?? const <int, String?>{},
+                  );
+                },
                 loading: () => _buildHeroBannerShimmer(),
                 error: (_, __) => const SizedBox(height: 500),
               ),
@@ -328,110 +342,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               },
             ),
           ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final anime = ref.watch(popularAnimeProvider);
-                return anime.when(
-                  data: (shows) => ContentRow(
-                    title: 'All Time Popular',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final trendingAnime = ref.watch(trendingAnimeProvider);
-                return trendingAnime.when(
-                  data: (shows) => ContentRow(
-                    title: 'Trending Now',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final topRatedAnime = ref.watch(topRatedAnimeProvider);
-                return topRatedAnime.when(
-                  data: (shows) => ContentRow(
-                    title: 'Top Rated Anime',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final romanceAnime = ref.watch(romanceAnimeProvider);
-                return romanceAnime.when(
-                  data: (shows) => ContentRow(
-                    title: 'Romance',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final actionAnime = ref.watch(actionAnimeProvider);
-                return actionAnime.when(
-                  data: (shows) => ContentRow(
-                    title: 'Action',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final adventureAnime = ref.watch(adventureAnimeProvider);
-                return adventureAnime.when(
-                  data: (shows) => ContentRow(
-                    title: 'Adventure',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, child) {
-                final fantasyAnime = ref.watch(fantasyAnimeProvider);
-                return fantasyAnime.when(
-                  data: (shows) => ContentRow(
-                    title: 'Fantasy',
-                    items: shows,
-                  ),
-                  loading: () => const SizedBox(height: 220),
-                  error: (_, __) => const SizedBox.shrink(),
-                );
-              },
-            ),
+          ..._buildOrderedFeedRowSlivers(
+            context,
+            ref,
+            homeFeedOrder,
           ),
           const SliverToBoxAdapter(
             child: SizedBox(height: 50),
@@ -448,23 +362,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Map<int, String?> posters,
   ) {
     if (items.isEmpty) return const SizedBox(height: 500);
-    final itemCount = items.length + 1;
+    final watchlistIds = ref
+        .watch(watchlistProvider)
+        .map((item) => item.id)
+        .toSet();
+    final aniListStatusById = ref.watch(watchlistStatusByIdProvider);
+    final itemCount = items.length + 2;
 
     return SizedBox(
       height: 600,
       child: PageView.builder(
         controller: _pageController,
         onPageChanged: (index) {
-          if (index == items.length) {
+          if (index == 0) {
+            setState(() {
+              _currentBannerIndex = items.length - 1;
+              _currentBannerPage = index;
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!_pageController.hasClients) return;
+              _pageController.jumpToPage(items.length);
+              if (mounted) {
+                setState(() => _currentBannerPage = items.length);
+              }
+            });
+            return;
+          }
+
+          if (index == items.length + 1) {
             setState(() {
               _currentBannerIndex = 0;
               _currentBannerPage = index;
             });
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!_pageController.hasClients) return;
-              _pageController.jumpToPage(0);
+              _pageController.jumpToPage(1);
               if (mounted) {
-                setState(() => _currentBannerPage = 0);
+                setState(() => _currentBannerPage = 1);
               }
             });
             return;
@@ -472,29 +406,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
           setState(() {
             _currentBannerPage = index;
-            _currentBannerIndex = index % items.length;
+            _currentBannerIndex = (index - 1) % items.length;
           });
         },
         itemCount: itemCount,
         itemBuilder: (context, index) {
-          final content = items[index == items.length ? 0 : index];
+          final content = switch (index) {
+            0 => items.last,
+            _ when index == items.length + 1 => items.first,
+            _ => items[index - 1],
+          };
           final tmdbId = content['id'];
-          final alternativePosterUrl = tmdbId is int ? posters[tmdbId] : null;
-          final posterPath = content['poster_path'];
-          final fallbackPosterUrl = posterPath is String &&
-                  (posterPath.startsWith('http://') ||
-                      posterPath.startsWith('https://'))
-              ? posterPath
-              : posterPath is String && posterPath.startsWith('/')
-                  ? 'https://kuroiru.co$posterPath'
-                  : posterPath != null
-                      ? posterPath.toString()
-                      : null;
+          final tvdbBackdropUrl = tmdbId is int ? posters[tmdbId] : null;
           final backdropUrl =
-              (alternativePosterUrl != null && alternativePosterUrl.isNotEmpty)
-                  ? alternativePosterUrl
-                  : fallbackPosterUrl;
+            (tvdbBackdropUrl != null && tvdbBackdropUrl.isNotEmpty)
+              ? tvdbBackdropUrl
+              : null;
           final title = content['title'] ?? content['name'] ?? 'Featured';
+            final mediaId = (tmdbId as num?)?.toInt();
+            final aniListStatus = mediaId == null ? null : aniListStatusById[mediaId];
+            final isPlanningOrWatching =
+              aniListStatus == 'PLANNING' || aniListStatus == 'WATCHING';
+            final isAlreadyInList =
+              mediaId != null && (watchlistIds.contains(mediaId) || isPlanningOrWatching);
             final episodeCount = (content['episode_count'] as num?)?.toInt();
             final year = ((content['first_air_date'] ?? content['release_date'])
                   ?.toString()
@@ -609,12 +543,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               _smallSquareButton(
-                                icon: const PhosphorIcon(
-                                  PhosphorIconsRegular.plus,
-                                  color: Colors.white,
+                                icon: PhosphorIcon(
+                                  isAlreadyInList
+                                      ? PhosphorIconsFill.bookmarkSimple
+                                      : PhosphorIconsRegular.plus,
+                                  color: isAlreadyInList
+                                      ? NamizoTheme.netflixRed
+                                      : Colors.white,
                                   size: 18,
                                 ),
-                                onTap: () => _addFeaturedToWatchlist(content),
+                                onTap: () => _toggleFeaturedWatchlist(content),
                               ),
                               const SizedBox(width: 10),
                               ElevatedButton.icon(
@@ -825,10 +763,138 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Future<void> _addFeaturedToWatchlist(Map<String, dynamic> content) async {
+  List<Widget> _buildOrderedFeedRowSlivers(
+    BuildContext context,
+    WidgetRef ref,
+    List<String> order,
+  ) {
+    final normalized = order.isEmpty
+        ? UserConfig.defaultHomeFeedOrder
+        : order;
+
+    final slivers = <Widget>[];
+    for (final key in normalized) {
+      final sliver = _buildFeedSliverForKey(context, key);
+      if (sliver != null) {
+        slivers.add(sliver);
+      }
+    }
+    return slivers;
+  }
+
+  Widget? _buildFeedSliverForKey(BuildContext context, String key) {
+    switch (key) {
+      case 'popular':
+        return _buildAsyncRowSliver(
+          provider: popularAnimeProvider,
+          title: 'All Time Popular',
+          searchQuery: 'all time popular anime',
+        );
+      case 'trending':
+        return _buildAsyncRowSliver(
+          provider: trendingAnimeProvider,
+          title: 'Trending Now',
+          searchQuery: 'trending anime',
+        );
+      case 'topRated':
+        return _buildAsyncRowSliver(
+          provider: topRatedAnimeProvider,
+          title: 'Top Rated Anime',
+          searchQuery: 'top rated anime',
+        );
+      case 'romance':
+        return _buildAsyncRowSliver(
+          provider: romanceAnimeProvider,
+          title: 'Romance',
+          searchQuery: 'romance anime',
+        );
+      case 'action':
+        return _buildAsyncRowSliver(
+          provider: actionAnimeProvider,
+          title: 'Action',
+          searchQuery: 'action anime',
+        );
+      case 'adventure':
+        return _buildAsyncRowSliver(
+          provider: adventureAnimeProvider,
+          title: 'Adventure',
+          searchQuery: 'adventure anime',
+        );
+      case 'fantasy':
+        return _buildAsyncRowSliver(
+          provider: fantasyAnimeProvider,
+          title: 'Fantasy',
+          searchQuery: 'fantasy anime',
+        );
+      default:
+        return null;
+    }
+  }
+
+  Widget _buildAsyncRowSliver({
+    required FutureProvider<List<dynamic>> provider,
+    required String title,
+    required String searchQuery,
+  }) {
+    return SliverToBoxAdapter(
+      child: Consumer(
+        builder: (context, ref, child) {
+          final asyncValue = ref.watch(provider);
+          return asyncValue.when(
+            data: (shows) => ContentRow(
+              title: title,
+              items: shows,
+              onSeeMore: () {
+                final encoded = Uri.encodeQueryComponent(searchQuery);
+                context.go('/search?q=$encoded');
+              },
+            ),
+            loading: () => const SizedBox(height: 220),
+            error: (_, __) => const SizedBox.shrink(),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _toggleFeaturedWatchlist(Map<String, dynamic> content) async {
     final watchlistService = ref.read(watchlistServiceProvider);
+    final shouldSyncAniList =
+      ref.read(aniListViewerProvider).valueOrNull != null &&
+      ref.read(aniListAutoSyncProvider);
+    final aniListService = ref.read(aniListServiceProvider);
     final mediaId = content['id'] as int?;
     if (mediaId == null) return;
+
+    final localAlreadyExists = ref
+        .read(watchlistProvider)
+        .any((item) => item.id == mediaId);
+    final aniListAlreadyExists = ref
+        .read(watchlistStatusByIdProvider)
+        .containsKey(mediaId);
+
+    if (localAlreadyExists || aniListAlreadyExists) {
+      if (localAlreadyExists) {
+        await watchlistService.removeFromWatchlist(mediaId);
+      }
+
+      final hasAniListLogin =
+          ref.read(aniListViewerProvider).valueOrNull != null;
+      if (hasAniListLogin && aniListAlreadyExists) {
+        await aniListService.removeFromTrackedByMalId(mediaId);
+        ref.read(aniListAccountRefreshProvider.notifier).state++;
+      }
+
+      ref.read(watchlistRefreshProvider.notifier).refresh();
+      ref.invalidate(watchlistProvider);
+      if (!mounted) return;
+      _showWatchlistToast(
+        message: 'Removed from list',
+        icon: PhosphorIconsRegular.bookmarkSimple,
+        accent: const Color(0xFFEF4444),
+      );
+      return;
+    }
 
     final item = WatchlistItem(
       id: mediaId,
@@ -844,10 +910,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     await watchlistService.addToWatchlist(item);
+    if (shouldSyncAniList) {
+      final synced = await aniListService.addToPlanningByMalId(mediaId);
+      if (synced) {
+        ref.read(aniListAccountRefreshProvider.notifier).state++;
+      }
+    }
     ref.read(watchlistRefreshProvider.notifier).refresh();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Added to watchlist')),
+
+    _showWatchlistToast(
+      message: 'Added to watchlist',
+      icon: PhosphorIconsFill.bookmarkSimple,
+      accent: const Color(0xFF22C55E),
+    );
+  }
+
+  void _showWatchlistToast({
+    required String message,
+    required IconData icon,
+    required Color accent,
+  }) {
+    AppToast.show(
+      context: context,
+      message: message,
+      icon: icon,
+      accent: accent,
     );
   }
 }

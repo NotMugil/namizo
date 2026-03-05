@@ -9,9 +9,11 @@ import 'package:namizo/models/season_info.dart';
 import 'package:namizo/providers/mediaprovider.dart';
 import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/providers/settingsproviders.dart';
+import 'package:namizo/models/search_result.dart';
 import 'package:namizo/models/stream_result.dart';
 import 'package:namizo/services/streaming.dart';
 import 'package:namizo/ui/player/widgets/webview_player.dart';
+import 'package:namizo/ui/shared/toast/app_toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -44,7 +46,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _retryCount = 0;
   int _currentProviderIndex = 0;
   static const int _maxRetries = 3;
-  final int _maxProviders = StreamingService.totalProviders;
   final FocusNode _focusNode = FocusNode();
   bool _showNextEpisodeButton = false;
   bool _nextEpisodeDismissed = false;
@@ -61,8 +62,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _seekRecoveryAttempted = false;
   bool _seekRecoveryInProgress = false;
   bool _seekHardResetInProgress = false;
+  double _lastNonZeroVolume = 1.0;
   bool _isInFullscreen = false;
   bool _arePlayerControlsVisible = true;
+  int? _lastAniListSyncedEpisode;
   final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier =
       ValueNotifier(false);
   OverlayEntry? _fullscreenTopBarOverlayEntry;
@@ -74,6 +77,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   OverlayEntry? _nextEpOverlayEntry;
 
   SeasonData? _currentSeasonData;
+
+    SearchResult? get _selectedMedia => ref.read(selectedMediaProvider);
+
+    int get _providerCount =>
+      StreamingService.getTotalProviders(media: _selectedMedia);
+
+    String _providerNameFor(int index) =>
+      StreamingService.getProviderName(index, media: _selectedMedia);
 
   @override
   void initState() {
@@ -185,7 +196,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
 
       if (result == null) {
-        if (_currentProviderIndex < _maxProviders - 1) {
+        if (_currentProviderIndex < _providerCount - 1) {
           _currentProviderIndex++;
           setState(() => _error = 'Provider unavailable, trying next...');
           await Future.delayed(const Duration(milliseconds: 500));
@@ -197,7 +208,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
       _streamResult = result;
       _currentProvider = result.provider;
-      _isDirectStream = StreamingService.isDirectStream(_currentProviderIndex);
+      _isDirectStream = StreamingService.isDirectStream(
+        _currentProviderIndex,
+        media: media,
+      );
 
       await StreamDebugLogger.logOpenedStream(
         mediaId: widget.mediaId,
@@ -351,6 +365,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             enableSubtitles: true,
             enableQualities: true,
             enableAudioTracks: true,
+            enableOverflowMenu: true,
             enableSkips: true,
             forwardSkipTimeInMilliseconds: 10000,
             backwardSkipTimeInMilliseconds: 10000,
@@ -368,6 +383,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             controlsBackdropTopHeight: 120,
             controlsBackdropBottomHeight: 260,
             playerTheme: BetterPlayerTheme.material,
+            topRightCustomControlBuilder: (context) {
+              final isFullscreen = _betterPlayerController?.isFullScreen == true;
+              if (!isFullscreen) {
+                return const SizedBox.shrink();
+              }
+              return PopupMenuButton<int>(
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.arrowsClockwise,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                tooltip: 'Switch Server',
+                color: const Color(0xFF1F1F1F),
+                onSelected: _switchToProvider,
+                itemBuilder: (context) => _buildProviderMenuItems(),
+              );
+            },
             overflowMenuCustomItems: [
               if (media!.mediaType == 'tv')
                 BetterPlayerOverflowMenuItem(
@@ -375,6 +407,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   'Episodes',
                   _showEpisodesBottomSheet,
                 ),
+            ],
+            audioOverflowMenuItems: [
+              BetterPlayerOverflowMenuItem(
+                Icons.closed_caption,
+                'Sub',
+                () => _switchSubDub('sub'),
+              ),
+              BetterPlayerOverflowMenuItem(
+                Icons.record_voice_over,
+                'Dub',
+                () => _switchSubDub('dub'),
+              ),
             ],
           ),
           placeholder: Container(
@@ -450,7 +494,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _isLoading = false;
       });
 
-      if (_currentProviderIndex < _maxProviders - 1) {
+      if (_currentProviderIndex < _providerCount - 1) {
         _currentProviderIndex++;
         setState(() => _error = 'Switching to next provider...');
         await Future.delayed(const Duration(milliseconds: 500));
@@ -521,14 +565,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _betterPlayerController?.setSpeed(speed);
         // Show resume snackbar
         if (_resumePosition != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Resumed from ${_formatDuration(_resumePosition!)}',
-              ),
-              duration: const Duration(seconds: 2),
-              backgroundColor: NamizoTheme.netflixRed,
-            ),
+          AppToast.show(
+            context: context,
+            message: 'Resumed from ${_formatDuration(_resumePosition!)}',
+            icon: Icons.history,
+            accent: const Color(0xFF38BDF8),
           );
           _resumePosition = null;
         }
@@ -777,6 +818,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       lastPosition: dur,
       totalDuration: dur,
     );
+    await _syncAniListProgressIfNeeded();
   }
 
   // ── WebView event handler ───────────────────────────────────────
@@ -874,14 +916,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _saveProgress();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Switching to ${StreamingService.getProviderName(providerIndex)}...',
-          ),
-          duration: const Duration(seconds: 2),
-          backgroundColor: NamizoTheme.netflixRed,
-        ),
+      AppToast.show(
+        context: context,
+        message: 'Switching to ${_providerNameFor(providerIndex)}...',
+        icon: Icons.swap_horiz,
+        accent: Colors.orange,
       );
     }
 
@@ -912,12 +951,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await ref.read(animeSubDubProvider.notifier).setPreference(normalized);
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Switched audio to ${normalized.toUpperCase()}'),
-        duration: const Duration(seconds: 2),
-        backgroundColor: NamizoTheme.netflixRed,
-      ),
+    AppToast.show(
+      context: context,
+      message: 'Switched audio to ${normalized.toUpperCase()}',
+      icon: Icons.volume_up,
+      accent: const Color(0xFF22C55E),
     );
 
     _disposePlayer();
@@ -931,8 +969,307 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await _initializePlayer();
   }
 
+  void _onTopMenuSelected(String value) {
+    switch (value) {
+      case 'playback_speed':
+        _showPlaybackSpeedDrawer();
+        break;
+      case 'audio':
+        _showAudioDrawer();
+        break;
+      case 'quality':
+        _showQualityDrawer();
+        break;
+      case 'subtitles':
+        _showSubtitlesDrawer();
+        break;
+      default:
+        break;
+    }
+  }
+
+  List<PopupMenuEntry<String>> _buildTopMenuItems() {
+    return const [
+      PopupMenuItem<String>(
+        value: 'playback_speed',
+        child: Row(
+          children: [
+            Icon(Icons.speed, color: Colors.white70, size: 18),
+            SizedBox(width: 12),
+            Text('Playback Speed', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+      PopupMenuItem<String>(
+        value: 'audio',
+        child: Row(
+          children: [
+            Icon(Icons.volume_up, color: Colors.white70, size: 18),
+            SizedBox(width: 12),
+            Text('Audio', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+      PopupMenuItem<String>(
+        value: 'quality',
+        child: Row(
+          children: [
+            Icon(Icons.high_quality, color: Colors.white70, size: 18),
+            SizedBox(width: 12),
+            Text('Quality', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+      PopupMenuItem<String>(
+        value: 'subtitles',
+        child: Row(
+          children: [
+            Icon(Icons.subtitles, color: Colors.white70, size: 18),
+            SizedBox(width: 12),
+            Text('Subtitles', style: TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  void _showPlaybackSpeedDrawer() {
+    final current = ref.read(playbackSpeedProvider);
+    final speeds = const [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+    _showSettingsDrawer(
+      title: 'Playback Speed',
+      children: speeds
+          .map(
+            (speed) => ListTile(
+              leading: Icon(
+                current == speed ? Icons.check_circle : Icons.circle_outlined,
+                color: current == speed ? NamizoTheme.netflixRed : Colors.white70,
+              ),
+              title: Text(
+                '${speed}x',
+                style: TextStyle(
+                  color: current == speed ? NamizoTheme.netflixRed : Colors.white,
+                  fontWeight: current == speed ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              onTap: () async {
+                await ref.read(playbackSpeedProvider.notifier).setSpeed(speed);
+                await _betterPlayerController?.setSpeed(speed);
+                if (!mounted) return;
+                Navigator.of(context).pop();
+              },
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  void _showAudioDrawer() {
+    final current = ref.read(animeSubDubProvider);
+    _showSettingsDrawer(
+      title: 'Audio',
+      children: [
+        ListTile(
+          leading: Icon(
+            current == 'sub' ? Icons.check_circle : Icons.circle_outlined,
+            color: current == 'sub' ? NamizoTheme.netflixRed : Colors.white70,
+          ),
+          title: Text(
+            'Sub',
+            style: TextStyle(
+              color: current == 'sub' ? NamizoTheme.netflixRed : Colors.white,
+              fontWeight: current == 'sub' ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          onTap: () {
+            Navigator.of(context).pop();
+            _switchSubDub('sub');
+          },
+        ),
+        ListTile(
+          leading: Icon(
+            current == 'dub' ? Icons.check_circle : Icons.circle_outlined,
+            color: current == 'dub' ? NamizoTheme.netflixRed : Colors.white70,
+          ),
+          title: Text(
+            'Dub',
+            style: TextStyle(
+              color: current == 'dub' ? NamizoTheme.netflixRed : Colors.white,
+              fontWeight: current == 'dub' ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+          onTap: () {
+            Navigator.of(context).pop();
+            _switchSubDub('dub');
+          },
+        ),
+      ],
+    );
+  }
+
+  void _showQualityDrawer() {
+    final current = ref.read(selectedQualityProvider) ?? 'auto';
+    final options = const ['auto', '1080p', '720p', '480p', '360p'];
+    _showSettingsDrawer(
+      title: 'Quality',
+      children: options
+          .map(
+            (quality) => ListTile(
+              leading: Icon(
+                current == quality ? Icons.check_circle : Icons.circle_outlined,
+                color: current == quality ? NamizoTheme.netflixRed : Colors.white70,
+              ),
+              title: Text(
+                quality.toUpperCase(),
+                style: TextStyle(
+                  color: current == quality ? NamizoTheme.netflixRed : Colors.white,
+                  fontWeight: current == quality ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                _switchQualityPreference(quality);
+              },
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  void _showSubtitlesDrawer() {
+    final controller = _betterPlayerController;
+    if (controller == null) return;
+
+    final subtitles = List<BetterPlayerSubtitlesSource>.from(
+      controller.betterPlayerSubtitlesSourceList,
+    );
+    final hasNone = subtitles.any(
+      (source) => source.type == BetterPlayerSubtitlesSourceType.none,
+    );
+    if (!hasNone) {
+      subtitles.add(
+        BetterPlayerSubtitlesSource(type: BetterPlayerSubtitlesSourceType.none),
+      );
+    }
+
+    final current = controller.betterPlayerSubtitlesSource;
+    _showSettingsDrawer(
+      title: 'Subtitles',
+      children: subtitles
+          .map(
+            (source) {
+              final isNone = source.type == BetterPlayerSubtitlesSourceType.none;
+              final sourceName = isNone
+                  ? 'None'
+                  : (source.name?.trim().isNotEmpty == true
+                        ? source.name!
+                        : 'Default');
+              final isSelected =
+                  current == source ||
+                  (current != null &&
+                      isNone &&
+                      current.type == BetterPlayerSubtitlesSourceType.none);
+
+              return ListTile(
+                leading: Icon(
+                  isSelected ? Icons.check_circle : Icons.circle_outlined,
+                  color: isSelected ? NamizoTheme.netflixRed : Colors.white70,
+                ),
+                title: Text(
+                  sourceName,
+                  style: TextStyle(
+                    color: isSelected ? NamizoTheme.netflixRed : Colors.white,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                onTap: () async {
+                  await controller.setupSubtitleSource(source);
+                  if (!mounted) return;
+                  Navigator.of(context).pop();
+                },
+              );
+            },
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Future<void> _switchQualityPreference(String quality) async {
+    final normalized = quality.toLowerCase();
+    final selected = normalized == 'auto' ? null : normalized;
+    final current = ref.read(selectedQualityProvider);
+    if (current == selected) return;
+
+    final vpc = _betterPlayerController?.videoPlayerController;
+    final currentPosition = vpc?.value.position;
+    if (currentPosition != null && currentPosition >= Duration.zero) {
+      _forcedStartAt = currentPosition;
+    }
+
+    ref.read(selectedQualityProvider.notifier).state = selected;
+
+    if (!mounted) return;
+    AppToast.show(
+      context: context,
+      message: 'Switched quality to ${normalized.toUpperCase()}',
+      icon: Icons.high_quality,
+      accent: const Color(0xFF22C55E),
+    );
+
+    _disposePlayer();
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _retryCount = 0;
+      _currentProviderIndex = 0;
+      _streamResult = null;
+    });
+    await _initializePlayer();
+  }
+
+  void _showSettingsDrawer({
+    required String title,
+    required List<Widget> children,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1F1F1F),
+      builder: (dialogContext) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            ...children,
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<PopupMenuEntry<int>> _buildProviderMenuItems() {
-    return List.generate(_maxProviders, (index) {
+    return List.generate(_providerCount, (index) {
       final isSelected = index == _currentProviderIndex;
       return PopupMenuItem(
         value: index,
@@ -945,29 +1282,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
             const SizedBox(width: 12),
             Text(
-              StreamingService.getProviderName(index),
+              _providerNameFor(index),
               style: TextStyle(
                 color: isSelected ? NamizoTheme.netflixRed : Colors.white,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-            if (index == 0)
-              Container(
-                margin: const EdgeInsets.only(left: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  'HD',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
           ],
         ),
       );
@@ -1055,6 +1375,25 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       lastPosition: Duration(seconds: duration.toInt()),
       totalDuration: Duration(seconds: duration.toInt()),
     );
+    await _syncAniListProgressIfNeeded();
+  }
+
+  Future<void> _syncAniListProgressIfNeeded() async {
+    if (_lastAniListSyncedEpisode == _currentEpisode) return;
+    if (!ref.read(aniListAutoSyncProvider)) return;
+    if (ref.read(aniListViewerProvider).valueOrNull == null) return;
+
+    final media = ref.read(selectedMediaProvider);
+    if (media == null) return;
+
+    final synced = await ref.read(aniListServiceProvider).updateProgressByMalId(
+      malId: media.id,
+      watchedEpisodes: _currentEpisode,
+    );
+    if (!synced) return;
+
+    _lastAniListSyncedEpisode = _currentEpisode;
+    ref.read(aniListAccountRefreshProvider.notifier).state++;
   }
 
   // ── Formatting & progress ───────────────────────────────────────
@@ -1149,7 +1488,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final media = ref.watch(selectedMediaProvider);
-    final subDubMode = ref.watch(animeSubDubProvider);
     final shouldShowAppBar = _streamResult != null && !_isInFullscreen;
     final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
 
@@ -1220,7 +1558,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: Text(
-                                _streamResult!.provider.toUpperCase(),
+                                _providerNameFor(_currentProviderIndex),
                                 style: const TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w500,
@@ -1233,23 +1571,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       ],
                     ),
                     actions: [
-                      PopupMenuButton<String>(
-                        icon: const PhosphorIcon(
-                          PhosphorIconsRegular.speakerHigh,
-                          color: Colors.white,
-                          size: 21,
-                        ),
-                        tooltip: 'Audio (${subDubMode.toUpperCase()})',
-                        color: const Color(0xFF1F1F1F),
-                        onSelected: _switchSubDub,
-                        itemBuilder: (context) => _buildSubDubMenuItems(),
-                      ),
-                      // Switch Server
                       PopupMenuButton<int>(
                         icon: const PhosphorIcon(
                           PhosphorIconsRegular.arrowsClockwise,
                           color: Colors.white,
-                          size: 21,
+                          size: 20,
                         ),
                         tooltip: 'Switch Server',
                         color: const Color(0xFF1F1F1F),
@@ -1344,7 +1670,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.only(left: 12, top: 6, right: 12),
+                padding: const EdgeInsets.only(left: 8, top: 6, right: 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1354,14 +1680,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       },
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                       icon: const PhosphorIcon(
                         PhosphorIconsRegular.caretLeft,
                         color: Colors.white,
                         size: 20,
                       ),
                     ),
-                    const SizedBox(width: 2),
+                    const SizedBox(width: 0),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1383,28 +1709,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ),
                         ],
                       ),
-                    ),
-                    PopupMenuButton<int>(
-                      icon: const PhosphorIcon(
-                        PhosphorIconsRegular.arrowsClockwise,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      tooltip: 'Switch Server',
-                      color: const Color(0xFF1F1F1F),
-                      onSelected: _switchToProvider,
-                      itemBuilder: (context) => _buildProviderMenuItems(),
-                    ),
-                    PopupMenuButton<String>(
-                      icon: const PhosphorIcon(
-                        PhosphorIconsRegular.speakerHigh,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      tooltip: 'Audio',
-                      color: const Color(0xFF1F1F1F),
-                      onSelected: _switchSubDub,
-                      itemBuilder: (context) => _buildSubDubMenuItems(),
                     ),
                   ],
                 ),
@@ -1502,7 +1806,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             final sliderValue = durationMs > 0
                 ? position.inMilliseconds.clamp(0, durationMs).toDouble()
                 : 0.0;
-            final isMuted = value.volume <= 0.01;
+            final volume = value.volume.clamp(0.0, 1.0);
+            if (volume > 0.01) {
+              _lastNonZeroVolume = volume;
+            }
 
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -1537,34 +1844,61 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: () =>
-                          controller.setVolume(isMuted ? 1.0 : 0.0),
-                      icon: Icon(
-                        isMuted ? Icons.volume_off : Icons.volume_up,
-                        color: Colors.white,
+                    Expanded(
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              if (volume <= 0.01) {
+                                controller.setVolume(
+                                  _lastNonZeroVolume > 0.01 ? _lastNonZeroVolume : 1.0,
+                                );
+                              } else {
+                                _lastNonZeroVolume = volume;
+                                controller.setVolume(0);
+                              }
+                            },
+                            icon: Icon(
+                              volume <= 0.01 ? Icons.volume_off : Icons.volume_up,
+                              color: Colors.white,
+                            ),
+                            tooltip: volume <= 0.01 ? 'Unmute' : 'Mute',
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
-                    if (ref.read(selectedMediaProvider)?.mediaType == 'tv')
-                      IconButton(
-                        onPressed: _showEpisodesBottomSheet,
-                        icon: const Icon(Icons.list, color: Colors.white),
-                      ),
-                    IconButton(
-                      onPressed: () {
-                        if (controller.isFullScreen) {
-                          controller.exitFullScreen();
-                        } else {
-                          controller.enterFullScreen();
-                        }
-                      },
-                      icon: Icon(
-                        controller.isFullScreen
-                            ? Icons.fullscreen_exit
-                            : Icons.fullscreen,
-                        color: Colors.white,
-                      ),
+                    const SizedBox(width: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (ref.read(selectedMediaProvider)?.mediaType == 'tv')
+                          IconButton(
+                            onPressed: _showEpisodesBottomSheet,
+                            icon: const Icon(Icons.list, color: Colors.white),
+                          ),
+                        IconButton(
+                          onPressed: () {
+                            if (controller.isFullScreen) {
+                              controller.exitFullScreen();
+                            } else {
+                              controller.enterFullScreen();
+                            }
+                          },
+                          icon: Icon(
+                            controller.isFullScreen
+                                ? Icons.fullscreen_exit
+                                : Icons.fullscreen,
+                            color: Colors.white,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            controller.showOverflowMenu();
+                          },
+                          icon: const Icon(Icons.more_vert, color: Colors.white),
+                          tooltip: 'Settings',
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1652,7 +1986,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Animated Netflix-style loading ring
                 SizedBox(width: 56, height: 56, child: _NamizoLoadingSpinner()),
                 const SizedBox(height: 24),
                 if (title.isNotEmpty)
@@ -1702,9 +2035,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       Text(
                         _currentProvider.isNotEmpty
                             ? _currentProvider
-                            : StreamingService.getProviderName(
-                                _currentProviderIndex,
-                              ),
+                            : _providerNameFor(_currentProviderIndex),
                         style: const TextStyle(
                           color: Colors.white60,
                           fontSize: 12,
@@ -1777,7 +2108,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             runSpacing: 12,
             alignment: WrapAlignment.center,
             children: [
-              if (_currentProviderIndex < _maxProviders - 1)
+              if (_currentProviderIndex < _providerCount - 1)
                 ElevatedButton.icon(
                   onPressed: () {
                     _disposePlayer();

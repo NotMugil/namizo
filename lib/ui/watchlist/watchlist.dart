@@ -154,9 +154,8 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
-        final backdropUrl = tmdbService.getBackdropUrl(item.backdropPath);
         final posterUrl = tmdbService.getPosterUrl(item.posterPath);
-        final artworkUrl = backdropUrl.isNotEmpty ? backdropUrl : posterUrl;
+        final artworkUrl = posterUrl;
         final year = _extractYear(item.releaseDate);
         final rating = item.voteAverage;
 

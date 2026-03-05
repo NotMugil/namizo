@@ -6,6 +6,14 @@ class AppConfigurations {
   static const String tvdbMappingUrl =
       'https://raw.githubusercontent.com/varoOP/shinkro-mapping/main/tvdb-mal.yaml';
   static const String anilistGraphQlBaseUrl = 'https://graphql.anilist.co';
+    static const String anilistOauthAuthorizeUrl =
+            'https://anilist.co/api/v2/oauth/authorize';
+    static const String anilistOauthClientId =
+            String.fromEnvironment('ANILIST_CLIENT_ID', defaultValue: '');
+    static const String anilistOauthRedirectUri = String.fromEnvironment(
+        'ANILIST_REDIRECT_URI',
+      defaultValue: '',
+    );
 
   static const String defaultAppUserAgent =
       'namizo/1.0 (compatible; +https://example.com)';

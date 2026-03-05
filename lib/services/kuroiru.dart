@@ -290,12 +290,16 @@ class KuroiruService {
 
       _genreCacheByMalId[malId] = genres;
       _episodeCountByMalId[malId] = (mal['episodes'] as num?)?.toInt();
+      _airingByMalId[malId] = mal['airing'] == true;
+      _statusByMalId[malId] = mal['status']?.toString();
     }
     return parsed;
   }
 
   final Map<int, List<int>> _genreCacheByMalId = <int, List<int>>{};
   final Map<int, int?> _episodeCountByMalId = <int, int?>{};
+  final Map<int, bool> _airingByMalId = <int, bool>{};
+  final Map<int, String?> _statusByMalId = <int, String?>{};
 
   Map<String, dynamic> _searchSortToJikanParams(String? sortBy) {
     switch (sortBy) {
@@ -736,6 +740,275 @@ class KuroiruService {
     return _tvdbMetadata.getNoTextPosterUrlForMalId(id);
   }
 
+  /// Returns similar anime recommendations (MAL/Jikan) for "More Like This".
+  /// Falls back to TVDB if recommendations are unavailable.
+  Future<List<TvdbSimilarSeries>> getTVShowSimilarFromTvdb(int id) async {
+    final cacheKey = 'similar_recommendations_anime_only_v3_$id';
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      final rows = cached['items'];
+      if (rows is List) {
+        return rows
+            .whereType<Map>()
+            .map((row) => TvdbSimilarSeries.fromJson(row.cast<String, dynamic>()))
+            .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
+            .toList(growable: false);
+      }
+    }
+
+    final jikanRecommendations = await _fetchJikanAnimeRecommendations(id);
+    if (jikanRecommendations.isNotEmpty) {
+      await _cache.set(
+        cacheKey,
+        {
+          'items': jikanRecommendations
+              .map((item) => item.toJson())
+              .toList(growable: false),
+        },
+        ttl: CacheService.mediumCache,
+      );
+      return jikanRecommendations;
+    }
+
+    final tvdbPrimary = await _tvdbMetadata.getSimilarSeriesForMalId(id);
+    final animeOnlyPrimary = tvdbPrimary
+        .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
+        .toList(growable: false);
+    if (animeOnlyPrimary.isNotEmpty) {
+      await _cache.set(
+        cacheKey,
+        {
+          'items': animeOnlyPrimary
+              .map((item) => item.toJson())
+              .toList(growable: false),
+        },
+        ttl: CacheService.mediumCache,
+      );
+      return animeOnlyPrimary;
+    }
+
+    // Last fallback path only when recommendation sources are empty.
+    final kuroiruFallback = await _fetchKuroiruRelatedAnime(id);
+    final animeOnlyFallback = kuroiruFallback
+        .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
+        .toList(growable: false);
+    await _cache.set(
+      cacheKey,
+      {
+        'items': animeOnlyFallback
+            .map((item) => item.toJson())
+            .toList(growable: false),
+      },
+      ttl: CacheService.mediumCache,
+    );
+    return animeOnlyFallback;
+  }
+
+  Future<List<TvdbSimilarSeries>> _fetchJikanAnimeRecommendations(int malId) async {
+    try {
+      final response = await _jikanGetWithRetry('/anime/$malId/recommendations');
+      final root = response.data;
+      if (root is! Map) return const [];
+
+      final data = root['data'];
+      if (data is! List) return const [];
+
+      final out = <TvdbSimilarSeries>[];
+      final seen = <int>{};
+
+      for (final row in data.whereType<Map>()) {
+        final item = row.cast<String, dynamic>();
+        final entry = item['entry'];
+        if (entry is! Map) continue;
+
+        final entryMap = entry.cast<String, dynamic>();
+        final relatedMalId = _toInt(entryMap['mal_id']);
+        if (relatedMalId == null || relatedMalId <= 0) continue;
+        if (relatedMalId == malId || !seen.add(relatedMalId)) continue;
+
+        final title = (entryMap['title'] ?? '').toString().trim();
+        if (title.isEmpty) continue;
+
+        String? poster;
+        final images = entryMap['images'];
+        if (images is Map) {
+          final jpg = images['jpg'];
+          if (jpg is Map) {
+            poster = (jpg['large_image_url'] ?? jpg['image_url'])?.toString().trim();
+          }
+        }
+
+        final votes = _toInt(item['votes']);
+        out.add(
+          TvdbSimilarSeries(
+            tvdbId: null,
+            malId: relatedMalId,
+            sourceType: 'anime',
+            title: title,
+            overview: null,
+            imageUrl: poster,
+            score: votes?.toDouble(),
+            year: null,
+          ),
+        );
+
+        if (out.length >= 18) break;
+      }
+
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<TvdbSimilarSeries>> _fetchKuroiruRelatedAnime(int malId) async {
+    try {
+      final response = await _kuroiruDio.post(
+        '/backend/api',
+        data: 'prompt=$malId',
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {
+            'Referer': 'https://kuroiru.co/',
+            'User-Agent': AppConfigurations.defaultAppUserAgent,
+          },
+        ),
+      );
+
+      final root = response.data;
+      if (root is! Map) return const [];
+
+      final related = root['related'];
+      if (related is! Map) return const [];
+
+      final collected = <TvdbSimilarSeries>[];
+      final seen = <int>{};
+
+      for (final entry in related.entries) {
+        final value = entry.value;
+        if (value is! List) continue;
+
+        for (final row in value.whereType<Map>()) {
+          final item = row.cast<String, dynamic>();
+          final type = item['type']?.toString().toLowerCase();
+          final sourceType = (type == 'manga') ? 'manga' : 'anime';
+
+          final relatedMalId = _toInt(item['mal_id']);
+          if (relatedMalId == null || relatedMalId <= 0) continue;
+          if (relatedMalId == malId || !seen.add(relatedMalId)) continue;
+
+          final title = item['name']?.toString().trim();
+          if (title == null || title.isEmpty) continue;
+
+          final imageUrl = _normalizeKuroiruImage(item['img']?.toString());
+          collected.add(
+            TvdbSimilarSeries(
+              tvdbId: null,
+              malId: relatedMalId,
+              sourceType: sourceType,
+              title: title,
+              overview: null,
+              imageUrl: imageUrl,
+              score: null,
+              year: null,
+            ),
+          );
+
+          if (collected.length >= 18) break;
+        }
+
+        if (collected.length >= 18) break;
+      }
+
+      if (collected.isEmpty) return const [];
+
+      final enriched = await Future.wait(
+        collected.map((item) async {
+          if (item.imageUrl != null && item.imageUrl!.isNotEmpty) return item;
+          final jikanPoster = await _fetchJikanPosterForMalId(item.malId!);
+          if (jikanPoster == null || jikanPoster.isEmpty) return item;
+          return TvdbSimilarSeries(
+            tvdbId: item.tvdbId,
+            malId: item.malId,
+            sourceType: item.sourceType,
+            title: item.title,
+            overview: item.overview,
+            imageUrl: jikanPoster,
+            score: item.score,
+            year: item.year,
+          );
+        }),
+      );
+
+      return enriched;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<String?> _fetchJikanPosterForMalId(int malId) async {
+    final cacheKey = 'jikan_poster_$malId';
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      final url = cached['poster']?.toString();
+      return (url != null && url.isNotEmpty) ? url : null;
+    }
+
+    try {
+      final response = await _jikanGetWithRetry('/anime/$malId');
+      final root = response.data;
+      if (root is! Map) return null;
+      final data = root['data'];
+      if (data is! Map) return null;
+      final images = data['images'];
+      if (images is! Map) return null;
+      final jpg = images['jpg'];
+      if (jpg is! Map) return null;
+
+      final poster =
+          (jpg['large_image_url'] ?? jpg['image_url'])?.toString().trim();
+      await _cache.set(
+        cacheKey,
+        {'poster': poster ?? ''},
+        ttl: CacheService.longCache,
+      );
+
+      return (poster != null && poster.isNotEmpty) ? poster : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  int? _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  String? _normalizeKuroiruImage(String? path) {
+    if (path == null || path.isEmpty) return null;
+
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return path;
+    }
+
+    if (path.startsWith('/img/')) {
+      final regex = RegExp(r'^/img/(\d+)/(\d+)\.jpg$');
+      final match = regex.firstMatch(path);
+      if (match != null) {
+        return 'https://cdn.myanimelist.net/images/anime/${match.group(1)}/${match.group(2)}l.jpg';
+      }
+      return 'https://kuroiru.co$path';
+    }
+
+    if (path.startsWith('/')) {
+      return 'https://kuroiru.co$path';
+    }
+
+    return path;
+  }
+
   SearchResult _toSearchResult(aimi.AnimeDetails details) {
     final id = int.tryParse(details.id) ?? 0;
     return SearchResult(
@@ -887,6 +1160,8 @@ class KuroiruService {
           final json = item.toJson();
           json['genre_ids'] = _genreCacheByMalId[item.id] ?? const <int>[];
           json['episode_count'] = _episodeCountByMalId[item.id];
+          json['airing'] = _airingByMalId[item.id] ?? false;
+          json['status'] = _statusByMalId[item.id];
           return json;
         })
         .toList(growable: false);

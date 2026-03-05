@@ -5,11 +5,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 class ContentRow extends StatelessWidget {
   final String title;
   final List<dynamic> items;
+  final VoidCallback? onSeeMore;
 
   const ContentRow({
     super.key,
     required this.title,
     required this.items,
+    this.onSeeMore,
   });
 
   @override
@@ -23,13 +25,39 @@ class ContentRow extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (onSeeMore != null)
+                  TextButton(
+                    onPressed: onSeeMore,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'See more',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
