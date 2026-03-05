@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:namizo/theme/theme.dart';
 
 class DynamicColors {
   final Color dominant;
@@ -21,12 +22,12 @@ class DynamicColors {
   });
 
   static const fallback = DynamicColors(
-    dominant: Color(0xFFE50914),
-    darkMuted: Color(0xFF141414),
-    darkVibrant: Color(0xFF8B0000),
-    lightVibrant: Color(0xFFFF4444),
-    lightMuted: Color(0xFF2F2F2F),
-    onSurface: Colors.white,
+    dominant: NamizoTheme.primary,
+    darkMuted: NamizoTheme.background,
+    darkVibrant: Color(0xFF8B3A00),
+    lightVibrant: Color(0xFFFFC27A),
+    lightMuted: NamizoTheme.surface,
+    onSurface: NamizoTheme.textPrimary,
   );
 }
 

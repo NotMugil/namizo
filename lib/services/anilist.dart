@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/models/search_result.dart';
+import 'package:namizo/models/media/search_result.dart';
 
 class AniListService {
   AniListService({Dio? dio})

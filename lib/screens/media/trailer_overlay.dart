@@ -97,7 +97,7 @@ class _TrailerOverlayState extends State<TrailerOverlay> {
           aspectRatio: 16 / 9,
           child: Center(
             child: CircularProgressIndicator(
-              color: NamizoTheme.netflixRed,
+              color: NamizoTheme.primary,
               strokeWidth: 3,
             ),
           ),

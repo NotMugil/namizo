@@ -22,9 +22,9 @@ class ProfileScreen extends ConsumerWidget {
       },
       child: aniListViewerAsync.when(
         loading: () => const Scaffold(
-          backgroundColor: NamizoTheme.netflixBlack,
+          backgroundColor: NamizoTheme.background,
           body: Center(
-            child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+            child: CircularProgressIndicator(color: NamizoTheme.primary),
           ),
         ),
         error: (_, __) => _LoggedOutView(),
@@ -37,7 +37,7 @@ class ProfileScreen extends ConsumerWidget {
               avatar?['large']?.toString() ?? avatar?['medium']?.toString();
 
           return Scaffold(
-            backgroundColor: NamizoTheme.netflixBlack,
+            backgroundColor: NamizoTheme.background,
             body: Column(
               children: [
                 ProfileHeader(viewer: viewer),
@@ -50,7 +50,7 @@ class ProfileScreen extends ConsumerWidget {
                       const Text(
                         'Recent Activity',
                         style: TextStyle(
-                          color: NamizoTheme.netflixWhite,
+                          color: NamizoTheme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
                         ),
@@ -76,7 +76,7 @@ class _LoggedOutView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: NamizoTheme.netflixBlack,
+      backgroundColor: NamizoTheme.background,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -87,7 +87,7 @@ class _LoggedOutView extends ConsumerWidget {
                 'Please login to use this feature',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: NamizoTheme.netflixWhite,
+                  color: NamizoTheme.textPrimary,
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
@@ -97,8 +97,8 @@ class _LoggedOutView extends ConsumerWidget {
                 width: 190,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: NamizoTheme.netflixRed,
-                    foregroundColor: NamizoTheme.netflixWhite,
+                    backgroundColor: NamizoTheme.primary,
+                    foregroundColor: NamizoTheme.textPrimary,
                     minimumSize: const Size(190, 48),
                   ),
                   onPressed: () async {
@@ -113,14 +113,14 @@ class _LoggedOutView extends ConsumerWidget {
               const SizedBox(height: 8),
               TextButton.icon(
                 style: TextButton.styleFrom(
-                  foregroundColor: NamizoTheme.netflixRed,
+                  foregroundColor: NamizoTheme.primary,
                   minimumSize: const Size(190, 44),
                 ),
                 onPressed: () => context.push('/settings'),
                 icon: const PhosphorIcon(
                   PhosphorIconsRegular.gear,
                   size: 18,
-                  color: NamizoTheme.netflixRed,
+                  color: NamizoTheme.primary,
                 ),
                 label: const Text('Settings'),
               ),
@@ -144,7 +144,7 @@ class _ActivitiesSection extends ConsumerWidget {
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
-              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.primary),
             ),
           ),
           error: (_, __) => const Padding(
@@ -152,7 +152,7 @@ class _ActivitiesSection extends ConsumerWidget {
             child: Center(
               child: Text(
                 'Unable to load activities',
-                style: TextStyle(color: NamizoTheme.netflixGrey),
+                style: TextStyle(color: NamizoTheme.textSecondary),
               ),
             ),
           ),
@@ -163,7 +163,7 @@ class _ActivitiesSection extends ConsumerWidget {
                 child: Center(
                   child: Text(
                     'No activities found',
-                    style: TextStyle(color: NamizoTheme.netflixGrey),
+                    style: TextStyle(color: NamizoTheme.textSecondary),
                   ),
                 ),
               );

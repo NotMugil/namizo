@@ -4,8 +4,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/season_info.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/media/season_info.dart';
 import 'package:namizo/providers/dynamic_colors.dart';
 import 'package:namizo/providers/media.dart';
 import 'package:namizo/theme/theme.dart';
@@ -111,15 +111,15 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                 _displayedCount = _pageSize;
               }),
               style: const TextStyle(
-                color: NamizoTheme.netflixWhite,
+                color: NamizoTheme.textPrimary,
                 fontSize: 14,
               ),
               decoration: InputDecoration(
                 hintText: 'Search episodes',
-                hintStyle: const TextStyle(color: NamizoTheme.netflixGrey),
+                hintStyle: const TextStyle(color: NamizoTheme.textSecondary),
                 prefixIcon: Icon(
                   Icons.search,
-                  color: NamizoTheme.netflixLightGrey.withValues(alpha: 0.7),
+                  color: NamizoTheme.textTertiary.withValues(alpha: 0.7),
                   size: 20,
                 ),
                 suffixIcon: _searchQuery.isNotEmpty
@@ -133,7 +133,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                         },
                         icon: Icon(
                           Icons.close,
-                          color: NamizoTheme.netflixLightGrey.withValues(
+                          color: NamizoTheme.textTertiary.withValues(
                             alpha: 0.7,
                           ),
                           size: 18,
@@ -210,7 +210,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
       ),
       error: (err, stack) => Text(
         'Error loading episodes: $err',
-        style: const TextStyle(color: NamizoTheme.netflixLightGrey),
+        style: const TextStyle(color: NamizoTheme.textTertiary),
       ),
     );
   }
@@ -319,7 +319,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                             '${episode.episodeNumber}. ${episode.episodeName ?? 'Episode ${episode.episodeNumber}'}',
                             style: const TextStyle(
                               fontSize: 12,
-                              color: NamizoTheme.netflixWhite,
+                              color: NamizoTheme.textPrimary,
                               fontWeight: FontWeight.w700,
                             ),
                             maxLines: 1,
@@ -332,8 +332,8 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isUnaired
-                                    ? NamizoTheme.netflixGrey.withValues(alpha: 0.6)
-                                    : NamizoTheme.netflixGrey,
+                                    ? NamizoTheme.textSecondary.withValues(alpha: 0.6)
+                                    : NamizoTheme.textSecondary,
                               ),
                             ),
                           ],
@@ -343,7 +343,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                               episode.overview!,
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: NamizoTheme.netflixLightGrey,
+                                color: NamizoTheme.textTertiary,
                                 height: 1.35,
                               ),
                               maxLines: 2,
@@ -445,7 +445,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
         color: const Color(0x33262C3D),
         child: const Icon(
           Icons.ondemand_video,
-          color: NamizoTheme.netflixGrey,
+          color: NamizoTheme.textSecondary,
           size: 24,
         ),
       );

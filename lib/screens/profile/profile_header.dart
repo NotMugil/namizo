@@ -26,7 +26,7 @@ class ProfileHeader extends StatelessWidget {
           if (bannerUrl != null && bannerUrl.isNotEmpty)
             CachedNetworkImage(imageUrl: bannerUrl, fit: BoxFit.cover)
           else
-            Container(color: NamizoTheme.netflixDarkGrey),
+            Container(color: NamizoTheme.surface),
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -49,7 +49,7 @@ class ProfileHeader extends StatelessWidget {
                       onPressed: () => context.go('/home'),
                       icon: const PhosphorIcon(
                         PhosphorIconsRegular.caretLeft,
-                        color: NamizoTheme.netflixWhite,
+                        color: NamizoTheme.textPrimary,
                         size: 22,
                       ),
                     ),
@@ -57,7 +57,7 @@ class ProfileHeader extends StatelessWidget {
                       onPressed: () => context.push('/settings'),
                       icon: const PhosphorIcon(
                         PhosphorIconsRegular.gear,
-                        color: NamizoTheme.netflixWhite,
+                        color: NamizoTheme.textPrimary,
                       ),
                     ),
                   ],
@@ -73,14 +73,14 @@ class ProfileHeader extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 34,
-                  backgroundColor: NamizoTheme.netflixDarkGrey,
+                  backgroundColor: NamizoTheme.surface,
                   backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
                       ? CachedNetworkImageProvider(avatarUrl)
                       : null,
                   child: (avatarUrl == null || avatarUrl.isEmpty)
                       ? const PhosphorIcon(
                           PhosphorIconsRegular.userCircle,
-                          color: NamizoTheme.netflixWhite,
+                          color: NamizoTheme.textPrimary,
                           size: 28,
                         )
                       : null,
@@ -90,7 +90,7 @@ class ProfileHeader extends StatelessWidget {
                   child: Text(
                     name,
                     style: const TextStyle(
-                      color: NamizoTheme.netflixWhite,
+                      color: NamizoTheme.textPrimary,
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                     ),

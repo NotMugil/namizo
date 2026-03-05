@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/widgets/toast/app_toast.dart';
+import 'package:namizo/widgets/toast.dart';
 import 'package:namizo/utils/status.dart';
 import 'package:namizo/utils/time.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -69,7 +69,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
               children: [
                 CircleAvatar(
                   radius: 11,
-                  backgroundColor: NamizoTheme.netflixDarkGrey,
+                  backgroundColor: NamizoTheme.surface,
                   backgroundImage: (activityAvatarUrl != null &&
                           activityAvatarUrl.isNotEmpty)
                       ? CachedNetworkImageProvider(activityAvatarUrl)
@@ -78,7 +78,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                           activityAvatarUrl.isEmpty)
                       ? const PhosphorIcon(
                           PhosphorIconsRegular.user,
-                          color: NamizoTheme.netflixWhite,
+                          color: NamizoTheme.textPrimary,
                           size: 11,
                         )
                       : null,
@@ -89,7 +89,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                     activityUsername,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: NamizoTheme.netflixWhite,
+                      color: NamizoTheme.textPrimary,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -99,7 +99,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                 const Text(
                   '•',
                   style: TextStyle(
-                    color: NamizoTheme.netflixGrey,
+                    color: NamizoTheme.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -107,7 +107,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                 Text(
                   relativeTimeFromSeconds(createdAt),
                   style: const TextStyle(
-                    color: NamizoTheme.netflixGrey,
+                    color: NamizoTheme.textSecondary,
                     fontSize: 12,
                   ),
                 ),
@@ -128,7 +128,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                             imageUrl: coverUrl,
                             fit: BoxFit.cover,
                           )
-                        : Container(color: NamizoTheme.netflixDarkGrey),
+                        : Container(color: NamizoTheme.surface),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -141,7 +141,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: NamizoTheme.netflixLightGrey,
+                          color: NamizoTheme.textTertiary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -152,7 +152,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: NamizoTheme.netflixWhite,
+                          color: NamizoTheme.textPrimary,
                           fontWeight: FontWeight.w700,
                           height: 1.25,
                         ),
@@ -175,7 +175,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                             color: Colors.black.withValues(alpha: 0.45),
                             borderRadius: BorderRadius.circular(999),
                             border: Border.all(
-                              color: NamizoTheme.netflixRed
+                              color: NamizoTheme.primary
                                   .withValues(alpha: 0.35),
                             ),
                           ),
@@ -188,14 +188,14 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                                   height: 12,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: NamizoTheme.netflixRed,
+                                    color: NamizoTheme.primary,
                                   ),
                                 )
                               else
                                 Text(
                                   statusLabel(statusNormalized),
                                   style: const TextStyle(
-                                    color: NamizoTheme.netflixWhite,
+                                    color: NamizoTheme.textPrimary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -203,7 +203,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                               const SizedBox(width: 6),
                               const PhosphorIcon(
                                 PhosphorIconsRegular.caretDown,
-                                color: NamizoTheme.netflixWhite,
+                                color: NamizoTheme.textPrimary,
                                 size: 12,
                               ),
                             ],
@@ -253,7 +253,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                   child: Text(
                     'Change status',
                     style: TextStyle(
-                      color: NamizoTheme.netflixWhite,
+                      color: NamizoTheme.textPrimary,
                       fontWeight: FontWeight.w700,
                       fontSize: 16,
                     ),
@@ -271,7 +271,7 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                     leading: isSelected
                         ? const PhosphorIcon(
                             PhosphorIconsFill.checkCircle,
-                            color: NamizoTheme.netflixRed,
+                            color: NamizoTheme.primary,
                             size: 18,
                           )
                         : const SizedBox(width: 18),
@@ -279,8 +279,8 @@ class _ActivityCardState extends ConsumerState<ActivityCard> {
                       statusLabel(status),
                       style: TextStyle(
                         color: isSelected
-                            ? NamizoTheme.netflixWhite
-                            : NamizoTheme.netflixLightGrey,
+                            ? NamizoTheme.textPrimary
+                            : NamizoTheme.textTertiary,
                         fontWeight:
                             isSelected ? FontWeight.w700 : FontWeight.w500,
                       ),

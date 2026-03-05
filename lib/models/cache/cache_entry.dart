@@ -2,7 +2,6 @@ import 'package:hive/hive.dart';
 
 part 'cache_entry.g.dart';
 
-/// Generic cache entry with expiration
 @HiveType(typeId: 0)
 class CacheEntry {
   @HiveField(0)

@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:namizo/core/config.dart';
-import 'package:namizo/models/watch_history.dart';
+import 'package:namizo/models/user/watch_history.dart';
 
 class WatchHistoryService {
   late Box<String> _historyBox;

@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/watchlist_item.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/user/watchlist_item.dart';
+import 'package:namizo/models/tvdb/tvdb_models.dart';
 import 'package:namizo/providers/dynamic_colors.dart';
 import 'package:namizo/providers/media.dart';
 import 'package:namizo/providers/settings.dart';
@@ -178,18 +179,18 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: NamizoTheme.netflixBlack,
-        appBar: AppBar(backgroundColor: NamizoTheme.netflixBlack, elevation: 0),
+        backgroundColor: NamizoTheme.background,
+        appBar: AppBar(backgroundColor: NamizoTheme.background, elevation: 0),
         body: const Center(
-          child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+          child: CircularProgressIndicator(color: NamizoTheme.primary),
         ),
       );
     }
 
     if (_error != null) {
       return Scaffold(
-        backgroundColor: NamizoTheme.netflixBlack,
-        appBar: AppBar(backgroundColor: NamizoTheme.netflixBlack, elevation: 0),
+        backgroundColor: NamizoTheme.background,
+        appBar: AppBar(backgroundColor: NamizoTheme.background, elevation: 0),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -198,7 +199,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
               children: [
                 const PhosphorIcon(
                   PhosphorIconsRegular.warningCircle,
-                  color: NamizoTheme.netflixRed,
+                  color: NamizoTheme.primary,
                   size: 56,
                 ),
                 const SizedBox(height: 14),
@@ -206,7 +207,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 const SizedBox(height: 8),
                 Text(
                   _error!,
-                  style: const TextStyle(color: NamizoTheme.netflixGrey),
+                  style: const TextStyle(color: NamizoTheme.textSecondary),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -246,7 +247,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     final mediaName = media.title ?? media.name ?? 'Unknown';
 
     return Scaffold(
-      backgroundColor: NamizoTheme.netflixBlack,
+      backgroundColor: NamizoTheme.background,
       body: CustomScrollView(
         controller: _scrollController,
         slivers: [
@@ -328,7 +329,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                 _glassIconButton(
                                   icon: const PhosphorIcon(
                                     PhosphorIconsRegular.caretLeft,
-                                    color: NamizoTheme.netflixWhite,
+                                    color: NamizoTheme.textPrimary,
                                     size: 20,
                                   ),
                                   onTap: () => context.pop(),
@@ -338,7 +339,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                     _glassIconButton(
                                       icon: const PhosphorIcon(
                                         PhosphorIconsRegular.video,
-                                        color: NamizoTheme.netflixWhite,
+                                        color: NamizoTheme.textPrimary,
                                         size: 19,
                                       ),
                                       onTap: () {
@@ -355,7 +356,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                     _glassIconButton(
                                       icon: const PhosphorIcon(
                                         PhosphorIconsRegular.shareNetwork,
-                                        color: NamizoTheme.netflixWhite,
+                                        color: NamizoTheme.textPrimary,
                                         size: 19,
                                       ),
                                       onTap: () async {
@@ -414,7 +415,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                   .displaySmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.w700,
-                                    color: NamizoTheme.netflixWhite,
+                                    color: NamizoTheme.textPrimary,
                                     height: 1.2,
                                   ),
                             ),
@@ -423,7 +424,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                             Text(
                               _buildGenreMeta(year),
                               style: const TextStyle(
-                                color: NamizoTheme.netflixLightGrey,
+                                color: NamizoTheme.textTertiary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 height: 1.5,
@@ -445,7 +446,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                 _plainIconButton(
                                   icon: const Icon(
                                     Icons.favorite_border,
-                                    color: NamizoTheme.netflixWhite,
+                                    color: NamizoTheme.textPrimary,
                                     size: 24,
                                   ),
                                   onTap: () {
@@ -464,12 +465,12 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                         : Icons.bookmark_border,
                                     color: isInWatchlist
                                         ? visibleHeartColor
-                                        : NamizoTheme.netflixWhite,
+                                        : NamizoTheme.textPrimary,
                                     size: 24,
                                   ),
                                   iconColor: isInWatchlist
                                       ? visibleHeartColor
-                                      : NamizoTheme.netflixWhite,
+                                      : NamizoTheme.textPrimary,
                                   onTap: () =>
                                       _toggleWatchlist(media, isInWatchlist),
                                 ),
@@ -485,12 +486,12 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                   icon: const Icon(
                                     Icons.play_circle_outline,
                                     size: 17,
-                                    color: NamizoTheme.netflixRed,
+                                    color: NamizoTheme.primary,
                                   ),
                                   label: const Text(
                                     'Watch trailer',
                                     style: TextStyle(
-                                      color: NamizoTheme.netflixRed,
+                                      color: NamizoTheme.primary,
                                     ),
                                   ),
                                 ),
@@ -503,7 +504,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                   .textTheme
                                   .titleLarge
                                   ?.copyWith(
-                                    color: NamizoTheme.netflixWhite,
+                                    color: NamizoTheme.textPrimary,
                                     fontWeight: FontWeight.w700,
                                   ),
                             ),
@@ -572,7 +573,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
           child: Text(
             label,
             style: const TextStyle(
-              color: NamizoTheme.netflixWhite,
+              color: NamizoTheme.textPrimary,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -598,7 +599,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
   Widget _plainIconButton({
     required Widget icon,
     required VoidCallback onTap,
-    Color iconColor = NamizoTheme.netflixWhite,
+    Color iconColor = NamizoTheme.textPrimary,
   }) {
     return IconButton(
       onPressed: onTap,
@@ -624,7 +625,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 color: NamizoTheme.glassFill,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: NamizoTheme.netflixRed.withValues(alpha: 0.65),
+                  color: NamizoTheme.primary.withValues(alpha: 0.65),
                 ),
               ),
               child: const Row(
@@ -632,14 +633,14 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 children: [
                   PhosphorIcon(
                     PhosphorIconsFill.play,
-                    color: NamizoTheme.netflixRed,
+                    color: NamizoTheme.primary,
                     size: 16,
                   ),
                   SizedBox(width: 8),
                   Text(
                     'Play all episodes',
                     style: TextStyle(
-                      color: NamizoTheme.netflixRed,
+                      color: NamizoTheme.primary,
                       fontWeight: FontWeight.w700,
                       fontSize: 14,
                     ),
@@ -795,11 +796,11 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
         TabBar(
           controller: _detailTabController,
           isScrollable: false,
-          indicatorColor: NamizoTheme.netflixRed,
+          indicatorColor: NamizoTheme.primary,
           indicatorSize: TabBarIndicatorSize.tab,
           dividerColor: Colors.transparent,
-          labelColor: NamizoTheme.netflixWhite,
-          unselectedLabelColor: NamizoTheme.netflixGrey,
+          labelColor: NamizoTheme.textPrimary,
+          unselectedLabelColor: NamizoTheme.textSecondary,
           labelStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -835,7 +836,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
-              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.primary),
             ),
           );
         }
@@ -844,7 +845,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
           return Text(
             'Failed to load similar titles',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: NamizoTheme.netflixLightGrey,
+                  color: NamizoTheme.textTertiary,
                 ),
           );
         }
@@ -909,21 +910,21 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 imageUrl: item.imageUrl!,
                 fit: BoxFit.cover,
                 placeholder: (context, url) => Container(
-                  color: NamizoTheme.netflixDarkGrey,
+                  color: NamizoTheme.surface,
                 ),
                 errorWidget: (context, url, error) => Container(
-                  color: NamizoTheme.netflixDarkGrey,
+                  color: NamizoTheme.surface,
                   child: const Icon(
                     Icons.movie_creation_outlined,
-                    color: NamizoTheme.netflixGrey,
+                    color: NamizoTheme.textSecondary,
                   ),
                 ),
               )
             : Container(
-                color: NamizoTheme.netflixDarkGrey,
+                color: NamizoTheme.surface,
                 child: const Icon(
                   Icons.movie_creation_outlined,
-                  color: NamizoTheme.netflixGrey,
+                  color: NamizoTheme.textSecondary,
                 ),
               ),
       ),
@@ -932,7 +933,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
 
   Widget _buildAboutSection(String aboutText) {
     final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
-      color: NamizoTheme.netflixLightGrey,
+      color: NamizoTheme.textTertiary,
       height: 1.45,
     );
 
@@ -976,7 +977,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 child: Text(
                   _aboutExpanded ? 'Read less' : 'Read more',
                   style: const TextStyle(
-                    color: NamizoTheme.netflixRed,
+                    color: NamizoTheme.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),

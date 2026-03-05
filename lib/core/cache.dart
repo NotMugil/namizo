@@ -1,18 +1,14 @@
+import 'dart:convert';
+
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:namizo/core/cache/cache_codec.dart';
-import 'package:namizo/core/cache/cache_constants.dart';
-import 'package:namizo/models/cache_entry.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/models/cache/cache_entry.dart';
 
 class CacheService {
   late Box<CacheEntry> _box;
 
-  static const Duration shortCache = CacheConstants.shortCache;
-  static const Duration mediumCache = CacheConstants.mediumCache;
-  static const Duration longCache = CacheConstants.longCache;
-  static const Duration extraLongCache = CacheConstants.extraLongCache;
-
   Future<void> init() async {
-    _box = await Hive.openBox<CacheEntry>(CacheConstants.boxName);
+    _box = await Hive.openBox<CacheEntry>(cacheBoxName);
     await _cleanExpiredEntries();
   }
 
@@ -24,7 +20,7 @@ class CacheService {
         await _box.delete(key);
         return null;
       }
-      final jsonData = CacheCodec.decodeMap(entry.data);
+      final jsonData = json.decode(entry.data) as Map<String, dynamic>;
       return fromJson(jsonData);
     } catch (_) {
       await _box.delete(key);
@@ -43,7 +39,7 @@ class CacheService {
         await _box.delete(key);
         return null;
       }
-      final jsonList = CacheCodec.decodeList(entry.data);
+      final jsonList = json.decode(entry.data) as List<dynamic>;
       return jsonList
           .map((item) => fromJson(item as Map<String, dynamic>))
           .toList();
@@ -61,7 +57,7 @@ class CacheService {
         await _box.delete(key);
         return null;
       }
-      return CacheCodec.decodeMap(entry.data);
+      return json.decode(entry.data) as Map<String, dynamic>;
     } catch (_) {
       await _box.delete(key);
       return null;
@@ -72,7 +68,7 @@ class CacheService {
     try {
       final entry = _box.get(key);
       if (entry == null) return null;
-      return CacheCodec.decodeMap(entry.data);
+      return json.decode(entry.data) as Map<String, dynamic>;
     } catch (_) {
       await _box.delete(key);
       return null;
@@ -88,7 +84,7 @@ class CacheService {
     try {
       final entry = CacheEntry(
         key: key,
-        data: CacheCodec.encode(data),
+        data: json.encode(data),
         timestamp: DateTime.now(),
         ttlMilliseconds: ttl.inMilliseconds,
       );

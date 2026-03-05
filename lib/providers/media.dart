@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/season_info.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/media/season_info.dart';
 import 'package:namizo/providers/services.dart';
 
 // Selected media state

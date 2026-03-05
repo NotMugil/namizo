@@ -17,7 +17,7 @@ class WatchlistItem extends HiveObject {
   final String? backdropPath;
 
   @HiveField(3)
-  final String mediaType; // 'movie' or 'tv'
+  final String mediaType;
 
   @HiveField(4)
   final DateTime addedAt;

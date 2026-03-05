@@ -23,7 +23,7 @@ class ContinueWatchingRow extends ConsumerWidget {
                   Icon(
                     Icons.ondemand_video_rounded,
                     size: 64,
-                    color: NamizoTheme.netflixGrey,
+                    color: NamizoTheme.textSecondary,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -55,7 +55,7 @@ class ContinueWatchingRow extends ConsumerWidget {
         height: 200,
         child: Center(
           child: CircularProgressIndicator(
-            color: NamizoTheme.netflixRed,
+            color: NamizoTheme.primary,
           ),
         ),
       ),
@@ -68,7 +68,7 @@ class ContinueWatchingRow extends ConsumerWidget {
               Icon(
                 Icons.error_outline,
                 size: 48,
-                color: NamizoTheme.netflixRed,
+                color: NamizoTheme.primary,
               ),
               const SizedBox(height: 16),
               Text(

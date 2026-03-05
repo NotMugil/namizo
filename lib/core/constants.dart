@@ -1,17 +1,41 @@
-// Genre IDs (MAL / TMDB)
-const int genreIdRomance = 18;
-const int genreIdAction = 10759;
-const int genreIdAdventure = 12;
-const int genreIdFantasy = 10765;
+import 'package:namizo/core/config.dart';
 
-// Image size hints
+final class TmdbGenres {
+  const TmdbGenres._();
+
+  static const int romance = 18;
+  static const int action = 10759;
+  static const int adventure = 12;
+  static const int fantasy = 10765;
+
+  static const Map<int, String> labels = <int, String>{
+    16: 'Animation',
+    28: 'Action',
+    adventure: 'Adventure',
+    14: 'Fantasy',
+    35: 'Comedy',
+    romance: 'Drama',
+    9648: 'Mystery',
+    878: 'Sci-Fi',
+    action: 'Action & Adventure',
+    fantasy: 'Fantasy',
+  };
+}
+
 const String posterSize = 'w500';
 const String backdropSize = 'original';
 
-// Common timeout values
+// ── Common timeout values ───────────────────────────────────────────────
 const Duration shortTimeout = Duration(seconds: 8);
 const Duration standardTimeout = Duration(seconds: 15);
 const Duration extendedTimeout = Duration(seconds: 20);
+
+// ── Cache durations ─────────────────────────────────────────────────────
+const String cacheBoxName = AppConfigurations.tvdbCacheBoxName;
+const Duration shortCache = Duration(minutes: 15);
+const Duration mediumCache = Duration(hours: 1);
+const Duration longCache = Duration(hours: 24);
+const Duration extraLongCache = Duration(days: 7);
 
 // Video Quality Priority
 const List<String> qualityPriority = [

@@ -2,7 +2,6 @@ import 'package:hive/hive.dart';
 
 part 'new_episode.g.dart';
 
-/// Model for tracking new episode notifications
 @HiveType(typeId: 3)
 class NewEpisode extends HiveObject {
   @HiveField(0)
@@ -44,10 +43,8 @@ class NewEpisode extends HiveObject {
     this.isRead = false,
   });
 
-  /// Unique key for this episode
   String get key => '${showId}_${seasonNumber}_$episodeNumber';
 
-  /// Copy with modifications
   NewEpisode copyWith({
     int? showId,
     String? showName,

@@ -226,13 +226,13 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     final sections = _groupByWeek(weekStart, entries);
 
     return Scaffold(
-      backgroundColor: NamizoTheme.netflixBlack,
+      backgroundColor: NamizoTheme.background,
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
-        backgroundColor: NamizoTheme.netflixBlack,
+        backgroundColor: NamizoTheme.background,
         automaticallyImplyLeading: false,
         title: Text(
           'Schedule',
@@ -256,7 +256,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                       width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                        color: NamizoTheme.netflixRed,
+                        color: NamizoTheme.primary,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -317,7 +317,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                           child: const Text(
                             'Open Settings',
                             style: TextStyle(
-                              color: NamizoTheme.netflixRed,
+                              color: NamizoTheme.primary,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                             ),

@@ -4,26 +4,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:namizo/models/watchlist_item.dart';
+import 'package:namizo/core/constants.dart';
+import 'package:namizo/models/user/watchlist_item.dart';
 import 'package:namizo/providers/settings.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/watchlist.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/widgets/toast/app_toast.dart';
+import 'package:namizo/widgets/toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-
-const _genreMap = <int, String>{
-  16: 'Animation',
-  28: 'Action',
-  12: 'Adventure',
-  14: 'Fantasy',
-  35: 'Comedy',
-  18: 'Drama',
-  9648: 'Mystery',
-  878: 'Sci-Fi',
-  10759: 'Action & Adventure',
-  10765: 'Fantasy',
-};
 
 /// Hero banner carousel shown at the top of the Home screen.
 class HeroBannerCarousel extends ConsumerStatefulWidget {
@@ -143,7 +131,7 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
               .trim();
           final genreIds = (content['genre_ids'] as List<dynamic>? ?? [])
               .whereType<num>()
-              .map((g) => _genreMap[g.toInt()])
+              .map((g) => TmdbGenres.labels[g.toInt()])
               .whereType<String>()
               .take(3)
               .toList();
@@ -251,7 +239,7 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
                                       ? PhosphorIconsFill.bookmarkSimple
                                       : PhosphorIconsRegular.plus,
                                   color: isAlreadyInList
-                                      ? NamizoTheme.netflixRed
+                                      ? NamizoTheme.primary
                                       : Colors.white,
                                   size: 18,
                                 ),
@@ -312,7 +300,7 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
                       height: _currentBannerIndex == dotIndex ? 7 : 5,
                       decoration: BoxDecoration(
                         color: _currentBannerIndex == dotIndex
-                            ? NamizoTheme.netflixRed
+                            ? NamizoTheme.primary
                             : Colors.white38,
                         shape: BoxShape.circle,
                       ),
@@ -411,7 +399,7 @@ class HeroBannerShimmer extends StatelessWidget {
       height: 600,
       color: const Color(0xFF2F2F2F),
       child: const Center(
-        child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+        child: CircularProgressIndicator(color: NamizoTheme.primary),
       ),
     );
   }

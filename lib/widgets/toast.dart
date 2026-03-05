@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-
-import 'app_toast_style.dart';
+import 'package:namizo/theme/toast_style.dart';
 
 class AppToast {
   static void show({

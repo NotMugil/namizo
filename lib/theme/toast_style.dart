@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class AppToastStyle {
+  const AppToastStyle._();
+
   static const Duration duration = Duration(seconds: 2);
   static const Color backgroundColor = Color(0xFF0A0A0A);
   static const double elevation = 0;

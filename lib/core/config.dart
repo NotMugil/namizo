@@ -20,7 +20,7 @@ class AppConfigurations {
   static const String mobileChromeUserAgent =
       'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
-  static const String tmdbCacheBoxName = 'tmdb_cache';
+  static const String tvdbCacheBoxName = 'tvdb_cache';
   static const String watchlistBoxName = 'watchlist';
   static const String watchHistoryBoxName = 'watch_history';
   static const String newEpisodesBoxName = 'new_episodes';

@@ -20,6 +20,9 @@ class UserConfig {
   static const String defaultThemeMode = 'system';
   static const bool defaultAniListAutoSync = true;
   static const List<String> defaultHomeFeedOrder = [
+    'yourList',
+    'planning',
+    'continueWatching',
     'popular',
     'trending',
     'topRated',

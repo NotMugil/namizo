@@ -1,8 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/stream_result.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/media/stream_result.dart';
 import 'package:namizo/services/aimi.dart';
 
 /// Service for fetching anime streaming URLs.

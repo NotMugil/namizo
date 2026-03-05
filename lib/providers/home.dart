@@ -121,23 +121,23 @@ FutureProvider<List<dynamic>> _genreProvider(
 }
 
 final romanceAnimeProvider = _genreProvider(
-  genreIdRomance,
+  TmdbGenres.romance,
   sortBy: 'vote_average.desc',
   voteCountGte: 40,
 );
 
 final actionAnimeProvider = _genreProvider(
-  genreIdAction,
+  TmdbGenres.action,
   sortBy: 'popularity.desc',
 );
 
 final adventureAnimeProvider = _genreProvider(
-  genreIdAdventure,
+  TmdbGenres.adventure,
   sortBy: 'first_air_date.desc',
 );
 
 final fantasyAnimeProvider = _genreProvider(
-  genreIdFantasy,
+  TmdbGenres.fantasy,
   sortBy: 'vote_average.desc',
   voteCountGte: 40,
 );

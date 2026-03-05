@@ -3,7 +3,7 @@ import 'package:namizo/services/kuroiru.dart';
 import 'package:namizo/services/anilist.dart';
 import 'package:namizo/services/streaming.dart';
 import 'package:namizo/services/history.dart';
-import 'package:namizo/core/cache/cache_service.dart';
+import 'package:namizo/core/cache.dart';
 
 // Cache service provider
 final cacheServiceProvider = Provider((ref) {

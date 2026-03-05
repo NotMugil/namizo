@@ -9,15 +9,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:namizo/providers/home.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
-import 'package:namizo/providers/watch_history.dart';
-import 'package:namizo/providers/watchlist.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/models/watchlist_item.dart';
 import 'package:namizo/screens/home/banner.dart';
 import 'package:namizo/screens/home/feed_row.dart';
-import 'package:namizo/widgets/content_row.dart';
-import 'package:namizo/widgets/continue_watching_row.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -140,7 +135,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 : const Text(
                     'Namizo.',
                     style: TextStyle(
-                      color: NamizoTheme.netflixWhite,
+                      color: NamizoTheme.textPrimary,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
@@ -196,103 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
           ),
-          // Watchlist row
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, _) {
-                final trendingAnime = ref.watch(trendingAnimeProvider);
-                final trendingPosterById = <int, dynamic>{};
-                trendingAnime.whenData((shows) {
-                  for (final show in shows) {
-                    if (show is! Map) continue;
-                    final id = (show['id'] as num?)?.toInt();
-                    if (id == null) continue;
-                    final posterPath = show['poster_path'];
-                    if (posterPath != null) trendingPosterById[id] = posterPath;
-                  }
-                });
-
-                final watchlist = ref
-                    .watch(watchlistProvider)
-                    .where((item) => item.mediaType == 'tv')
-                    .toList();
-                if (watchlist.isEmpty) return const SizedBox.shrink();
-
-                final seenIds = <int>{};
-                final watchlistItems = watchlist
-                    .where((item) => seenIds.add(item.id))
-                    .map(
-                      (WatchlistItem item) => {
-                        'id': item.id,
-                        'name': item.title,
-                        'title': item.title,
-                        'poster_path':
-                            trendingPosterById[item.id] ?? item.posterPath,
-                        'vote_average': item.voteAverage,
-                        'first_air_date': item.releaseDate,
-                        'media_type': 'tv',
-                      },
-                    )
-                    .toList(growable: false);
-
-                return ContentRow(title: 'Your List', items: watchlistItems);
-              },
-            ),
-          ),
-          // Planning to Watch row
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, _) {
-                return ref.watch(aniListPlanningProvider).when(
-                      data: (items) => items.isEmpty
-                          ? const SizedBox.shrink()
-                          : ContentRow(
-                              title: 'Planning to Watch',
-                              items: items,
-                            ),
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    );
-              },
-            ),
-          ),
-          // Continue Watching row
-          SliverToBoxAdapter(
-            child: Consumer(
-              builder: (context, ref, _) {
-                return ref.watch(continueWatchingProvider).when(
-                      data: (items) => items.length <= 1
-                          ? const SizedBox.shrink()
-                          : Padding(
-                              padding: const EdgeInsets.only(
-                                top: 0,
-                                left: 16,
-                                right: 16,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
-                                  Text(
-                                    'Continue Watching',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  SizedBox(height: 12),
-                                  ContinueWatchingRow(),
-                                  SizedBox(height: 30),
-                                ],
-                              ),
-                            ),
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    );
-              },
-            ),
-          ),
-          // Ordered content feed rows
+          // Ordered content feed rows (includes Your List + Planning + Continue Watching)
           ...buildOrderedFeedRowSlivers(homeFeedOrder),
           const SliverToBoxAdapter(child: SizedBox(height: 50)),
         ],

@@ -43,12 +43,10 @@ class EpisodeProgress with _$EpisodeProgress {
       _$EpisodeProgressFromJson(json);
 }
 
-// Firestore timestamp helpers
 DateTime _dateTimeFromJson(dynamic timestamp) {
   if (timestamp is int) {
     return DateTime.fromMillisecondsSinceEpoch(timestamp);
   } else if (timestamp is Map) {
-    // Firestore Timestamp format
     return DateTime.fromMillisecondsSinceEpoch(
       (timestamp['_seconds'] as int) * 1000 +
           (timestamp['_nanoseconds'] as int) ~/ 1000000,
@@ -61,10 +59,9 @@ int _dateTimeToJson(DateTime dateTime) {
   return dateTime.millisecondsSinceEpoch;
 }
 
-// Episodes map converters
 Map<String, EpisodeProgress> _episodesFromJson(dynamic json) {
   if (json == null || json is! Map) return {};
-  
+
   final result = <String, EpisodeProgress>{};
   (json as Map).forEach((key, value) {
     if (value is Map<String, dynamic>) {

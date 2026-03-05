@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:namizo/models/watch_history.dart';
+import 'package:namizo/models/user/watch_history.dart';
 import 'package:namizo/providers/services.dart';
 
 /// Increment to trigger a reload of watch history providers.

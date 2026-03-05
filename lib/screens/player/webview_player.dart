@@ -413,7 +413,7 @@ class _WebViewPlayerState extends State<WebViewPlayer> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const CircularProgressIndicator(color: NamizoTheme.netflixRed),
+                  const CircularProgressIndicator(color: NamizoTheme.primary),
                   const SizedBox(height: 16),
                   Text(
                     'Loading player...',

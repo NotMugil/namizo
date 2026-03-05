@@ -4,15 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/models/season_info.dart';
+import 'package:namizo/models/media/season_info.dart';
 import 'package:namizo/providers/media.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/stream_result.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/media/stream_result.dart';
 import 'package:namizo/services/streaming.dart';
 import 'package:namizo/screens/player/webview_player.dart';
-import 'package:namizo/widgets/toast/app_toast.dart';
+import 'package:namizo/widgets/toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -359,12 +359,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             enableSkips: true,
             forwardSkipTimeInMilliseconds: 10000,
             backwardSkipTimeInMilliseconds: 10000,
-            progressBarPlayedColor: NamizoTheme.netflixRed,
-            progressBarHandleColor: NamizoTheme.netflixRed,
-            progressBarBufferedColor: NamizoTheme.netflixLightGrey,
-            progressBarBackgroundColor: NamizoTheme.netflixGrey,
+            progressBarPlayedColor: NamizoTheme.primary,
+            progressBarHandleColor: NamizoTheme.primary,
+            progressBarBufferedColor: NamizoTheme.textTertiary,
+            progressBarBackgroundColor: NamizoTheme.textSecondary,
             controlBarColor: const Color(0xFF111111),
-            loadingColor: NamizoTheme.netflixRed,
+            loadingColor: NamizoTheme.primary,
             overflowModalColor: const Color(0xFF1F1F1F),
             overflowModalTextColor: Colors.white,
             overflowMenuIconsColor: Colors.white70,
@@ -414,7 +414,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           placeholder: Container(
             color: Colors.black,
             child: const Center(
-              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.primary),
             ),
           ),
           errorBuilder: (context, errorMessage) {
@@ -424,7 +424,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 children: [
                   const Icon(
                     Icons.error_outline,
-                    color: NamizoTheme.netflixRed,
+                    color: NamizoTheme.primary,
                     size: 64,
                   ),
                   const SizedBox(height: 16),
@@ -450,7 +450,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     icon: const Icon(Icons.refresh),
                     label: Text('Retry ($_retryCount/$_maxRetries)'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: NamizoTheme.netflixRed,
+                      backgroundColor: NamizoTheme.primary,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -1033,12 +1033,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             (speed) => ListTile(
               leading: Icon(
                 current == speed ? Icons.check_circle : Icons.circle_outlined,
-                color: current == speed ? NamizoTheme.netflixRed : Colors.white70,
+                color: current == speed ? NamizoTheme.primary : Colors.white70,
               ),
               title: Text(
                 '${speed}x',
                 style: TextStyle(
-                  color: current == speed ? NamizoTheme.netflixRed : Colors.white,
+                  color: current == speed ? NamizoTheme.primary : Colors.white,
                   fontWeight: current == speed ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -1062,12 +1062,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ListTile(
           leading: Icon(
             current == 'sub' ? Icons.check_circle : Icons.circle_outlined,
-            color: current == 'sub' ? NamizoTheme.netflixRed : Colors.white70,
+            color: current == 'sub' ? NamizoTheme.primary : Colors.white70,
           ),
           title: Text(
             'Sub',
             style: TextStyle(
-              color: current == 'sub' ? NamizoTheme.netflixRed : Colors.white,
+              color: current == 'sub' ? NamizoTheme.primary : Colors.white,
               fontWeight: current == 'sub' ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
@@ -1079,12 +1079,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         ListTile(
           leading: Icon(
             current == 'dub' ? Icons.check_circle : Icons.circle_outlined,
-            color: current == 'dub' ? NamizoTheme.netflixRed : Colors.white70,
+            color: current == 'dub' ? NamizoTheme.primary : Colors.white70,
           ),
           title: Text(
             'Dub',
             style: TextStyle(
-              color: current == 'dub' ? NamizoTheme.netflixRed : Colors.white,
+              color: current == 'dub' ? NamizoTheme.primary : Colors.white,
               fontWeight: current == 'dub' ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
@@ -1107,12 +1107,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             (quality) => ListTile(
               leading: Icon(
                 current == quality ? Icons.check_circle : Icons.circle_outlined,
-                color: current == quality ? NamizoTheme.netflixRed : Colors.white70,
+                color: current == quality ? NamizoTheme.primary : Colors.white70,
               ),
               title: Text(
                 quality.toUpperCase(),
                 style: TextStyle(
-                  color: current == quality ? NamizoTheme.netflixRed : Colors.white,
+                  color: current == quality ? NamizoTheme.primary : Colors.white,
                   fontWeight: current == quality ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -1163,12 +1163,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               return ListTile(
                 leading: Icon(
                   isSelected ? Icons.check_circle : Icons.circle_outlined,
-                  color: isSelected ? NamizoTheme.netflixRed : Colors.white70,
+                  color: isSelected ? NamizoTheme.primary : Colors.white70,
                 ),
                 title: Text(
                   sourceName,
                   style: TextStyle(
-                    color: isSelected ? NamizoTheme.netflixRed : Colors.white,
+                    color: isSelected ? NamizoTheme.primary : Colors.white,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
@@ -1267,14 +1267,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Icon(
               isSelected ? Icons.check_circle : Icons.circle_outlined,
-              color: isSelected ? NamizoTheme.netflixRed : Colors.white70,
+              color: isSelected ? NamizoTheme.primary : Colors.white70,
               size: 18,
             ),
             const SizedBox(width: 12),
             Text(
               _providerNameFor(index),
               style: TextStyle(
-                color: isSelected ? NamizoTheme.netflixRed : Colors.white,
+                color: isSelected ? NamizoTheme.primary : Colors.white,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -1293,14 +1293,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Icon(
               selected == 'sub' ? Icons.check_circle : Icons.circle_outlined,
-              color: selected == 'sub' ? NamizoTheme.netflixRed : Colors.white70,
+              color: selected == 'sub' ? NamizoTheme.primary : Colors.white70,
               size: 18,
             ),
             const SizedBox(width: 12),
             Text(
               'Sub',
               style: TextStyle(
-                color: selected == 'sub' ? NamizoTheme.netflixRed : Colors.white,
+                color: selected == 'sub' ? NamizoTheme.primary : Colors.white,
                 fontWeight: selected == 'sub' ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -1313,14 +1313,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             Icon(
               selected == 'dub' ? Icons.check_circle : Icons.circle_outlined,
-              color: selected == 'dub' ? NamizoTheme.netflixRed : Colors.white70,
+              color: selected == 'dub' ? NamizoTheme.primary : Colors.white70,
               size: 18,
             ),
             const SizedBox(width: 12),
             Text(
               'Dub',
               style: TextStyle(
-                color: selected == 'dub' ? NamizoTheme.netflixRed : Colors.white,
+                color: selected == 'dub' ? NamizoTheme.primary : Colors.white,
                 fontWeight: selected == 'dub' ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -1525,7 +1525,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: NamizoTheme.netflixRed,
+                                  color: NamizoTheme.primary,
                                   borderRadius: BorderRadius.circular(3),
                                 ),
                                 child: Text(
@@ -1821,7 +1821,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                   value: sliderValue,
                   min: 0,
                   max: maxMs,
-                  activeColor: NamizoTheme.netflixRed,
+                  activeColor: NamizoTheme.primary,
                   inactiveColor: Colors.white30,
                   onChanged: durationMs > 0 ? (_) {} : null,
                   onChangeEnd: durationMs > 0
@@ -2018,7 +2018,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          color: NamizoTheme.netflixRed.withOpacity(0.7),
+                          color: NamizoTheme.primary.withOpacity(0.7),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -2064,12 +2064,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: NamizoTheme.netflixRed.withOpacity(0.1),
+              color: NamizoTheme.primary.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.error_outline,
-              color: NamizoTheme.netflixRed,
+              color: NamizoTheme.primary,
               size: 64,
             ),
           ),
@@ -2134,7 +2134,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 icon: const Icon(Icons.refresh, size: 20),
                 label: const Text('RETRY'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: NamizoTheme.netflixRed,
+                  backgroundColor: NamizoTheme.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
@@ -2416,14 +2416,14 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                   margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
                                     color: isCurrent
-                                        ? NamizoTheme.netflixRed.withOpacity(
+                                        ? NamizoTheme.primary.withOpacity(
                                             0.15,
                                           )
                                         : const Color(0xFF1E1E1E),
                                     borderRadius: BorderRadius.circular(10),
                                     border: isCurrent
                                         ? Border.all(
-                                            color: NamizoTheme.netflixRed,
+                                            color: NamizoTheme.primary,
                                             width: 1.5,
                                           )
                                         : null,
@@ -2487,8 +2487,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                               : Icons
                                                                     .play_arrow,
                                                           color: isCurrent
-                                                              ? NamizoTheme
-                                                                    .netflixRed
+                                                              ? NamizoTheme.primary
                                                               : Colors.white,
                                                           size: 20,
                                                         ),
@@ -2531,8 +2530,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                             right: 6,
                                                           ),
                                                       decoration: BoxDecoration(
-                                                        color: NamizoTheme
-                                                            .netflixRed,
+                                                        color: NamizoTheme.primary,
                                                         borderRadius:
                                                             BorderRadius.circular(
                                                               3,
@@ -2556,8 +2554,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                         fontWeight:
                                                             FontWeight.w600,
                                                         color: isCurrent
-                                                            ? NamizoTheme
-                                                                  .netflixRed
+                                                            ? NamizoTheme.primary
                                                             : Colors.white,
                                                       ),
                                                       maxLines: 1,
@@ -2610,7 +2607,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
               );
             },
             loading: () => const Center(
-              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.primary),
             ),
             error: (error, stack) => const Center(
               child: Text(
@@ -2633,7 +2630,7 @@ class _NextEpState {
   const _NextEpState({required this.show, required this.countdown});
 }
 
-// ── Netflix-style loading spinner ──
+// ── Loading spinner ──
 class _NamizoLoadingSpinner extends StatefulWidget {
   @override
   State<_NamizoLoadingSpinner> createState() => _NamizoLoadingSpinnerState();
@@ -2697,7 +2694,7 @@ class _SpinnerPainter extends CustomPainter {
       ..shader = SweepGradient(
         startAngle: 0,
         endAngle: math.pi * 2,
-        colors: [NamizoTheme.netflixRed.withOpacity(0), NamizoTheme.netflixRed],
+        colors: [NamizoTheme.primary.withOpacity(0), NamizoTheme.primary],
         transform: GradientRotation(progress * math.pi * 2),
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
@@ -2714,7 +2711,7 @@ class _SpinnerPainter extends CustomPainter {
     final dotX = center.dx + radius * math.cos(dotAngle);
     final dotY = center.dy + radius * math.sin(dotAngle);
     final dotPaint = Paint()
-      ..color = NamizoTheme.netflixRed
+      ..color = NamizoTheme.primary
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
     canvas.drawCircle(Offset(dotX, dotY), 3, dotPaint);
     canvas.drawCircle(Offset(dotX, dotY), 2, Paint()..color = Colors.white);
@@ -2898,7 +2895,7 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                                 value: (state.countdown ?? 0) / 15,
                                 backgroundColor: Colors.white12,
                                 valueColor: const AlwaysStoppedAnimation<Color>(
-                                  NamizoTheme.netflixRed,
+                                  NamizoTheme.primary,
                                 ),
                                 minHeight: 3,
                                 borderRadius: BorderRadius.circular(2),

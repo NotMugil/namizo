@@ -56,14 +56,14 @@ class StatsSection extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                PhosphorIcon(item.icon, color: NamizoTheme.netflixRed, size: 15),
+                PhosphorIcon(item.icon, color: NamizoTheme.primary, size: 15),
                 const SizedBox(height: 8),
                 Text(
                   item.value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: NamizoTheme.netflixWhite,
+                    color: NamizoTheme.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                   ),
@@ -74,7 +74,7 @@ class StatsSection extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: NamizoTheme.netflixLightGrey,
+                    color: NamizoTheme.textTertiary,
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                   ),

@@ -9,8 +9,8 @@ import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
 import 'package:namizo/core/defaults.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../models/new_episode.dart';
-import '../models/watchlist_item.dart';
+import 'package:namizo/models/user/new_episode.dart';
+import 'package:namizo/models/user/watchlist_item.dart';
 
 /// Service for checking new episodes of watchlist TV shows.
 /// Uses WorkManager for battery-efficient background tasks (Android/iOS only).

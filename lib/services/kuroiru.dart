@@ -4,9 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/season_info.dart';
-import 'package:namizo/core/cache/cache_service.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/media/season_info.dart';
+import 'package:namizo/core/cache.dart';
+import 'package:namizo/models/tvdb/tvdb_models.dart';
 import 'package:namizo/services/tvdb.dart';
 import 'package:namizo/utils/image_url.dart' as img_util;
 
@@ -50,7 +51,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final airing = await _fetchAiringCalendarFromHome();
         return {'airing': airing};
-      }, CacheService.shortCache);
+      }, shortCache);
     }
 
     if (staleCache != null) {
@@ -58,7 +59,7 @@ class KuroiruService {
     }
 
     final airing = await _fetchAiringCalendarFromHome();
-    await _cache.set(cacheKey, {'airing': airing}, ttl: CacheService.shortCache);
+    await _cache.set(cacheKey, {'airing': airing}, ttl: shortCache);
     return airing;
   }
 
@@ -223,7 +224,7 @@ class KuroiruService {
             : pageResults.length,
       );
 
-      await _cache.set(cacheKey, merged.toJson(), ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, merged.toJson(), ttl: mediumCache);
       return merged;
     } catch (e) {
       throw Exception('Failed to search anime (Kuroiru/Jikan): $e');
@@ -492,7 +493,7 @@ class KuroiruService {
           ),
         ],
       );
-      await _cache.set(cacheKey, mapped.toJson(), ttl: CacheService.longCache);
+      await _cache.set(cacheKey, mapped.toJson(), ttl: longCache);
       return mapped;
     } catch (e) {
       throw Exception('Failed to get anime series info from Kuroiru: $e');
@@ -511,7 +512,7 @@ class KuroiruService {
     try {
       if (seasonNumber != 1) {
         const empty = SeasonData(episodes: []);
-        await _cache.set(cacheKey, empty.toJson(), ttl: CacheService.longCache);
+        await _cache.set(cacheKey, empty.toJson(), ttl: longCache);
         return empty;
       }
 
@@ -537,7 +538,7 @@ class KuroiruService {
         seasonNumber: seasonNumber,
         fallback: mapped,
       );
-      await _cache.set(cacheKey, enriched.toJson(), ttl: CacheService.longCache);
+      await _cache.set(cacheKey, enriched.toJson(), ttl: longCache);
       return enriched;
     } catch (e) {
       throw Exception('Failed to get season info from Kuroiru: $e');
@@ -576,7 +577,7 @@ class KuroiruService {
           'page': 1,
         },
       );
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get anime: $e');
@@ -593,7 +594,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
         return {'results': results};
-      }, CacheService.shortCache);
+      }, shortCache);
     }
 
     if (staleCache != null) {
@@ -602,7 +603,7 @@ class KuroiruService {
 
     try {
       final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.shortCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: shortCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get trending anime: $e');
@@ -619,7 +620,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final results = await _fetchJikanTopAnime(limit: 25);
         return {'results': results};
-      }, CacheService.mediumCache);
+      }, mediumCache);
     }
 
     if (staleCache != null) {
@@ -628,7 +629,7 @@ class KuroiruService {
 
     try {
       final results = await _fetchJikanTopAnime(limit: 25);
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get top rated anime: $e');
@@ -662,7 +663,7 @@ class KuroiruService {
           },
         );
         return {'results': results};
-      }, CacheService.mediumCache);
+      }, mediumCache);
     }
 
     if (staleCache != null) {
@@ -681,7 +682,7 @@ class KuroiruService {
           ..._sortToJikan(sortBy),
         },
       );
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get genre anime: $e');
@@ -719,7 +720,7 @@ class KuroiruService {
         _toSearchResult(details),
       );
 
-      await _cache.set(cacheKey, mapped.toJson(), ttl: CacheService.longCache);
+      await _cache.set(cacheKey, mapped.toJson(), ttl: longCache);
       return mapped;
     } catch (e) {
       throw Exception('Failed to get anime details from Kuroiru: $e');
@@ -734,7 +735,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final details = await _kuroiru.getDetails('$tvId');
         return _toDetailWithVideosMap(tvId, details);
-      }, CacheService.longCache);
+      }, longCache);
       return staleCache;
     }
 
@@ -743,7 +744,7 @@ class KuroiruService {
     try {
       final details = await _kuroiru.getDetails('$tvId');
       final data = await _toDetailWithVideosMap(tvId, details);
-      await _cache.set(cacheKey, data, ttl: CacheService.longCache);
+      await _cache.set(cacheKey, data, ttl: longCache);
 
       return data;
     } catch (e) {
@@ -803,7 +804,7 @@ class KuroiruService {
               .map((item) => item.toJson())
               .toList(growable: false),
         },
-        ttl: CacheService.mediumCache,
+        ttl: mediumCache,
       );
       return jikanRecommendations;
     }
@@ -820,7 +821,7 @@ class KuroiruService {
               .map((item) => item.toJson())
               .toList(growable: false),
         },
-        ttl: CacheService.mediumCache,
+        ttl: mediumCache,
       );
       return animeOnlyPrimary;
     }
@@ -837,7 +838,7 @@ class KuroiruService {
             .map((item) => item.toJson())
             .toList(growable: false),
       },
-      ttl: CacheService.mediumCache,
+      ttl: mediumCache,
     );
     return animeOnlyFallback;
   }
@@ -1008,7 +1009,7 @@ class KuroiruService {
       await _cache.set(
         cacheKey,
         {'poster': poster ?? ''},
-        ttl: CacheService.longCache,
+        ttl: longCache,
       );
 
       return (poster != null && poster.isNotEmpty) ? poster : null;

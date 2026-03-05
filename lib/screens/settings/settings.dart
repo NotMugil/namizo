@@ -48,7 +48,7 @@ class SettingsScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           elevation: 0,
-          backgroundColor: NamizoTheme.netflixBlack,
+          backgroundColor: NamizoTheme.background,
           title: const Text(
             'Settings',
             style: NamizoTheme.pageHeaderStyle,
@@ -78,10 +78,10 @@ class SettingsScreen extends ConsumerWidget {
                 },
                 child: Ink(
                   decoration: BoxDecoration(
-                    color: NamizoTheme.netflixRed.withValues(alpha: 0.14),
+                    color: NamizoTheme.primary.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: NamizoTheme.netflixRed.withValues(alpha: 0.35),
+                      color: NamizoTheme.primary.withValues(alpha: 0.35),
                     ),
                   ),
                   padding: const EdgeInsets.symmetric(
@@ -92,7 +92,7 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                       PhosphorIcon(
                         PhosphorIconsRegular.warning,
-                        color: NamizoTheme.netflixRed,
+                        color: NamizoTheme.primary,
                         size: 22,
                       ),
                       SizedBox(width: 10),
@@ -174,24 +174,6 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   _buildSettingsTile(
                     icon: const PhosphorIcon(
-                      PhosphorIconsRegular.signOut,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    title: 'Logout AniList',
-                    subtitle: 'Disconnect AniList account',
-                    trailing: const PhosphorIcon(
-                      PhosphorIconsRegular.caretRight,
-                      color: Colors.white70,
-                      size: 18,
-                    ),
-                    onTap: () async {
-                      await ref.read(aniListServiceProvider).logout();
-                      ref.read(aniListAccountRefreshProvider.notifier).state++;
-                    },
-                  ),
-                  _buildSettingsTile(
-                    icon: const PhosphorIcon(
                       PhosphorIconsRegular.cloudArrowUp,
                       color: Colors.white,
                       size: 24,
@@ -207,7 +189,7 @@ class SettingsScreen extends ConsumerWidget {
                             .read(aniListAutoSyncProvider.notifier)
                             .setEnabled(value);
                       },
-                      activeThumbColor: NamizoTheme.netflixRed,
+                      activeThumbColor: NamizoTheme.primary,
                     ),
                   ),
                   _buildSettingsTile(
@@ -225,12 +207,137 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     onTap: () => _syncLocalWatchlistToAniList(context, ref),
                   ),
+                  _buildSettingsTile(
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.signOut,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    title: 'Logout AniList',
+                    subtitle: 'Disconnect AniList account',
+                    trailing: const PhosphorIcon(
+                      PhosphorIconsRegular.caretRight,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                    onTap: () async {
+                      await ref.read(aniListServiceProvider).logout();
+                      ref.read(aniListAccountRefreshProvider.notifier).state++;
+                    },
+                  ),
                 ],
               );
             },
             loading: () => const SizedBox.shrink(),
             error: (_, __) => const SizedBox.shrink(),
           ),
+
+                    _buildSectionHeader('Appearance'),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.listNumbers,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Home Feed Order',
+            subtitle:
+                '${homeFeedOrder.length} rows • Tap to reorder sections',
+            trailing: const PhosphorIcon(
+              PhosphorIconsRegular.caretRight,
+              color: Colors.white70,
+              size: 18,
+            ),
+            onTap: () => _showHomeFeedOrderSheet(context, ref),
+          ),
+          // _buildSettingsTile(
+          //   icon: const PhosphorIcon(
+          //     PhosphorIconsRegular.moon,
+          //     color: Colors.white,
+          //     size: 24,
+          //   ),
+          //   title: 'Theme',
+          //   subtitle: themeModeDisplayName(currentThemeMode),
+          //   trailing: const PhosphorIcon(
+          //     PhosphorIconsRegular.caretRight,
+          //     color: Colors.white70,
+          //     size: 18,
+          //   ),
+          //   onTap: () => _showThemeModeDialog(context, ref),
+          // ),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.sparkle,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Animations',
+            subtitle: animationsEnabled ? 'Enabled' : 'Disabled',
+            trailing: Switch(
+              value: animationsEnabled,
+              onChanged: (_) {
+                ref.read(animationsEnabledProvider.notifier).toggle();
+              },
+              activeThumbColor: NamizoTheme.primary,
+            ),
+          ),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.eyeSlash,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Hide Adult Content',
+            subtitle: hideAdultContent ? 'Enabled' : 'Disabled',
+            trailing: Switch(
+              value: hideAdultContent,
+              onChanged: (value) {
+                ref.read(hideAdultContentProvider.notifier).setEnabled(value);
+              },
+              activeThumbColor: NamizoTheme.primary,
+            ),
+          ),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.calendarCheck,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Tracked Only in Schedule',
+            subtitle: scheduleTrackedOnly ? 'Enabled' : 'Disabled',
+            trailing: Switch(
+              value: scheduleTrackedOnly,
+              onChanged: (value) {
+                ref.read(scheduleTrackedOnlyProvider.notifier).setEnabled(value);
+              },
+              activeThumbColor: NamizoTheme.primary,
+            ),
+          ),
+          if (easterEggEnabled)
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.arrowCounterClockwise,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Revert Home Logo',
+              subtitle: 'Switch back to Namizo title text',
+              trailing: const PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                color: Colors.white70,
+                size: 18,
+              ),
+              onTap: () async {
+                await ref.read(easterEggHomeLogoProvider.notifier).setEnabled(false);
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Home logo reverted to Namizo'),
+                    backgroundColor: NamizoTheme.primary,
+                  ),
+                );
+              },
+            ),
+
 
           if (_supportsBackgroundTasks) ...[
             _buildSectionHeader('Notifications'),
@@ -247,7 +354,7 @@ class SettingsScreen extends ConsumerWidget {
                 onChanged: (value) {
                   ref.read(episodeCheckEnabledProvider.notifier).setEnabled(value);
                 },
-                activeThumbColor: NamizoTheme.netflixRed,
+                activeThumbColor: NamizoTheme.primary,
               ),
             ),
             if (episodeCheckEnabled) ...[
@@ -360,113 +467,6 @@ class SettingsScreen extends ConsumerWidget {
               _showClearCacheDialog(context, ref);
             },
           ),
-
-          _buildSectionHeader('Appearance'),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.listNumbers,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Home Feed Order',
-            subtitle:
-                '${homeFeedOrder.length} rows • Tap to reorder sections',
-            trailing: const PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              color: Colors.white70,
-              size: 18,
-            ),
-            onTap: () => _showHomeFeedOrderSheet(context, ref),
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.moon,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Theme',
-            subtitle: themeModeDisplayName(currentThemeMode),
-            trailing: const PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              color: Colors.white70,
-              size: 18,
-            ),
-            onTap: () => _showThemeModeDialog(context, ref),
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.sparkle,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Animations',
-            subtitle: animationsEnabled ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: animationsEnabled,
-              onChanged: (_) {
-                ref.read(animationsEnabledProvider.notifier).toggle();
-              },
-              activeThumbColor: NamizoTheme.netflixRed,
-            ),
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.eyeSlash,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Hide Adult Content',
-            subtitle: hideAdultContent ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: hideAdultContent,
-              onChanged: (value) {
-                ref.read(hideAdultContentProvider.notifier).setEnabled(value);
-              },
-              activeThumbColor: NamizoTheme.netflixRed,
-            ),
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.calendarCheck,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Tracked Only in Schedule',
-            subtitle: scheduleTrackedOnly ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: scheduleTrackedOnly,
-              onChanged: (value) {
-                ref.read(scheduleTrackedOnlyProvider.notifier).setEnabled(value);
-              },
-              activeThumbColor: NamizoTheme.netflixRed,
-            ),
-          ),
-          if (easterEggEnabled)
-            _buildSettingsTile(
-              icon: const PhosphorIcon(
-                PhosphorIconsRegular.arrowCounterClockwise,
-                color: Colors.white,
-                size: 24,
-              ),
-              title: 'Revert Home Logo',
-              subtitle: 'Switch back to Namizo title text',
-              trailing: const PhosphorIcon(
-                PhosphorIconsRegular.caretRight,
-                color: Colors.white70,
-                size: 18,
-              ),
-              onTap: () async {
-                await ref.read(easterEggHomeLogoProvider.notifier).setEnabled(false);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Home logo reverted to Namizo'),
-                    backgroundColor: NamizoTheme.netflixRed,
-                  ),
-                );
-              },
-            ),
-
           _buildSectionHeader('About'),
           FutureBuilder<String>(
             future: _getAppVersionLabel(),
@@ -496,7 +496,7 @@ class SettingsScreen extends ConsumerWidget {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('🎉 Easter egg enabled!'),
-                        backgroundColor: NamizoTheme.netflixRed,
+                        backgroundColor: NamizoTheme.primary,
                       ),
                     );
                   }
@@ -574,6 +574,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     Expanded(
                       child: ReorderableListView.builder(
+                        buildDefaultDragHandles: false,
                         itemCount: editable.length,
                         onReorder: (oldIndex, newIndex) async {
                           if (newIndex > oldIndex) newIndex -= 1;
@@ -587,7 +588,9 @@ class SettingsScreen extends ConsumerWidget {
                         padding: const EdgeInsets.fromLTRB(12, 2, 12, 16),
                         itemBuilder: (context, index) {
                           final key = editable[index];
-                          return Container(
+                          return ReorderableDelayedDragStartListener(
+                            index: index,
+                            child: Container(
                             key: ValueKey('home_feed_$key'),
                             margin: const EdgeInsets.symmetric(vertical: 4),
                             decoration: BoxDecoration(
@@ -608,6 +611,7 @@ class SettingsScreen extends ConsumerWidget {
                                 color: Colors.white60,
                               ),
                             ),
+                            ),
                           );
                         },
                       ),
@@ -624,6 +628,12 @@ class SettingsScreen extends ConsumerWidget {
 
   String _homeFeedLabel(String key) {
     switch (key) {
+      case 'yourList':
+        return 'Your List';
+      case 'planning':
+        return 'Planning to Watch';
+      case 'continueWatching':
+        return 'Continue Watching';
       case 'popular':
         return 'All Time Popular';
       case 'trending':
@@ -697,7 +707,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.surface,
         title: const Text(
           'Clear Watch History?',
           style: TextStyle(color: Colors.white),
@@ -725,14 +735,14 @@ class SettingsScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Watch history cleared successfully'),
-                    backgroundColor: NamizoTheme.netflixRed,
+                    backgroundColor: NamizoTheme.primary,
                   ),
                 );
               }
             },
             child: const Text(
               'Clear',
-              style: TextStyle(color: NamizoTheme.netflixRed),
+              style: TextStyle(color: NamizoTheme.primary),
             ),
           ),
         ],
@@ -744,7 +754,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.surface,
         title: const Text(
           'Clear Cache?',
           style: TextStyle(color: Colors.white),
@@ -780,14 +790,14 @@ class SettingsScreen extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Cache cleared successfully'),
-                    backgroundColor: NamizoTheme.netflixRed,
+                    backgroundColor: NamizoTheme.primary,
                   ),
                 );
               }
             },
             child: const Text(
               'Clear',
-              style: TextStyle(color: NamizoTheme.netflixRed),
+              style: TextStyle(color: NamizoTheme.primary),
             ),
           ),
         ],
@@ -805,7 +815,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.surface,
         title: const Text(
           'Check Frequency',
           style: TextStyle(color: Colors.white),
@@ -833,7 +843,7 @@ class SettingsScreen extends ConsumerWidget {
                     .map(
                       (freq) => RadioListTile<int>(
                         value: freq['value'] as int,
-                        activeColor: NamizoTheme.netflixRed,
+                        activeColor: NamizoTheme.primary,
                         title: Text(
                           freq['label'] as String,
                           style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -856,7 +866,7 @@ class SettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.surface,
         title: const Text(
           'Theme',
           style: TextStyle(color: Colors.white),
@@ -873,7 +883,7 @@ class SettingsScreen extends ConsumerWidget {
             children: const [
               RadioListTile<ThemeMode>(
                 value: ThemeMode.system,
-                activeColor: NamizoTheme.netflixRed,
+                activeColor: NamizoTheme.primary,
                 title: Text(
                   'Follow system',
                   style: TextStyle(color: Colors.white),
@@ -881,7 +891,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
               RadioListTile<ThemeMode>(
                 value: ThemeMode.dark,
-                activeColor: NamizoTheme.netflixRed,
+                activeColor: NamizoTheme.primary,
                 title: Text(
                   'Dark',
                   style: TextStyle(color: Colors.white),
@@ -899,11 +909,11 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.surface,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(color: NamizoTheme.netflixRed),
+            const CircularProgressIndicator(color: NamizoTheme.primary),
             const SizedBox(height: 20),
             const Text(
               'Checking for new episodes...',
@@ -927,7 +937,7 @@ class SettingsScreen extends ConsumerWidget {
                                 ? '🎉 Found $count new episode${count > 1 ? 's' : ''}!'
                                 : 'No new episodes found',
                           ),
-                          backgroundColor: NamizoTheme.netflixRed,
+                          backgroundColor: NamizoTheme.primary,
                         ),
                       );
                     }
@@ -952,7 +962,7 @@ class SettingsScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No local watchlist entries to sync'),
-          backgroundColor: NamizoTheme.netflixRed,
+          backgroundColor: NamizoTheme.primary,
         ),
       );
       return;
@@ -962,11 +972,11 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => const AlertDialog(
-        backgroundColor: NamizoTheme.netflixDarkGrey,
+        backgroundColor: NamizoTheme.surface,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: NamizoTheme.netflixRed),
+            CircularProgressIndicator(color: NamizoTheme.primary),
             SizedBox(height: 16),
             Text(
               'Syncing local watchlist to AniList...',
@@ -992,7 +1002,7 @@ class SettingsScreen extends ConsumerWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: NamizoTheme.netflixRed,
+        backgroundColor: NamizoTheme.primary,
       ),
     );
   }

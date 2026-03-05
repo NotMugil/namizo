@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/utils/status.dart';
-import '../models/watchlist_item.dart';
+import 'package:namizo/models/user/watchlist_item.dart';
 import '../services/watchlist.dart';
 
 final watchlistServiceProvider = Provider<WatchlistService>((ref) {

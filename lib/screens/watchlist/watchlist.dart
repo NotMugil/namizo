@@ -99,18 +99,18 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                     showCheckmark: false,
                     side: BorderSide(
                       color: isSelected
-                          ? NamizoTheme.netflixRed.withValues(alpha: 0.45)
+                          ? NamizoTheme.primary.withValues(alpha: 0.45)
                           : Colors.white.withValues(alpha: 0.14),
                     ),
                     shape: const StadiumBorder(),
-                    selectedColor: NamizoTheme.netflixRed.withValues(alpha: 0.2),
+                    selectedColor: NamizoTheme.primary.withValues(alpha: 0.2),
                     backgroundColor: const Color(0xFF1A1A1A),
                     labelStyle: TextStyle(
                       fontSize: 12,
                       fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                       color: isSelected
-                          ? NamizoTheme.netflixWhite
-                          : NamizoTheme.netflixGrey,
+                          ? NamizoTheme.textPrimary
+                          : NamizoTheme.textSecondary,
                     ),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
@@ -137,7 +137,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
         child: Text(
           'No titles here yet',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: NamizoTheme.netflixGrey,
+            color: NamizoTheme.textSecondary,
           ),
         ),
       );
@@ -181,33 +181,33 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                       fit: BoxFit.cover,
                       width: double.infinity,
                       placeholder: (context, url) => Container(
-                        color: NamizoTheme.netflixDarkGrey,
+                        color: NamizoTheme.surface,
                         child: const Center(
                           child: SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
-                              color: NamizoTheme.netflixRed,
+                              color: NamizoTheme.primary,
                               strokeWidth: 2,
                             ),
                           ),
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        color: NamizoTheme.netflixDarkGrey,
+                        color: NamizoTheme.surface,
                         child: const Icon(
                           Icons.movie_creation_outlined,
-                          color: NamizoTheme.netflixGrey,
+                          color: NamizoTheme.textSecondary,
                           size: 42,
                         ),
                       ),
                     )
                   else
                     Container(
-                      color: NamizoTheme.netflixDarkGrey,
+                      color: NamizoTheme.surface,
                       child: const Icon(
                         Icons.movie_creation_outlined,
-                        color: NamizoTheme.netflixGrey,
+                        color: NamizoTheme.textSecondary,
                         size: 42,
                       ),
                     ),
@@ -250,7 +250,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                               Text(
                                 year,
                                 style: const TextStyle(
-                                  color: NamizoTheme.netflixLightGrey,
+                                  color: NamizoTheme.textTertiary,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -259,7 +259,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                               const Text(
                                 '  •  ',
                                 style: TextStyle(
-                                  color: NamizoTheme.netflixLightGrey,
+                                  color: NamizoTheme.textTertiary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -275,7 +275,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                                   Text(
                                     rating.toStringAsFixed(1),
                                     style: const TextStyle(
-                                      color: NamizoTheme.netflixLightGrey,
+                                      color: NamizoTheme.textTertiary,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                     ),

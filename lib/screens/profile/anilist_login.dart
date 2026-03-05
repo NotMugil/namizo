@@ -102,9 +102,9 @@ class _AniListLoginScreenState extends State<AniListLoginScreen> {
   Widget build(BuildContext context) {
     if (AppConfigurations.anilistOauthClientId.trim().isEmpty) {
       return Scaffold(
-        backgroundColor: NamizoTheme.netflixBlack,
+        backgroundColor: NamizoTheme.background,
         appBar: AppBar(
-          backgroundColor: NamizoTheme.netflixBlack,
+          backgroundColor: NamizoTheme.background,
           elevation: 0,
         ),
         body: const Center(
@@ -121,10 +121,10 @@ class _AniListLoginScreenState extends State<AniListLoginScreen> {
     }
 
     return Scaffold(
-      backgroundColor: NamizoTheme.netflixBlack,
+      backgroundColor: NamizoTheme.background,
       body: _isPreparingLogin
           ? const Center(
-              child: CircularProgressIndicator(color: NamizoTheme.netflixRed),
+              child: CircularProgressIndicator(color: NamizoTheme.primary),
             )
           : InAppWebView(
               initialUrlRequest: URLRequest(url: WebUri.uri(_authorizationUri)),
