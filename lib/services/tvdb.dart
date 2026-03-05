@@ -446,6 +446,53 @@ class TvdbMetadataService {
     return poster;
   }
 
+  Future<List<TvdbSimilarSeries>> getSimilarSeriesForMalId(int malId) async {
+    if (!isEnabled) return const [];
+
+    final mapping = await getMappingForMalId(malId);
+    if (mapping == null || mapping.tvdbId <= 0) return const [];
+
+    final cacheKey = 'tvdb_similar_series_mal_v1_$malId';
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      final rows = cached['items'];
+      if (rows is List) {
+        return rows
+            .whereType<Map>()
+            .map((row) => TvdbSimilarSeries.fromJson(row.cast<String, dynamic>()))
+            .toList(growable: false);
+      }
+    }
+
+    final resolvedSeriesId =
+        await _resolveSeriesIdFromSeasonId(mapping.tvdbId) ?? mapping.tvdbId;
+    final records = await _fetchSimilarSeriesRecords(resolvedSeriesId);
+    if (records.isEmpty) {
+      await _cache.set(cacheKey, {'items': const []}, ttl: CacheService.mediumCache);
+      return const [];
+    }
+
+    final seen = <int>{};
+    final output = <TvdbSimilarSeries>[];
+
+    for (final record in records) {
+      final mapped = await _mapSimilarRecord(record);
+      if (mapped == null) continue;
+      if (mapped.tvdbId != null && !seen.add(mapped.tvdbId!)) continue;
+      if (mapped.title.trim().isEmpty) continue;
+      output.add(mapped);
+      if (output.length >= 18) break;
+    }
+
+    await _cache.set(
+      cacheKey,
+      {'items': output.map((item) => item.toJson()).toList(growable: false)},
+      ttl: CacheService.mediumCache,
+    );
+
+    return output;
+  }
+
   Future<SeasonData> enrichSeasonData({
     required int malId,
     required int seasonNumber,
@@ -537,6 +584,136 @@ class TvdbMetadataService {
     );
 
     return body;
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchSimilarSeriesRecords(int seriesId) async {
+    final ready = await _ensureToken();
+    if (!ready) return const [];
+
+    final endpoints = [
+      '/series/$seriesId/recommendations',
+      '/series/$seriesId/similar',
+      '/series/$seriesId/related',
+    ];
+
+    for (final endpoint in endpoints) {
+      try {
+        final response = await _tvdbDio.get(endpoint);
+        final rows = _extractSimilarRecords(response.data);
+        if (rows.isNotEmpty) return rows;
+      } catch (_) {
+        continue;
+      }
+    }
+
+    final extended = await _fetchSeriesExtended(seriesId);
+    if (extended == null) return const [];
+    return _extractSimilarRecords(extended);
+  }
+
+  List<Map<String, dynamic>> _extractSimilarRecords(dynamic raw) {
+    Map<String, dynamic>? root;
+    if (raw is Map<String, dynamic>) {
+      root = raw;
+    } else if (raw is Map) {
+      root = raw.cast<String, dynamic>();
+    }
+    if (root == null) return const [];
+
+    List<Map<String, dynamic>> collectFrom(dynamic value) {
+      if (value is! List) return const [];
+      return value
+          .whereType<Map>()
+          .map((item) => item.cast<String, dynamic>())
+          .toList(growable: false);
+    }
+
+    final data = root['data'];
+    final directCandidates = [
+      root['recommendations'],
+      root['similar'],
+      root['similars'],
+      root['related'],
+      root['relatedSeries'],
+      data,
+      data is Map ? data['recommendations'] : null,
+      data is Map ? data['similar'] : null,
+      data is Map ? data['similars'] : null,
+      data is Map ? data['related'] : null,
+      data is Map ? data['relatedSeries'] : null,
+      data is Map ? data['series'] : null,
+      data is Map ? data['items'] : null,
+    ];
+
+    for (final candidate in directCandidates) {
+      final rows = collectFrom(candidate);
+      if (rows.isNotEmpty) return rows;
+    }
+
+    return const [];
+  }
+
+  Future<TvdbSimilarSeries?> _mapSimilarRecord(Map<String, dynamic> raw) async {
+    int? tvdbId =
+        _toInt(raw['tvdb_id']) ?? _toInt(raw['id']) ?? _toInt(raw['seriesId']);
+    String? title = _toCleanString(
+      raw['name'] ?? raw['seriesName'] ?? raw['title'],
+    );
+    String? overview = _toCleanString(raw['overview'] ?? raw['summary']);
+    String? image = _toCleanString(raw['image'] ?? raw['poster'] ?? raw['banner']);
+    final score = (raw['score'] as num?)?.toDouble();
+    int? year = _toInt(raw['year']) ?? _extractYearFromDateString(raw['firstAired']?.toString());
+    int? malId = _extractMalIdFromRemoteIds(raw['remoteIds']);
+
+    if (tvdbId != null && (title == null || title.isEmpty || image == null || image.isEmpty)) {
+      final extended = await _fetchSeriesExtended(tvdbId);
+      if (extended != null) {
+        title ??= _toCleanString(
+          extended['name'] ?? extended['seriesName'] ?? extended['title'],
+        );
+        overview ??= _toCleanString(extended['overview'] ?? extended['summary']);
+        image ??= _extractArtworkUrl(
+              extended,
+              typeHints: const ['poster', 'cover', 'keyart', 'banner', 'fanart'],
+            ) ??
+            _extractFirstArtworkField(extended, const ['image', 'poster', 'banner']);
+        year ??= _toInt(extended['year']) ??
+            _extractYearFromDateString(extended['firstAired']?.toString());
+        malId ??= _extractMalIdFromRemoteIds(extended['remoteIds']);
+      }
+    }
+
+    if (title == null || title.isEmpty) return null;
+    return TvdbSimilarSeries(
+      tvdbId: tvdbId,
+      malId: malId,
+      sourceType: 'anime',
+      title: title,
+      overview: overview,
+      imageUrl: image,
+      score: score,
+      year: year,
+    );
+  }
+
+  int? _extractMalIdFromRemoteIds(dynamic remoteIdsRaw) {
+    if (remoteIdsRaw is! List) return null;
+    for (final row in remoteIdsRaw.whereType<Map>()) {
+      final item = row.cast<String, dynamic>();
+      final source = (item['sourceName'] ?? item['source'] ?? item['type'])
+          ?.toString()
+          .toLowerCase();
+      if (source == null || !source.contains('myanimelist')) continue;
+
+      final direct = _toInt(item['id']) ?? _toInt(item['sourceId']) ?? _toInt(item['value']);
+      if (direct != null && direct > 0) return direct;
+
+      final text = item['url']?.toString() ?? item['value']?.toString() ?? '';
+      final match = RegExp(r'/anime/(\d+)').firstMatch(text);
+      final parsed = match == null ? null : int.tryParse(match.group(1)!);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return null;
   }
 
   TvdbMappingEntry? _parseMappingEntry(String yamlContent, int malId) {
@@ -1655,6 +1832,55 @@ class TvdbArtworkMetadata {
       posterUrl: toNullableString(json['posterUrl']),
       bannerUrl: toNullableString(json['bannerUrl']),
       carouselBackdropUrl: toNullableString(json['carouselBackdropUrl']),
+    );
+  }
+}
+
+class TvdbSimilarSeries {
+  final int? tvdbId;
+  final int? malId;
+  final String? sourceType;
+  final String title;
+  final String? overview;
+  final String? imageUrl;
+  final double? score;
+  final int? year;
+
+  const TvdbSimilarSeries({
+    required this.tvdbId,
+    required this.malId,
+    required this.sourceType,
+    required this.title,
+    required this.overview,
+    required this.imageUrl,
+    required this.score,
+    required this.year,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'tvdbId': tvdbId,
+        'malId': malId,
+        'sourceType': sourceType ?? 'anime',
+        'title': title,
+        'overview': overview ?? '',
+        'imageUrl': imageUrl ?? '',
+        'score': score,
+        'year': year,
+      };
+
+  factory TvdbSimilarSeries.fromJson(Map<String, dynamic> json) {
+    final rawScore = json['score'];
+    return TvdbSimilarSeries(
+      tvdbId: (json['tvdbId'] as num?)?.toInt(),
+      malId: (json['malId'] as num?)?.toInt(),
+        sourceType: (json['sourceType']?.toString().trim().isEmpty ?? true)
+          ? 'anime'
+          : json['sourceType']?.toString().trim().toLowerCase(),
+      title: json['title']?.toString() ?? '',
+      overview: json['overview']?.toString(),
+      imageUrl: json['imageUrl']?.toString(),
+      score: rawScore is num ? rawScore.toDouble() : double.tryParse('${rawScore ?? ''}'),
+      year: (json['year'] as num?)?.toInt(),
     );
   }
 }

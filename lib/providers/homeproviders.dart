@@ -53,11 +53,27 @@ List<dynamic> _applyAdultFilter(List<dynamic> items, bool hideAdultContent) {
   }).toList(growable: false);
 }
 
+List<dynamic> _filterFeaturedByStatus(List<dynamic> items) {
+  return items.where((item) {
+    if (item is! Map) return false;
+    final map = Map<String, dynamic>.from(item);
+    final airing = map['airing'] == true;
+    final status = (map['status']?.toString().toLowerCase() ?? '').trim();
+
+    final isCompleted = status.contains('finished') ||
+        status.contains('complete') ||
+        status.contains('completed');
+    return airing || isCompleted;
+  }).toList(growable: false);
+}
+
 final featuredAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final tmdbService = ref.watch(kuroiruServiceProvider);
   final hideAdultContent = ref.watch(hideAdultContentProvider);
   final items = await tmdbService.getFeaturedAnime();
-  return _dedupeRowItems(_applyAdultFilter(items, hideAdultContent));
+  return _dedupeRowItems(
+    _filterFeaturedByStatus(_applyAdultFilter(items, hideAdultContent)),
+  );
 });
 
 final popularAnimeProvider = FutureProvider<List<dynamic>>((ref) async {

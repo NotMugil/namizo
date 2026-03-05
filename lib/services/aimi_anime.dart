@@ -5,15 +5,25 @@ import 'package:namizo/models/stream_result.dart';
 /// Anime streaming via aimi_lib providers (AnimePahe/AllAnime/Anizone).
 class AimiAnimeService {
   static const List<_ProviderConfig> _providerOrder = [
-    _ProviderConfig('aimi-animepahe', _ProviderKind.animePahe),
-    _ProviderConfig('aimi-allanime', _ProviderKind.allAnime),
-    _ProviderConfig('aimi-anizone', _ProviderKind.anizone),
+    _ProviderConfig('AllAnime', _ProviderKind.allAnime),
+    _ProviderConfig('AnimePahe', _ProviderKind.animePahe),
+    _ProviderConfig('Anizone', _ProviderKind.anizone),
   ];
+
+  static int get providerCount => _providerOrder.length;
+
+  static String providerNameAt(int index) {
+    if (index >= 0 && index < _providerOrder.length) {
+      return _providerOrder[index].name;
+    }
+    return 'Unknown';
+  }
 
   Future<StreamResult?> fetchAnimeStream({
     required SearchResult media,
     required int episode,
     String subDubPreference = 'sub',
+    int? providerIndex,
   }) async {
     final queries = _buildQueryCandidates(media);
     if (queries.isEmpty) {
@@ -21,7 +31,8 @@ class AimiAnimeService {
       return null;
     }
 
-    for (final config in _providerOrder) {
+    final providers = _providerConfigsFor(providerIndex);
+    for (final config in providers) {
       final provider = _createProvider(config.kind);
       try {
         for (final query in queries) {
@@ -92,6 +103,14 @@ class AimiAnimeService {
     }
 
     return null;
+  }
+
+  List<_ProviderConfig> _providerConfigsFor(int? providerIndex) {
+    if (providerIndex == null) return _providerOrder;
+    if (providerIndex < 0 || providerIndex >= _providerOrder.length) {
+      return const [];
+    }
+    return [_providerOrder[providerIndex]];
   }
 
   List<StreamSource> _mapSources(List<aimi.StreamSource> raw) {

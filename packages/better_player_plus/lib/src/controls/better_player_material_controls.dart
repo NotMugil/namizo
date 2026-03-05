@@ -6,6 +6,7 @@ import 'package:better_player_plus/src/controls/better_player_overflow_menu_item
 import 'package:better_player_plus/src/controls/better_player_material_progress_bar.dart';
 import 'package:better_player_plus/src/controls/better_player_multiple_gesture_detector.dart';
 import 'package:better_player_plus/src/controls/better_player_progress_colors.dart';
+import 'package:better_player_plus/src/configuration/better_player_controller_event.dart';
 import 'package:better_player_plus/src/core/better_player_controller.dart';
 import 'package:better_player_plus/src/core/better_player_utils.dart';
 import 'package:better_player_plus/src/video_player/video_player.dart';
@@ -41,6 +42,7 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
   VideoPlayerController? _controller;
   BetterPlayerController? _betterPlayerController;
   StreamSubscription<dynamic>? _controlsVisibilityStreamSubscription;
+  StreamSubscription<dynamic>? _controllerEventStreamSubscription;
 
   BetterPlayerControlsConfiguration get _controlsConfiguration => widget.controlsConfiguration;
 
@@ -59,6 +61,10 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
   ///Builds main widget of the controls.
   Widget _buildMainWidget() {
     _wasLoading = isLoading(_latestValue);
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+    final showBackdrop =
+        _controlsConfiguration.enableControlsBackdrop &&
+        (!isPortrait || _betterPlayerController!.isFullScreen);
     if (_latestValue?.hasError ?? false) {
       return ColoredBox(color: Colors.black, child: _buildErrorWidget());
     }
@@ -93,7 +99,7 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (_controlsConfiguration.enableControlsBackdrop)
+            if (showBackdrop)
               Positioned(
                 top: 0,
                 left: 0,
@@ -118,7 +124,7 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
                   ),
                 ),
               ),
-            if (_controlsConfiguration.enableControlsBackdrop)
+            if (showBackdrop)
               Positioned(
                 bottom: 0,
                 left: 0,
@@ -165,6 +171,7 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
     _initTimer?.cancel();
     _showAfterExpandCollapseTimer?.cancel();
     _controlsVisibilityStreamSubscription?.cancel();
+    _controllerEventStreamSubscription?.cancel();
   }
 
   @override
@@ -215,24 +222,34 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
       return const SizedBox();
     }
 
-    return Container(
-      child: (_controlsConfiguration.enablePip)
-          ? AnimatedOpacity(
-              opacity: controlsNotVisible ? 0.0 : 1.0,
-              duration: _controlsConfiguration.controlsHideTime,
-              onEnd: _onPlayerHide,
-              child: SizedBox(
-                height: _controlsConfiguration.controlBarHeight,
-                width: double.infinity,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    _buildPipButtonWrapperWidget(controlsNotVisible, _onPlayerHide),
-                  ],
-                ),
-              ),
-            )
-          : const SizedBox(),
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+    final showInternalOverflowMenu =
+        _controlsConfiguration.enableOverflowMenu &&
+        (!isPortrait || _betterPlayerController!.isFullScreen);
+
+    return AnimatedOpacity(
+      opacity: controlsNotVisible ? 0.0 : 1.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      onEnd: _onPlayerHide,
+      child: SizedBox(
+        height: _controlsConfiguration.controlBarHeight,
+        width: double.infinity,
+        child: Padding(
+          padding: EdgeInsets.only(
+            right: _betterPlayerController!.isFullScreen ? 12 : 0,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_controlsConfiguration.enablePip)
+                _buildPipButtonWrapperWidget(controlsNotVisible, _onPlayerHide),
+              if (_controlsConfiguration.topRightCustomControlBuilder != null)
+                _controlsConfiguration.topRightCustomControlBuilder!(context),
+              if (showInternalOverflowMenu) _buildMoreButton(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -385,7 +402,6 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
     children: [
       if (_episodesMenuItem != null) _buildEpisodesButton(_episodesMenuItem!),
       if (_controlsConfiguration.enableFullscreen) _buildExpandButton(),
-      if (_controlsConfiguration.enableOverflowMenu) _buildMoreButton(),
     ],
   );
 
@@ -626,6 +642,14 @@ class _BetterPlayerMaterialControlsState extends BetterPlayerControlsState<Bette
       changePlayerControlsNotVisible(!state);
       if (!controlsNotVisible) {
         cancelAndRestartTimer();
+      }
+    });
+
+    _controllerEventStreamSubscription = _betterPlayerController!.controllerEventStream.listen((event) {
+      if (event == BetterPlayerControllerEvent.openOverflowMenu &&
+          _controlsConfiguration.enableOverflowMenu) {
+        cancelAndRestartTimer();
+        onShowMoreClicked();
       }
     });
   }

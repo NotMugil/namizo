@@ -17,4 +17,7 @@ enum BetterPlayerControllerEvent {
 
   ///Video set fit.
   setFit,
+
+  ///Request controls to open overflow menu.
+  openOverflowMenu,
 }

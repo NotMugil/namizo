@@ -331,6 +331,25 @@ abstract class BetterPlayerControlsState<T extends StatefulWidget> extends State
   }
 
   void _showAudioTracksSelectionWidget() {
+    final customAudioItems = betterPlayerControlsConfiguration.audioOverflowMenuItems;
+    if (customAudioItems.isNotEmpty) {
+      _showModalBottomSheet(
+        customAudioItems
+            .map(
+              (customItem) => _buildMoreOptionsListRow(
+                customItem.icon,
+                customItem.title,
+                () {
+                  Navigator.of(context).pop();
+                  customItem.onClicked.call();
+                },
+              ),
+            )
+            .toList(growable: false),
+      );
+      return;
+    }
+
     //HLS / DASH
     final List<BetterPlayerAsmsAudioTrack>? asmsTracks = betterPlayerController!.betterPlayerAsmsAudioTracks;
     final List<Widget> children = [];

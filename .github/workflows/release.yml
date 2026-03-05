@@ -40,11 +40,14 @@ jobs:
       - name: Build release APK
         env:
           TVDB_API_KEY: ${{ secrets['TVDB_API_KEY'] }}
-          TVDB_PIN: ${{ secrets['TVDB_PIN'] }}
+          ANILIST_CLIENT_ID: ${{ secrets['ANILIST_CLIENT_ID'] }}
         run: |
           BUILD_CMD="flutter build apk --release"
           if [ -n "$TVDB_API_KEY" ]; then
             BUILD_CMD="$BUILD_CMD --dart-define=TVDB_API_KEY=$TVDB_API_KEY"
+          fi
+          if [ -n "$ANILIST_CLIENT_ID" ]; then
+            BUILD_CMD="$BUILD_CMD --dart-define=ANILIST_CLIENT_ID=$ANILIST_CLIENT_ID"
           fi
           if [ -n "$TVDB_PIN" ]; then
             BUILD_CMD="$BUILD_CMD --dart-define=TVDB_PIN=$TVDB_PIN"

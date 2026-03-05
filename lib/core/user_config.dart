@@ -18,4 +18,14 @@ class UserConfig {
   static const String defaultVideoQuality = 'auto';
   static const String defaultAnimeSubDubPreference = 'sub';
   static const String defaultThemeMode = 'system';
+  static const bool defaultAniListAutoSync = true;
+  static const List<String> defaultHomeFeedOrder = [
+    'popular',
+    'trending',
+    'topRated',
+    'romance',
+    'action',
+    'adventure',
+    'fantasy',
+  ];
 }

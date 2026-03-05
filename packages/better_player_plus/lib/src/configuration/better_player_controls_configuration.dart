@@ -44,6 +44,7 @@ class BetterPlayerControlsConfiguration {
     this.enablePip = true,
     this.enableRetry = true,
     this.overflowMenuCustomItems = const [],
+    this.audioOverflowMenuItems = const [],
     this.overflowMenuIcon = Icons.more_vert_outlined,
     this.pipMenuIcon = Icons.picture_in_picture_outlined,
     this.playbackSpeedIcon = Icons.shutter_speed_outlined,
@@ -64,6 +65,7 @@ class BetterPlayerControlsConfiguration {
     this.controlsBackdropBottomHeight = 140.0,
     this.controlsVisibilityTimeout = const Duration(seconds: 3),
     this.controlsToggleOnTap = true,
+    this.topRightCustomControlBuilder,
   });
 
   factory BetterPlayerControlsConfiguration.white() => const BetterPlayerControlsConfiguration(
@@ -208,6 +210,10 @@ class BetterPlayerControlsConfiguration {
   ///Custom items of overflow menu
   final List<BetterPlayerOverflowMenuItem> overflowMenuCustomItems;
 
+  ///Custom items shown in the audio section drawer.
+  ///When provided, these are used instead of built-in audio track entries.
+  final List<BetterPlayerOverflowMenuItem> audioOverflowMenuItems;
+
   ///Icon of the overflow menu
   final IconData overflowMenuIcon;
 
@@ -267,4 +273,7 @@ class BetterPlayerControlsConfiguration {
 
   ///When true, single tap toggles controls visibility.
   final bool controlsToggleOnTap;
+
+  ///Optional custom control rendered at top-right (next to overflow menu).
+  final Widget Function(BuildContext context)? topRightCustomControlBuilder;
 }

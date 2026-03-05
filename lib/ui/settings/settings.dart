@@ -6,6 +6,7 @@ import 'package:namizo/providers/homeproviders.dart';
 import 'package:namizo/providers/serviceproviders.dart';
 import 'package:namizo/providers/settingsproviders.dart';
 import 'package:namizo/providers/watchhistoryprovider.dart';
+import 'package:namizo/providers/watchlistprovider.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -24,9 +25,11 @@ class SettingsScreen extends ConsumerWidget {
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
     final currentThemeMode = ref.watch(themeModeProvider);
     final lastCheckAsync = ref.watch(lastEpisodeCheckTimeProvider);
+    final aniListAutoSync = ref.watch(aniListAutoSyncProvider);
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
     final hideAdultContent = ref.watch(hideAdultContentProvider);
     final scheduleTrackedOnly = ref.watch(scheduleTrackedOnlyProvider);
+    final homeFeedOrder = ref.watch(homeFeedOrderProvider);
     void handleBack() {
       if (context.canPop()) {
         context.pop();
@@ -187,6 +190,41 @@ class SettingsScreen extends ConsumerWidget {
                       ref.read(aniListAccountRefreshProvider.notifier).state++;
                     },
                   ),
+                  _buildSettingsTile(
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.cloudArrowUp,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    title: 'Auto AniList Sync',
+                    subtitle: aniListAutoSync
+                        ? 'Automatically sync add/remove/progress'
+                        : 'Manual sync only',
+                    trailing: Switch(
+                      value: aniListAutoSync,
+                      onChanged: (value) {
+                        ref
+                            .read(aniListAutoSyncProvider.notifier)
+                            .setEnabled(value);
+                      },
+                      activeThumbColor: NamizoTheme.netflixRed,
+                    ),
+                  ),
+                  _buildSettingsTile(
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.arrowsClockwise,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    title: 'Sync Local Watchlist',
+                    subtitle: 'Push local watchlist entries to AniList planning',
+                    trailing: const PhosphorIcon(
+                      PhosphorIconsRegular.caretRight,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                    onTap: () => _syncLocalWatchlistToAniList(context, ref),
+                  ),
                 ],
               );
             },
@@ -324,6 +362,22 @@ class SettingsScreen extends ConsumerWidget {
           ),
 
           _buildSectionHeader('Appearance'),
+          _buildSettingsTile(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.listNumbers,
+              color: Colors.white,
+              size: 24,
+            ),
+            title: 'Home Feed Order',
+            subtitle:
+                '${homeFeedOrder.length} rows • Tap to reorder sections',
+            trailing: const PhosphorIcon(
+              PhosphorIconsRegular.caretRight,
+              color: Colors.white70,
+              size: 18,
+            ),
+            onTap: () => _showHomeFeedOrderSheet(context, ref),
+          ),
           _buildSettingsTile(
             icon: const PhosphorIcon(
               PhosphorIconsRegular.moon,
@@ -475,6 +529,118 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showHomeFeedOrderSheet(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final currentOrder = ref.read(homeFeedOrderProvider);
+    final editable = List<String>.from(currentOrder);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF111111),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.72,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
+                      child: Text(
+                        'Reorder Home Feed',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Text(
+                        'Drag rows to change their order on the Home page.',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                    Expanded(
+                      child: ReorderableListView.builder(
+                        itemCount: editable.length,
+                        onReorder: (oldIndex, newIndex) async {
+                          if (newIndex > oldIndex) newIndex -= 1;
+                          final item = editable.removeAt(oldIndex);
+                          editable.insert(newIndex, item);
+                          setModalState(() {});
+                          await ref
+                              .read(homeFeedOrderProvider.notifier)
+                              .setOrder(editable);
+                        },
+                        padding: const EdgeInsets.fromLTRB(12, 2, 12, 16),
+                        itemBuilder: (context, index) {
+                          final key = editable[index];
+                          return Container(
+                            key: ValueKey('home_feed_$key'),
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
+                            ),
+                            child: ListTile(
+                              dense: true,
+                              title: Text(
+                                _homeFeedLabel(key),
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              trailing: const Icon(
+                                Icons.drag_handle,
+                                color: Colors.white60,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _homeFeedLabel(String key) {
+    switch (key) {
+      case 'popular':
+        return 'All Time Popular';
+      case 'trending':
+        return 'Trending Now';
+      case 'topRated':
+        return 'Top Rated Anime';
+      case 'romance':
+        return 'Romance';
+      case 'action':
+        return 'Action';
+      case 'adventure':
+        return 'Adventure';
+      case 'fantasy':
+        return 'Fantasy';
+      default:
+        return key;
+    }
   }
 
   Future<String> _getAppVersionLabel() async {
@@ -772,6 +938,61 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _syncLocalWatchlistToAniList(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final watchlistService = ref.read(watchlistServiceProvider);
+    final localItems = watchlistService.getAllItems();
+    if (localItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No local watchlist entries to sync'),
+          backgroundColor: NamizoTheme.netflixRed,
+        ),
+      );
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => const AlertDialog(
+        backgroundColor: NamizoTheme.netflixDarkGrey,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(color: NamizoTheme.netflixRed),
+            SizedBox(height: 16),
+            Text(
+              'Syncing local watchlist to AniList...',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final result = await ref
+        .read(aniListServiceProvider)
+        .syncPlanningForMalIds(localItems.map((item) => item.id));
+
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    ref.read(aniListAccountRefreshProvider.notifier).state++;
+
+    final message = result.failed > 0
+        ? 'Synced ${result.synced}/${result.attempted} entries to AniList'
+        : 'Synced ${result.synced} entries to AniList';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: NamizoTheme.netflixRed,
       ),
     );
   }
