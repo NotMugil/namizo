@@ -34,8 +34,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Timer? _searchDebounce;
 
   String _typeFilter = 'all';
-  String _scoreFilter = 'all';
-  String _yearFilter = 'all';
+  double? _minScoreFilter;
+  int? _minYearFilter;
 
   @override
   void initState() {
@@ -82,47 +82,66 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
               child: _buildSearchBar(context, sortBy),
             ),
-            SizedBox(
-              height: 42,
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _filterChip(
-                    label: _typeFilterLabel(_typeFilter),
-                    isActive: _typeFilter != 'all',
-                    onTap: () => _showTypeFilterSheet(context),
+            Builder(
+              builder: (context) {
+                final hasActiveFilters = _typeFilter != 'all' ||
+                    _minScoreFilter != null ||
+                    _minYearFilter != null;
+                return SizedBox(
+                  height: 42,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          scrollDirection: Axis.horizontal,
+                          children: [
+                            _filterChip(
+                              label: _typeFilterLabel(_typeFilter),
+                              isActive: _typeFilter != 'all',
+                              onTap: () => _showTypeFilterSheet(context),
+                            ),
+                            const SizedBox(width: 8),
+                            _filterChip(
+                              label: _scoreFilterLabel(_minScoreFilter),
+                              isActive: _minScoreFilter != null,
+                              onTap: () => _showScoreFilterSheet(context),
+                            ),
+                            const SizedBox(width: 8),
+                            _filterChip(
+                              label: _yearFilterLabel(_minYearFilter),
+                              isActive: _minYearFilter != null,
+                              onTap: () => _showYearFilterSheet(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (hasActiveFilters)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: NamizoTheme.primary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _typeFilter = 'all';
+                                _minScoreFilter = null;
+                                _minYearFilter = null;
+                              });
+                              _refetchForFilters();
+                            },
+                            child: const Text('Reset'),
+                          ),
+                        ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  _filterChip(
-                    label: _scoreFilterLabel(_scoreFilter),
-                    isActive: _scoreFilter != 'all',
-                    onTap: () => _showScoreFilterSheet(context),
-                  ),
-                  const SizedBox(width: 8),
-                  _filterChip(
-                    label: _yearFilterLabel(_yearFilter),
-                    isActive: _yearFilter != 'all',
-                    onTap: () => _showYearFilterSheet(context),
-                  ),
-                  if (_typeFilter != 'all' ||
-                      _scoreFilter != 'all' ||
-                      _yearFilter != 'all') ...[
-                    const SizedBox(width: 8),
-                    _filterChip(
-                      label: 'Reset',
-                      isActive: false,
-                      onTap: () {
-                        setState(() {
-                          _typeFilter = 'all';
-                          _scoreFilter = 'all';
-                          _yearFilter = 'all';
-                        });
-                      },
-                    ),
-                  ],
-                ],
-              ),
+                );
+              },
             ),
             const SizedBox(height: 8),
             Padding(
@@ -361,39 +380,157 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       },
     );
     if (value == null) return;
+    if (_typeFilter == value) return;
     setState(() => _typeFilter = value);
+    _refetchForFilters();
   }
 
   Future<void> _showScoreFilterSheet(BuildContext context) async {
-    final value = await _showFilterSheet(
-      context,
-      title: 'Score',
-      currentValue: _scoreFilter,
-      options: const {
-        'all': 'All scores',
-        'gte7': '7.0 and above',
-        'gte8': '8.0 and above',
-        'gte9': '9.0 and above',
+    var temp = _minScoreFilter ?? 7.0;
+    final selected = await showModalBottomSheet<double?>(
+      context: context,
+      backgroundColor: const Color(0xFF101216),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Minimum Score',
+                      style: TextStyle(
+                        color: NamizoTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${temp.toStringAsFixed(1)}+',
+                      style: const TextStyle(
+                        color: NamizoTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Slider(
+                      min: 0,
+                      max: 10,
+                      divisions: 20,
+                      value: temp,
+                      label: temp.toStringAsFixed(1),
+                      activeColor: NamizoTheme.primary,
+                      onChanged: (value) {
+                        setModalState(() => temp = value);
+                      },
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(null),
+                          child: const Text('Clear'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(temp),
+                          child: const Text('Apply'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       },
     );
-    if (value == null) return;
-    setState(() => _scoreFilter = value);
+    if (!mounted) return;
+    if (_minScoreFilter == selected) return;
+    setState(() => _minScoreFilter = selected);
+    _refetchForFilters();
   }
 
   Future<void> _showYearFilterSheet(BuildContext context) async {
-    final value = await _showFilterSheet(
-      context,
-      title: 'Year',
-      currentValue: _yearFilter,
-      options: const {
-        'all': 'All years',
-        'y2020': '2020+',
-        'y2015': '2015+',
-        'older': 'Before 2015',
+    final currentYear = DateTime.now().year;
+    var temp = (_minYearFilter ?? 2015).toDouble();
+
+    final selected = await showModalBottomSheet<int?>(
+      context: context,
+      backgroundColor: const Color(0xFF101216),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Minimum Year',
+                      style: TextStyle(
+                        color: NamizoTheme.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${temp.round()}+',
+                      style: const TextStyle(
+                        color: NamizoTheme.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                    Slider(
+                      min: 1980,
+                      max: currentYear.toDouble(),
+                      divisions: currentYear - 1980,
+                      value: temp,
+                      label: temp.round().toString(),
+                      activeColor: NamizoTheme.primary,
+                      onChanged: (value) {
+                        setModalState(() => temp = value.roundToDouble());
+                      },
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(null),
+                          child: const Text('Clear'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(temp.round()),
+                          child: const Text('Apply'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
       },
     );
-    if (value == null) return;
-    setState(() => _yearFilter = value);
+    if (!mounted) return;
+    if (_minYearFilter == selected) return;
+    setState(() => _minYearFilter = selected);
+    _refetchForFilters();
   }
 
   Future<String?> _showFilterSheet(
@@ -492,34 +629,17 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
   }
 
-  String _scoreFilterLabel(String value) {
-    switch (value) {
-      case 'gte7':
-        return 'Score 7+';
-      case 'gte8':
-        return 'Score 8+';
-      case 'gte9':
-        return 'Score 9+';
-      default:
-        return 'Score';
-    }
+  String _scoreFilterLabel(double? value) {
+    if (value == null) return 'Score';
+    return 'Score ${value.toStringAsFixed(1)}+';
   }
 
-  String _yearFilterLabel(String value) {
-    switch (value) {
-      case 'y2020':
-        return '2020+';
-      case 'y2015':
-        return '2015+';
-      case 'older':
-        return '< 2015';
-      default:
-        return 'Year';
-    }
+  String _yearFilterLabel(int? value) {
+    if (value == null) return 'Year';
+    return '$value+';
   }
 
   void _setSort(String value) {
-    if (value == ref.read(searchSortProvider)) return;
     ref.read(searchSortProvider.notifier).state = value;
     _runSearch(ref.read(searchQueryProvider));
   }
@@ -564,6 +684,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.invalidate(searchResultsProvider);
   }
 
+  void _refetchForFilters() {
+    _runSearch(ref.read(searchQueryProvider));
+  }
+
   List<SearchResult> _applyFilters(List<SearchResult> input) {
     return input.where((item) {
       if (_typeFilter != 'all' &&
@@ -572,14 +696,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       }
 
       final score = item.voteAverage ?? 0;
-      if (_scoreFilter == 'gte7' && score < 7) return false;
-      if (_scoreFilter == 'gte8' && score < 8) return false;
-      if (_scoreFilter == 'gte9' && score < 9) return false;
+      if (_minScoreFilter != null && score < _minScoreFilter!) return false;
 
       final year = _extractYear(item);
-      if (_yearFilter == 'y2020' && (year == null || year < 2020)) return false;
-      if (_yearFilter == 'y2015' && (year == null || year < 2015)) return false;
-      if (_yearFilter == 'older' && (year == null || year >= 2015)) return false;
+      if (_minYearFilter != null && (year == null || year < _minYearFilter!)) {
+        return false;
+      }
 
       return true;
     }).toList(growable: false);
