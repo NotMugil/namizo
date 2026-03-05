@@ -1,9 +1,10 @@
 import 'package:dio/dio.dart';
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/core/user_config.dart';
-import 'package:namizo/models/season_info.dart';
-import 'package:namizo/core/cache/cache_service.dart';
+import 'package:namizo/core/defaults.dart';
+import 'package:namizo/models/media/season_info.dart';
+import 'package:namizo/models/tvdb/tvdb_models.dart';
+import 'package:namizo/core/cache.dart';
 
 class TvdbMetadataService {
   static const String _mappingUrl = AppConfigurations.tvdbMappingUrl;
@@ -69,7 +70,7 @@ class TvdbMetadataService {
         await _cache.set(
           cacheKey,
           parsed.toJson(),
-          ttl: CacheService.longCache,
+          ttl: longCache,
         );
       }
 
@@ -333,7 +334,7 @@ class TvdbMetadataService {
     await _cache.set(
       cacheKey,
       {'logo': logo ?? ''},
-      ttl: CacheService.longCache,
+      ttl: longCache,
     );
 
     return logo;
@@ -367,7 +368,7 @@ class TvdbMetadataService {
     await _cache.set(
       cacheKey,
       {'clearlogo': clearLogo ?? ''},
-      ttl: CacheService.longCache,
+      ttl: longCache,
     );
 
     return clearLogo;
@@ -409,7 +410,7 @@ class TvdbMetadataService {
     await _cache.set(
       cacheKey,
       artwork.toJson(),
-      ttl: CacheService.longCache,
+      ttl: longCache,
     );
 
     return artwork;
@@ -468,7 +469,7 @@ class TvdbMetadataService {
         await _resolveSeriesIdFromSeasonId(mapping.tvdbId) ?? mapping.tvdbId;
     final records = await _fetchSimilarSeriesRecords(resolvedSeriesId);
     if (records.isEmpty) {
-      await _cache.set(cacheKey, {'items': const []}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'items': const []}, ttl: mediumCache);
       return const [];
     }
 
@@ -487,7 +488,7 @@ class TvdbMetadataService {
     await _cache.set(
       cacheKey,
       {'items': output.map((item) => item.toJson()).toList(growable: false)},
-      ttl: CacheService.mediumCache,
+      ttl: mediumCache,
     );
 
     return output;
@@ -559,7 +560,7 @@ class TvdbMetadataService {
     }
 
     final enriched = SeasonData(episodes: enrichedEpisodes);
-    await _cache.set(cacheKey, enriched.toJson(), ttl: CacheService.longCache);
+    await _cache.set(cacheKey, enriched.toJson(), ttl: longCache);
     return enriched;
   }
 
@@ -580,7 +581,7 @@ class TvdbMetadataService {
     await _cache.set(
       cacheKey,
       {'content': body},
-      ttl: CacheService.longCache,
+      ttl: longCache,
     );
 
     return body;
@@ -1247,7 +1248,7 @@ class TvdbMetadataService {
         await _cache.set(
           cacheKey,
           translation.toJson(),
-          ttl: CacheService.longCache,
+          ttl: longCache,
         );
 
         if (translation.hasContent) {
@@ -1261,7 +1262,7 @@ class TvdbMetadataService {
     await _cache.set(
       cacheKey,
       const _EpisodeEnglishTranslation(name: null, overview: null).toJson(),
-      ttl: CacheService.mediumCache,
+      ttl: mediumCache,
     );
     return null;
   }
@@ -1645,7 +1646,7 @@ class TvdbMetadataService {
       }
 
       if (map.isNotEmpty) {
-        await _cache.set(cacheKey, map, ttl: CacheService.longCache);
+        await _cache.set(cacheKey, map, ttl: longCache);
         _artworkTypeById = map;
       }
 
@@ -1763,125 +1764,6 @@ class TvdbMetadataService {
       }
     }
     return null;
-  }
-}
-
-class TvdbMappingEntry {
-  final int malId;
-  final int tvdbId;
-  final int tvdbSeason;
-  final int start;
-  final bool useMapping;
-
-  const TvdbMappingEntry({
-    required this.malId,
-    required this.tvdbId,
-    required this.tvdbSeason,
-    required this.start,
-    required this.useMapping,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'malId': malId,
-        'tvdbId': tvdbId,
-        'tvdbSeason': tvdbSeason,
-        'start': start,
-        'useMapping': useMapping,
-      };
-
-  factory TvdbMappingEntry.fromJson(Map<String, dynamic> json) {
-    return TvdbMappingEntry(
-      malId: (json['malId'] as num?)?.toInt() ?? 0,
-      tvdbId: (json['tvdbId'] as num?)?.toInt() ?? 0,
-      tvdbSeason: (json['tvdbSeason'] as num?)?.toInt() ?? 1,
-      start: (json['start'] as num?)?.toInt() ?? 0,
-      useMapping: json['useMapping'] as bool? ?? false,
-    );
-  }
-}
-
-class TvdbArtworkMetadata {
-  final String? logoUrl;
-  final String? posterUrl;
-  final String? bannerUrl;
-  final String? carouselBackdropUrl;
-
-  const TvdbArtworkMetadata({
-    this.logoUrl,
-    this.posterUrl,
-    this.bannerUrl,
-    this.carouselBackdropUrl,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'logoUrl': logoUrl ?? '',
-        'posterUrl': posterUrl ?? '',
-        'bannerUrl': bannerUrl ?? '',
-        'carouselBackdropUrl': carouselBackdropUrl ?? '',
-      };
-
-  factory TvdbArtworkMetadata.fromJson(Map<String, dynamic> json) {
-    String? toNullableString(dynamic value) {
-      final normalized = value?.toString().trim();
-      if (normalized == null || normalized.isEmpty) return null;
-      return normalized;
-    }
-
-    return TvdbArtworkMetadata(
-      logoUrl: toNullableString(json['logoUrl']),
-      posterUrl: toNullableString(json['posterUrl']),
-      bannerUrl: toNullableString(json['bannerUrl']),
-      carouselBackdropUrl: toNullableString(json['carouselBackdropUrl']),
-    );
-  }
-}
-
-class TvdbSimilarSeries {
-  final int? tvdbId;
-  final int? malId;
-  final String? sourceType;
-  final String title;
-  final String? overview;
-  final String? imageUrl;
-  final double? score;
-  final int? year;
-
-  const TvdbSimilarSeries({
-    required this.tvdbId,
-    required this.malId,
-    required this.sourceType,
-    required this.title,
-    required this.overview,
-    required this.imageUrl,
-    required this.score,
-    required this.year,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'tvdbId': tvdbId,
-        'malId': malId,
-        'sourceType': sourceType ?? 'anime',
-        'title': title,
-        'overview': overview ?? '',
-        'imageUrl': imageUrl ?? '',
-        'score': score,
-        'year': year,
-      };
-
-  factory TvdbSimilarSeries.fromJson(Map<String, dynamic> json) {
-    final rawScore = json['score'];
-    return TvdbSimilarSeries(
-      tvdbId: (json['tvdbId'] as num?)?.toInt(),
-      malId: (json['malId'] as num?)?.toInt(),
-        sourceType: (json['sourceType']?.toString().trim().isEmpty ?? true)
-          ? 'anime'
-          : json['sourceType']?.toString().trim().toLowerCase(),
-      title: json['title']?.toString() ?? '',
-      overview: json['overview']?.toString(),
-      imageUrl: json['imageUrl']?.toString(),
-      score: rawScore is num ? rawScore.toDouble() : double.tryParse('${rawScore ?? ''}'),
-      year: (json['year'] as num?)?.toInt(),
-    );
   }
 }
 

@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
+import 'package:namizo/models/media/search_result.dart';
 
 class AniListService {
   AniListService({Dio? dio})
@@ -209,6 +210,100 @@ query MediaListEntryByMedia($mediaId: Int) {
 }
 ''';
 
+  static const String _airingScheduleRangeQuery = r'''
+query AiringScheduleRange($page: Int, $from: Int, $to: Int) {
+  Page(page: $page, perPage: 50) {
+    pageInfo {
+      hasNextPage
+    }
+    airingSchedules(
+      airingAt_greater: $from
+      airingAt_lesser: $to
+      sort: TIME
+    ) {
+      airingAt
+      episode
+      media {
+        idMal
+        episodes
+        averageScore
+        title {
+          userPreferred
+          english
+          romaji
+        }
+        coverImage {
+          large
+        }
+      }
+    }
+  }
+}
+''';
+
+  static const String _animeSearchQuery = r'''
+query AnimeSearch(
+  $page: Int,
+  $perPage: Int,
+  $search: String,
+  $sort: [MediaSort],
+  $genreIn: [String],
+  $statusIn: [MediaStatus],
+  $formatIn: [MediaFormat],
+  $season: MediaSeason,
+  $seasonYear: Int,
+  $startDateGreater: FuzzyDateInt,
+  $startDateLesser: FuzzyDateInt
+) {
+  Page(page: $page, perPage: $perPage) {
+    pageInfo {
+      total
+      lastPage
+      hasNextPage
+    }
+    media(
+      type: ANIME,
+      search: $search,
+      sort: $sort,
+      genre_in: $genreIn,
+      status_in: $statusIn,
+      format_in: $formatIn,
+      season: $season,
+      seasonYear: $seasonYear,
+      startDate_greater: $startDateGreater,
+      startDate_lesser: $startDateLesser,
+      isAdult: false
+    ) {
+      idMal
+      title {
+        userPreferred
+        english
+        romaji
+      }
+      coverImage {
+        large
+      }
+      bannerImage
+      averageScore
+      episodes
+      status
+      format
+      genres
+      startDate {
+        year
+        month
+        day
+      }
+      description(asHtml: false)
+    }
+  }
+}
+''';
+
+  final Map<int, List<String>> _genreLabelsByMalId = <int, List<String>>{};
+  final Map<int, String?> _statusByMalId = <int, String?>{};
+  final Map<String, _CachedSearchPage> _searchPageCache = {};
+
   static const String _saveMediaListEntryMutation = r'''
 mutation SaveMediaListEntry($id: Int, $mediaId: Int, $status: MediaListStatus, $progress: Int) {
   SaveMediaListEntry(id: $id, mediaId: $mediaId, status: $status, progress: $progress) {
@@ -289,6 +384,447 @@ mutation DeleteMediaListEntry($id: Int) {
   Future<bool> isLoggedIn() async {
     final viewer = await getViewerProfile();
     return viewer != null;
+  }
+
+  Future<SearchResults> searchAnime(
+    String query, {
+    int page = 1,
+    String? language,
+    String? sortBy,
+    List<String>? genreLabels,
+    List<String>? statuses,
+    List<String>? formats,
+    String? season,
+    int? startYear,
+    int? endYear,
+    double? minScore,
+  }) async {
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty) {
+      return const SearchResults(
+        page: 0,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
+    }
+
+    return _queryAnimePage(
+      page: page,
+      search: normalizedQuery,
+      sortBy: sortBy,
+      genreLabels: genreLabels,
+      statuses: statuses,
+      formats: formats,
+      season: season,
+      startYear: startYear,
+      endYear: endYear,
+      minScore: minScore,
+      language: language,
+    );
+  }
+
+  Future<SearchResults> browseAnime({
+    int page = 1,
+    String? language,
+    String? sortBy,
+    List<String>? genreLabels,
+    List<String>? statuses,
+    List<String>? formats,
+    String? season,
+    int? startYear,
+    int? endYear,
+    double? minScore,
+  }) async {
+    return _queryAnimePage(
+      page: page,
+      search: null,
+      sortBy: sortBy,
+      genreLabels: genreLabels,
+      statuses: statuses,
+      formats: formats,
+      season: season,
+      startYear: startYear,
+      endYear: endYear,
+      minScore: minScore,
+      language: language,
+    );
+  }
+
+  List<String> getCachedGenreLabels(int malId) =>
+      List<String>.from(_genreLabelsByMalId[malId] ?? const <String>[]);
+
+  String? getCachedStatus(int malId) => _statusByMalId[malId];
+
+  Future<SearchResults> _queryAnimePage({
+    required int page,
+    required String? search,
+    required String? sortBy,
+    required List<String>? genreLabels,
+    required List<String>? statuses,
+    required List<String>? formats,
+    required String? season,
+    required int? startYear,
+    required int? endYear,
+    required double? minScore,
+    required String? language,
+  }) async {
+    final normalizedSort = _mapSortToAniList(sortBy);
+    final normalizedStatuses = _mapStatusesToAniList(statuses);
+    final normalizedFormats = _mapFormatsToAniList(formats);
+    final normalizedSeason = _mapSeasonToAniList(season);
+    final genres = (genreLabels ?? const <String>[])
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final startDateGreater = startYear != null ? (startYear * 10000 + 101) : null;
+    final startDateLesser = endYear != null ? (endYear * 10000 + 1231) : null;
+    final seasonYear = normalizedSeason != null ? startYear : null;
+
+    final cacheKey =
+        'anilist_anime_${search ?? 'browse'}_${page}_${normalizedSort.join('-')}_${normalizedStatuses.join('-')}_${normalizedFormats.join('-')}_${genres.join('|')}_${normalizedSeason ?? 'none'}_${seasonYear ?? 'none'}_${startDateGreater ?? 'none'}_${startDateLesser ?? 'none'}_${minScore ?? 'none'}_${language ?? 'all'}';
+
+    // In-memory cache with TTL to avoid re-querying same pages frequently.
+    final cached = _searchPageCache[cacheKey];
+    if (cached != null && !cached.isExpired) {
+      return cached.results;
+    }
+
+    final response = await _dio.post<dynamic>(
+      '',
+      data: {
+        'query': _animeSearchQuery,
+        'variables': {
+          'page': page,
+          'perPage': 25,
+          'search': search,
+          'sort': normalizedSort,
+          'genreIn': genres.isEmpty ? null : genres,
+          'statusIn': normalizedStatuses.isEmpty ? null : normalizedStatuses,
+          'formatIn': normalizedFormats.isEmpty ? null : normalizedFormats,
+          'season': normalizedSeason,
+          'seasonYear': seasonYear,
+          'startDateGreater': normalizedSeason != null ? null : startDateGreater,
+          'startDateLesser': normalizedSeason != null ? null : startDateLesser,
+        },
+      },
+    );
+
+    final data = response.data;
+    if (data is! Map) {
+      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+    }
+
+    final typed = Map<String, dynamic>.from(data);
+    final errors = typed['errors'];
+    if (errors is List && errors.isNotEmpty) {
+      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+    }
+
+    final payload = typed['data'];
+    if (payload is! Map) {
+      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+    }
+
+    final pageMap = payload['Page'];
+    if (pageMap is! Map) {
+      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+    }
+
+    final pageInfo = pageMap['pageInfo'];
+    final pageInfoMap = pageInfo is Map
+        ? Map<String, dynamic>.from(pageInfo)
+        : const <String, dynamic>{};
+
+    final mediaList = pageMap['media'];
+    final results = <SearchResult>[];
+    if (mediaList is List) {
+      for (final raw in mediaList.whereType<Map>()) {
+        final media = Map<String, dynamic>.from(raw);
+        final malId = (media['idMal'] as num?)?.toInt();
+        if (malId == null || malId <= 0) continue;
+
+        final titleObj = media['title'];
+        final titleMap = titleObj is Map
+            ? Map<String, dynamic>.from(titleObj)
+            : const <String, dynamic>{};
+        final title = (titleMap['userPreferred'] ??
+                titleMap['english'] ??
+                titleMap['romaji'] ??
+                'Unknown')
+            .toString();
+
+        final coverObj = media['coverImage'];
+        final coverMap = coverObj is Map
+            ? Map<String, dynamic>.from(coverObj)
+            : const <String, dynamic>{};
+
+        final genresRaw = media['genres'];
+        final genreList = genresRaw is List
+            ? genresRaw.whereType<String>().toList(growable: false)
+            : const <String>[];
+
+        _genreLabelsByMalId[malId] = genreList;
+        _statusByMalId[malId] = media['status']?.toString();
+
+        final averageScore = (media['averageScore'] as num?)?.toDouble();
+        final scoreOutOf10 = averageScore != null ? averageScore / 10.0 : null;
+        if (minScore != null && scoreOutOf10 != null && scoreOutOf10 < minScore) {
+          continue;
+        }
+
+        results.add(
+          SearchResult(
+            id: malId,
+            title: title,
+            name: title,
+            originalLanguage: 'ja',
+            mediaType: _mapAniListFormatToMediaType(media['format']?.toString()),
+            firstAirDate: _toIsoDate(media['startDate']),
+            posterPath: coverMap['large']?.toString(),
+            backdropPath: media['bannerImage']?.toString(),
+            overview: media['description']?.toString(),
+            voteAverage: scoreOutOf10,
+          ),
+        );
+      }
+    }
+
+    final totalPages = (pageInfoMap['lastPage'] as num?)?.toInt() ??
+        (results.isEmpty ? 0 : 1);
+    final totalResults = (pageInfoMap['total'] as num?)?.toInt() ?? results.length;
+
+    final out = SearchResults(
+      page: page,
+      results: results,
+      totalPages: totalPages,
+      totalResults: totalResults,
+    );
+
+    _searchPageCache[cacheKey] = _CachedSearchPage(out);
+    // Prune old entries if cache grows too large.
+    if (_searchPageCache.length > 100) {
+      _searchPageCache.removeWhere((_, v) => v.isExpired);
+    }
+
+    return out;
+  }
+
+  List<String> _mapSortToAniList(String? sortBy) {
+    switch ((sortBy ?? '').trim().toLowerCase()) {
+      case 'rating':
+      case 'score':
+        return const ['SCORE_DESC'];
+      case 'newest':
+      case 'year':
+        return const ['START_DATE_DESC'];
+      case 'az':
+      case 'title':
+        return const ['TITLE_ROMAJI'];
+      case 'airing_now':
+        return const ['TRENDING_DESC'];
+      case 'popularity':
+      default:
+        return const ['POPULARITY_DESC'];
+    }
+  }
+
+  List<String> _mapStatusesToAniList(List<String>? statuses) {
+    if (statuses == null || statuses.isEmpty) return const [];
+    final result = <String>[];
+    for (final status in statuses) {
+      final mapped = _mapSingleStatusToAniList(status);
+      if (mapped != null) result.add(mapped);
+    }
+    return result;
+  }
+
+  String? _mapSingleStatusToAniList(String status) {
+    switch (status.trim().toLowerCase()) {
+      case 'airing':
+      case 'releasing':
+        return 'RELEASING';
+      case 'completed':
+      case 'finished':
+        return 'FINISHED';
+      case 'upcoming':
+      case 'not_yet_released':
+        return 'NOT_YET_RELEASED';
+      default:
+        return null;
+    }
+  }
+
+  List<String> _mapFormatsToAniList(List<String>? formats) {
+    if (formats == null || formats.isEmpty) return const [];
+    final result = <String>[];
+    for (final format in formats) {
+      final mapped = _mapSingleFormatToAniList(format);
+      if (mapped != null) result.add(mapped);
+    }
+    return result;
+  }
+
+  String? _mapSingleFormatToAniList(String format) {
+    switch (format.trim().toLowerCase()) {
+      case 'tv':
+      case 'series':
+        return 'TV';
+      case 'movie':
+        return 'MOVIE';
+      case 'ova':
+        return 'OVA';
+      case 'ona':
+        return 'ONA';
+      case 'special':
+        return 'SPECIAL';
+      default:
+        return null;
+    }
+  }
+
+  String? _mapSeasonToAniList(String? season) {
+    switch ((season ?? '').trim().toLowerCase()) {
+      case 'winter':
+        return 'WINTER';
+      case 'spring':
+        return 'SPRING';
+      case 'summer':
+        return 'SUMMER';
+      case 'fall':
+        return 'FALL';
+      default:
+        return null;
+    }
+  }
+
+  String _mapAniListFormatToMediaType(String? format) {
+    switch ((format ?? '').trim().toUpperCase()) {
+      case 'MOVIE':
+        return 'movie';
+      case 'OVA':
+        return 'ova';
+      case 'ONA':
+        return 'ona';
+      case 'SPECIAL':
+        return 'special';
+      default:
+        return 'tv';
+    }
+  }
+
+  String? _toIsoDate(dynamic startDateRaw) {
+    if (startDateRaw is! Map) return null;
+    final startDate = Map<String, dynamic>.from(startDateRaw);
+    final year = (startDate['year'] as num?)?.toInt();
+    if (year == null || year <= 0) return null;
+    final month = ((startDate['month'] as num?)?.toInt() ?? 1).clamp(1, 12);
+    final day = ((startDate['day'] as num?)?.toInt() ?? 1).clamp(1, 31);
+    final mm = month.toString().padLeft(2, '0');
+    final dd = day.toString().padLeft(2, '0');
+    return '$year-$mm-$dd';
+  }
+
+  Future<List<Map<String, dynamic>>> getAiringScheduleRange({
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final startUtc = DateTime.utc(start.year, start.month, start.day);
+    final endUtc = DateTime.utc(end.year, end.month, end.day);
+    // AniList uses strict greater/lesser comparisons; expand by 1 second to include edges.
+    final from = (startUtc.millisecondsSinceEpoch ~/ 1000) - 1;
+    final to = (endUtc.millisecondsSinceEpoch ~/ 1000) + 1;
+    if (to <= from) return const [];
+
+    final rows = <Map<String, dynamic>>[];
+    var page = 1;
+    var hasNextPage = true;
+
+    while (hasNextPage) {
+      try {
+        final response = await _dio.post<dynamic>(
+          '',
+          data: {
+            'query': _airingScheduleRangeQuery,
+            'variables': {
+              'page': page,
+              'from': from,
+              'to': to,
+            },
+          },
+        );
+
+        final data = response.data;
+        if (data is! Map) break;
+        final typed = Map<String, dynamic>.from(data);
+        final errors = typed['errors'];
+        if (errors is List && errors.isNotEmpty) break;
+
+        final payload = typed['data'];
+        if (payload is! Map) break;
+        final pageMap = payload['Page'];
+        if (pageMap is! Map) break;
+
+        final pageInfo = pageMap['pageInfo'];
+        if (pageInfo is Map) {
+          hasNextPage = pageInfo['hasNextPage'] == true;
+        } else {
+          hasNextPage = false;
+        }
+
+        final schedules = pageMap['airingSchedules'];
+        if (schedules is List) {
+          for (final item in schedules.whereType<Map>()) {
+            final map = Map<String, dynamic>.from(item);
+            final mediaObj = map['media'];
+            if (mediaObj is! Map) continue;
+            final media = Map<String, dynamic>.from(mediaObj);
+
+            final malId = (media['idMal'] as num?)?.toInt();
+            final airingAt = (map['airingAt'] as num?)?.toInt();
+            if (malId == null || malId <= 0 || airingAt == null || airingAt <= 0) {
+              continue;
+            }
+
+            final titleObj = media['title'];
+            final titleMap = titleObj is Map
+                ? Map<String, dynamic>.from(titleObj)
+                : const <String, dynamic>{};
+            final title = (titleMap['userPreferred'] ??
+                    titleMap['english'] ??
+                    titleMap['romaji'] ??
+                    'Unknown')
+                .toString();
+
+            final coverObj = media['coverImage'];
+            final coverMap = coverObj is Map
+                ? Map<String, dynamic>.from(coverObj)
+                : const <String, dynamic>{};
+
+            final averageScore = (media['averageScore'] as num?)?.toDouble();
+
+            rows.add({
+              'malid': malId,
+              'title': title,
+              'picture': coverMap['large']?.toString(),
+              'time': airingAt,
+              'lastep': (map['episode'] as num?)?.toInt() ?? 0,
+              'totalep': (media['episodes'] as num?)?.toInt(),
+              'score': averageScore != null ? averageScore / 10 : null,
+            });
+          }
+        }
+      } on DioException {
+        break;
+      }
+
+      page++;
+      if (page > 20) break;
+    }
+
+    return rows;
   }
 
   Future<List<Map<String, dynamic>>> getViewerActivities() async {
@@ -981,4 +1517,11 @@ class _AniListMediaListEntry {
   final int id;
   final int? progress;
   final String? status;
+}
+
+class _CachedSearchPage {
+  _CachedSearchPage(this.results) : _created = DateTime.now();
+  final SearchResults results;
+  final DateTime _created;
+  bool get isExpired => DateTime.now().difference(_created).inMinutes > 30;
 }

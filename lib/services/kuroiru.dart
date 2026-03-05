@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:aimi_lib/aimi_lib.dart' as aimi;
-import 'package:namizo/core/configurations.dart';
+import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
-import 'package:namizo/models/search_result.dart';
-import 'package:namizo/models/season_info.dart';
-import 'package:namizo/core/cache/cache_service.dart';
+import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/models/media/season_info.dart';
+import 'package:namizo/core/cache.dart';
+import 'package:namizo/models/tvdb/tvdb_models.dart';
 import 'package:namizo/services/tvdb.dart';
+import 'package:namizo/utils/image_url.dart' as img_util;
 
 class KuroiruService {
   final Dio _jikanDio;
@@ -49,7 +51,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final airing = await _fetchAiringCalendarFromHome();
         return {'airing': airing};
-      }, CacheService.shortCache);
+      }, shortCache);
     }
 
     if (staleCache != null) {
@@ -57,7 +59,7 @@ class KuroiruService {
     }
 
     final airing = await _fetchAiringCalendarFromHome();
-    await _cache.set(cacheKey, {'airing': airing}, ttl: CacheService.shortCache);
+    await _cache.set(cacheKey, {'airing': airing}, ttl: shortCache);
     return airing;
   }
 
@@ -94,11 +96,35 @@ class KuroiruService {
     int page = 1,
     String? language,
     String? sortBy,
+    List<int>? genreIds,
+    String? status,
+    String? type,
+    int? startYear,
+    int? endYear,
+    double? minScore,
   }) async {
     final normalizedQuery = _normalizeSearchText(query);
     final normalizedSort = sortBy == 'rating' ? 'score' : sortBy;
+    final normalizedType = type?.trim().toLowerCase();
+    final normalizedStatus = status?.trim().toLowerCase();
+    final normalizedGenres = (genreIds ?? const <int>[])
+        .where((id) => id > 0)
+        .toSet()
+        .toList()
+      ..sort();
+    final normalizedStartYear = startYear;
+    final normalizedEndYear = endYear;
+    final normalizedMinScore = minScore;
+
+    final genreCachePart =
+        normalizedGenres.isEmpty ? 'none' : normalizedGenres.join('-');
+    final yearCachePart =
+        '${normalizedStartYear ?? 'none'}-${normalizedEndYear ?? 'none'}';
+    final scoreCachePart = normalizedMinScore == null
+        ? 'none'
+        : normalizedMinScore.toStringAsFixed(1);
     final cacheKey =
-        'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}';
+      'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}_g:${genreCachePart}_s:${normalizedStatus ?? 'all'}_t:${normalizedType ?? 'all'}_y:${yearCachePart}_sc:${scoreCachePart}';
 
     if (normalizedQuery.isEmpty) {
       return const SearchResults(
@@ -133,6 +159,18 @@ class KuroiruService {
             'page': page,
             'sfw': true,
             'limit': 25,
+            if (normalizedGenres.isNotEmpty)
+              'genres': normalizedGenres.join(','),
+            if (normalizedStatus != null && normalizedStatus.isNotEmpty)
+              'status': normalizedStatus,
+            if (normalizedType != null && normalizedType.isNotEmpty)
+              'type': normalizedType,
+            if (normalizedStartYear != null)
+              'start_date': '${normalizedStartYear.toString().padLeft(4, '0')}-01-01',
+            if (normalizedEndYear != null)
+              'end_date': '${normalizedEndYear.toString().padLeft(4, '0')}-12-31',
+            if (normalizedMinScore != null)
+              'min_score': normalizedMinScore,
             ..._searchSortToJikanParams(normalizedSort),
           },
         );
@@ -186,7 +224,7 @@ class KuroiruService {
             : pageResults.length,
       );
 
-      await _cache.set(cacheKey, merged.toJson(), ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, merged.toJson(), ttl: mediumCache);
       return merged;
     } catch (e) {
       throw Exception('Failed to search anime (Kuroiru/Jikan): $e');
@@ -301,15 +339,30 @@ class KuroiruService {
   final Map<int, bool> _airingByMalId = <int, bool>{};
   final Map<int, String?> _statusByMalId = <int, String?>{};
 
+  List<int> getCachedGenreIds(int malId) =>
+      List<int>.from(_genreCacheByMalId[malId] ?? const <int>[]);
+
+  int? getCachedEpisodeCount(int malId) => _episodeCountByMalId[malId];
+
+  bool? getCachedAiring(int malId) => _airingByMalId[malId];
+
+  String? getCachedStatus(int malId) => _statusByMalId[malId];
+
   Map<String, dynamic> _searchSortToJikanParams(String? sortBy) {
     switch (sortBy) {
+      case 'az':
       case 'title':
         return {'order_by': 'title', 'sort': 'asc'};
+      case 'newest':
       case 'year':
         return {'order_by': 'start_date', 'sort': 'desc'};
+      case 'airing_now':
+        return {'order_by': 'popularity', 'sort': 'desc'};
       case 'score':
-      case 'popularity':
+      case 'rating':
         return {'order_by': 'score', 'sort': 'desc'};
+      case 'popularity':
+        return {'order_by': 'members', 'sort': 'desc'};
       default:
         return const {};
     }
@@ -326,7 +379,7 @@ class KuroiruService {
     processed = processed.where((item) => seen.add('${item.id}')).toList();
 
     switch (sortBy) {
-      case 'popularity':
+      case 'score':
       case 'rating':
         processed.sort((a, b) {
           final ratingCompare = (b.voteAverage ?? 0).compareTo(
@@ -336,6 +389,12 @@ class KuroiruService {
           return _compareByYearDesc(a, b);
         });
         break;
+      case 'newest':
+      case 'start_date':
+      case 'year':
+        processed.sort(_compareByYearDesc);
+        break;
+      case 'az':
       case 'title':
         processed.sort((a, b) {
           final titleA = _normalizeSearchText(a.title ?? a.name ?? '');
@@ -343,8 +402,14 @@ class KuroiruService {
           return titleA.compareTo(titleB);
         });
         break;
-      case 'year':
-        processed.sort(_compareByYearDesc);
+      case 'popularity':
+        processed.sort((a, b) {
+          final ratingCompare = (b.voteAverage ?? 0).compareTo(
+            a.voteAverage ?? 0,
+          );
+          if (ratingCompare != 0) return ratingCompare;
+          return _compareByYearDesc(a, b);
+        });
         break;
       default:
         processed.sort((a, b) {
@@ -428,7 +493,7 @@ class KuroiruService {
           ),
         ],
       );
-      await _cache.set(cacheKey, mapped.toJson(), ttl: CacheService.longCache);
+      await _cache.set(cacheKey, mapped.toJson(), ttl: longCache);
       return mapped;
     } catch (e) {
       throw Exception('Failed to get anime series info from Kuroiru: $e');
@@ -447,7 +512,7 @@ class KuroiruService {
     try {
       if (seasonNumber != 1) {
         const empty = SeasonData(episodes: []);
-        await _cache.set(cacheKey, empty.toJson(), ttl: CacheService.longCache);
+        await _cache.set(cacheKey, empty.toJson(), ttl: longCache);
         return empty;
       }
 
@@ -473,44 +538,18 @@ class KuroiruService {
         seasonNumber: seasonNumber,
         fallback: mapped,
       );
-      await _cache.set(cacheKey, enriched.toJson(), ttl: CacheService.longCache);
+      await _cache.set(cacheKey, enriched.toJson(), ttl: longCache);
       return enriched;
     } catch (e) {
       throw Exception('Failed to get season info from Kuroiru: $e');
     }
   }
 
-  String getPosterUrl(String? posterPath, {String size = posterSize}) {
-    if (posterPath == null || posterPath.isEmpty) {
-      return '';
-    }
-    if (posterPath.startsWith('http://') || posterPath.startsWith('https://')) {
-      return posterPath;
-    }
-    if (posterPath.startsWith('/img/')) {
-      return 'https://kuroiru.co$posterPath';
-    }
-    if (posterPath.startsWith('/')) {
-      return 'https://kuroiru.co$posterPath';
-    }
-    return posterPath;
-  }
+  String getPosterUrl(String? posterPath, {String size = posterSize}) =>
+      img_util.posterUrl(posterPath, size: size);
 
-  String getBackdropUrl(String? backdropPath, {String size = backdropSize}) {
-    if (backdropPath == null || backdropPath.isEmpty) {
-      return '';
-    }
-    if (backdropPath.startsWith('http://') || backdropPath.startsWith('https://')) {
-      return backdropPath;
-    }
-    if (backdropPath.startsWith('/img/')) {
-      return 'https://kuroiru.co$backdropPath';
-    }
-    if (backdropPath.startsWith('/')) {
-      return 'https://kuroiru.co$backdropPath';
-    }
-    return backdropPath;
-  }
+  String getBackdropUrl(String? backdropPath, {String size = backdropSize}) =>
+      img_util.backdropUrl(backdropPath, size: size);
 
   Future<List<dynamic>> getFeaturedAnime() async {
     final trending = await getTrendingAnime();
@@ -538,7 +577,7 @@ class KuroiruService {
           'page': 1,
         },
       );
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get anime: $e');
@@ -555,7 +594,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
         return {'results': results};
-      }, CacheService.shortCache);
+      }, shortCache);
     }
 
     if (staleCache != null) {
@@ -564,7 +603,7 @@ class KuroiruService {
 
     try {
       final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.shortCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: shortCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get trending anime: $e');
@@ -581,7 +620,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final results = await _fetchJikanTopAnime(limit: 25);
         return {'results': results};
-      }, CacheService.mediumCache);
+      }, mediumCache);
     }
 
     if (staleCache != null) {
@@ -590,7 +629,7 @@ class KuroiruService {
 
     try {
       final results = await _fetchJikanTopAnime(limit: 25);
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get top rated anime: $e');
@@ -624,7 +663,7 @@ class KuroiruService {
           },
         );
         return {'results': results};
-      }, CacheService.mediumCache);
+      }, mediumCache);
     }
 
     if (staleCache != null) {
@@ -643,7 +682,7 @@ class KuroiruService {
           ..._sortToJikan(sortBy),
         },
       );
-      await _cache.set(cacheKey, {'results': results}, ttl: CacheService.mediumCache);
+      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
       return results;
     } catch (e) {
       throw Exception('Failed to get genre anime: $e');
@@ -681,7 +720,7 @@ class KuroiruService {
         _toSearchResult(details),
       );
 
-      await _cache.set(cacheKey, mapped.toJson(), ttl: CacheService.longCache);
+      await _cache.set(cacheKey, mapped.toJson(), ttl: longCache);
       return mapped;
     } catch (e) {
       throw Exception('Failed to get anime details from Kuroiru: $e');
@@ -696,7 +735,7 @@ class KuroiruService {
       _cache.updateInBackground(cacheKey, () async {
         final details = await _kuroiru.getDetails('$tvId');
         return _toDetailWithVideosMap(tvId, details);
-      }, CacheService.longCache);
+      }, longCache);
       return staleCache;
     }
 
@@ -705,7 +744,7 @@ class KuroiruService {
     try {
       final details = await _kuroiru.getDetails('$tvId');
       final data = await _toDetailWithVideosMap(tvId, details);
-      await _cache.set(cacheKey, data, ttl: CacheService.longCache);
+      await _cache.set(cacheKey, data, ttl: longCache);
 
       return data;
     } catch (e) {
@@ -765,7 +804,7 @@ class KuroiruService {
               .map((item) => item.toJson())
               .toList(growable: false),
         },
-        ttl: CacheService.mediumCache,
+        ttl: mediumCache,
       );
       return jikanRecommendations;
     }
@@ -782,7 +821,7 @@ class KuroiruService {
               .map((item) => item.toJson())
               .toList(growable: false),
         },
-        ttl: CacheService.mediumCache,
+        ttl: mediumCache,
       );
       return animeOnlyPrimary;
     }
@@ -799,7 +838,7 @@ class KuroiruService {
             .map((item) => item.toJson())
             .toList(growable: false),
       },
-      ttl: CacheService.mediumCache,
+      ttl: mediumCache,
     );
     return animeOnlyFallback;
   }
@@ -970,7 +1009,7 @@ class KuroiruService {
       await _cache.set(
         cacheKey,
         {'poster': poster ?? ''},
-        ttl: CacheService.longCache,
+        ttl: longCache,
       );
 
       return (poster != null && poster.isNotEmpty) ? poster : null;
@@ -1042,19 +1081,7 @@ class KuroiruService {
         .map((genre) => {'id': 0, 'name': genre})
         .toList();
 
-    final trailerKey = details.id.trim().isEmpty ? null : null;
-    mapped['videos'] = {
-      'results': trailerKey == null
-          ? <Map<String, dynamic>>[]
-          : [
-              {
-                'site': 'YouTube',
-                'type': 'Trailer',
-                'official': true,
-                'key': trailerKey,
-              },
-            ],
-    };
+    mapped['videos'] = {'results': <Map<String, dynamic>>[]};
 
     return mapped;
   }
