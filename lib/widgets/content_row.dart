@@ -95,10 +95,7 @@ class _AnimatedPosterCard extends StatefulWidget {
   final String? posterPath;
   final int tmdbId;
 
-  const _AnimatedPosterCard({
-    required this.posterPath,
-    required this.tmdbId,
-  });
+  const _AnimatedPosterCard({required this.posterPath, required this.tmdbId});
 
   @override
   State<_AnimatedPosterCard> createState() => _AnimatedPosterCardState();
@@ -124,11 +121,11 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard>
       duration: const Duration(milliseconds: 250),
       vsync: this,
     );
-    
+
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
-    
+
     _elevationAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
@@ -182,7 +179,7 @@ class _AnimatedPosterCardState extends State<_AnimatedPosterCard>
                       // Poster Image
                       posterUrl != null
                           ? CachedNetworkImage(
-                            imageUrl: posterUrl,
+                              imageUrl: posterUrl,
                               fit: BoxFit.cover,
                               width: double.infinity,
                               height: double.infinity,

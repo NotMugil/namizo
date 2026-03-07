@@ -16,8 +16,9 @@ List<dynamic> _dedupeRowItems(List<dynamic> items) {
     if (item is! Map) continue;
 
     final id = (item['id'] as num?)?.toInt();
-    final rawTitle =
-        '${item['title'] ?? item['name'] ?? ''}'.trim().toLowerCase();
+    final rawTitle = '${item['title'] ?? item['name'] ?? ''}'
+        .trim()
+        .toLowerCase();
 
     if (id != null) {
       if (seenIds.contains(id)) continue;
@@ -36,32 +37,39 @@ List<dynamic> _dedupeRowItems(List<dynamic> items) {
 List<dynamic> _applyAdultFilter(List<dynamic> items, bool hideAdultContent) {
   if (!hideAdultContent) return items;
 
-  return items.where((item) {
-    if (item is! Map) return true;
-    final map = Map<String, dynamic>.from(item);
-    final adultValue = map['adult'];
-    if (adultValue == true || adultValue == 1) return false;
-    final genres = map['genre_ids'];
-    if (genres is List) {
-      final genreIds =
-          genres.whereType<num>().map((e) => e.toInt()).toSet();
-      if (genreIds.contains(12)) return false;
-    }
-    return true;
-  }).toList(growable: false);
+  return items
+      .where((item) {
+        if (item is! Map) return true;
+        final map = Map<String, dynamic>.from(item);
+        final adultValue = map['adult'];
+        if (adultValue == true || adultValue == 1) return false;
+        final genres = map['genre_ids'];
+        if (genres is List) {
+          final genreIds = genres
+              .whereType<num>()
+              .map((e) => e.toInt())
+              .toSet();
+          if (genreIds.contains(12)) return false;
+        }
+        return true;
+      })
+      .toList(growable: false);
 }
 
 List<dynamic> _filterFeaturedByStatus(List<dynamic> items) {
-  return items.where((item) {
-    if (item is! Map) return false;
-    final map = Map<String, dynamic>.from(item);
-    final airing = map['airing'] == true;
-    final status = (map['status']?.toString().toLowerCase() ?? '').trim();
-    final isCompleted = status.contains('finished') ||
-        status.contains('complete') ||
-        status.contains('completed');
-    return airing || isCompleted;
-  }).toList(growable: false);
+  return items
+      .where((item) {
+        if (item is! Map) return false;
+        final map = Map<String, dynamic>.from(item);
+        final airing = map['airing'] == true;
+        final status = (map['status']?.toString().toLowerCase() ?? '').trim();
+        final isCompleted =
+            status.contains('finished') ||
+            status.contains('complete') ||
+            status.contains('completed');
+        return airing || isCompleted;
+      })
+      .toList(growable: false);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +88,9 @@ final featuredAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
 final popularAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
   final service = ref.watch(kuroiruServiceProvider);
   final hideAdult = ref.watch(hideAdultContentProvider);
-  return _dedupeRowItems(_applyAdultFilter(await service.getAnime(), hideAdult));
+  return _dedupeRowItems(
+    _applyAdultFilter(await service.getAnime(), hideAdult),
+  );
 });
 
 final trendingAnimeProvider = FutureProvider<List<dynamic>>((ref) async {
@@ -158,8 +168,10 @@ final tvPosterProvider = FutureProvider.family<String?, int>((ref, id) async {
   return ref.watch(kuroiruServiceProvider).getTVShowPosterUrl(id);
 });
 
-final tvCarouselImageProvider =
-    FutureProvider.family<String?, int>((ref, id) async {
+final tvCarouselImageProvider = FutureProvider.family<String?, int>((
+  ref,
+  id,
+) async {
   return ref.watch(kuroiruServiceProvider).getTVShowNoTextPosterUrl(id);
 });
 
@@ -186,24 +198,21 @@ Future<Map<int, String?>> _fetchFeaturedMap(
   return result;
 }
 
-final featuredAnimeLogosProvider =
-    FutureProvider<Map<int, String?>>((ref) async {
-  return _fetchFeaturedMap(
-    ref,
-    (id) => ref.watch(tvLogoProvider(id).future),
-  );
+final featuredAnimeLogosProvider = FutureProvider<Map<int, String?>>((
+  ref,
+) async {
+  return _fetchFeaturedMap(ref, (id) => ref.watch(tvLogoProvider(id).future));
 });
 
-final featuredAnimeBannersProvider =
-    FutureProvider<Map<int, String?>>((ref) async {
-  return _fetchFeaturedMap(
-    ref,
-    (id) => ref.watch(tvBannerProvider(id).future),
-  );
+final featuredAnimeBannersProvider = FutureProvider<Map<int, String?>>((
+  ref,
+) async {
+  return _fetchFeaturedMap(ref, (id) => ref.watch(tvBannerProvider(id).future));
 });
 
-final featuredAnimePostersProvider =
-    FutureProvider<Map<int, String?>>((ref) async {
+final featuredAnimePostersProvider = FutureProvider<Map<int, String?>>((
+  ref,
+) async {
   return _fetchFeaturedMap(
     ref,
     (id) => ref.watch(tvCarouselImageProvider(id).future),

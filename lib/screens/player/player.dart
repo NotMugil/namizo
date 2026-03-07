@@ -65,8 +65,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isInFullscreen = false;
   bool _arePlayerControlsVisible = true;
   int? _lastAniListSyncedEpisode;
-  final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier =
-      ValueNotifier(false);
+  final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier = ValueNotifier(
+    false,
+  );
   OverlayEntry? _fullscreenTopBarOverlayEntry;
 
   // Notifier so overlay updates inside BetterPlayer fullscreen
@@ -77,12 +78,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   SeasonData? _currentSeasonData;
 
-    SearchResult? get _selectedMedia => ref.read(selectedMediaProvider);
+  SearchResult? get _selectedMedia => ref.read(selectedMediaProvider);
 
-    int get _providerCount =>
+  int get _providerCount =>
       StreamingService.getTotalProviders(media: _selectedMedia);
 
-    String _providerNameFor(int index) =>
+  String _providerNameFor(int index) =>
       StreamingService.getProviderName(index, media: _selectedMedia);
 
   @override
@@ -90,11 +91,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     super.initState();
     _currentEpisode = widget.episode;
     _initializePlayer();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.portraitUp,
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
     });
@@ -342,6 +339,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           autoPlay: true,
           looping: false,
           fullScreenByDefault: false,
+          deviceOrientationsOnFullScreen: const [
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ],
+          deviceOrientationsAfterFullScreen: const [
+            DeviceOrientation.portraitUp,
+          ],
           fit: BoxFit.contain,
           autoDispose: false,
           handleLifecycle: true,
@@ -374,7 +378,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             controlsBackdropBottomHeight: 260,
             playerTheme: BetterPlayerTheme.material,
             topRightCustomControlBuilder: (context) {
-              final isFullscreen = _betterPlayerController?.isFullScreen == true;
+              final isFullscreen =
+                  _betterPlayerController?.isFullScreen == true;
               if (!isFullscreen) {
                 return const SizedBox.shrink();
               }
@@ -473,7 +478,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       await _betterPlayerController!.setupDataSource(dataSource);
 
       if (isHls) {
-        unawaited(_betterPlayerController!.preCache(dataSource).catchError((_) {}));
+        unawaited(
+          _betterPlayerController!.preCache(dataSource).catchError((_) {}),
+        );
       }
 
       // Start progress tracking timer
@@ -686,14 +693,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _scheduleSeekRecovery({bool immediate = false}) {
     _seekRecoveryTimer?.cancel();
     _seekRecoveryTimer = Timer(
-      immediate ? const Duration(milliseconds: 200) : const Duration(milliseconds: 1800),
+      immediate
+          ? const Duration(milliseconds: 200)
+          : const Duration(milliseconds: 1800),
       _recoverFromSeekStall,
     );
   }
 
   Future<void> _recoverFromSeekStall() async {
     final controller = _betterPlayerController;
-    if (!mounted || controller == null || controller.isVideoInitialized() != true) {
+    if (!mounted ||
+        controller == null ||
+        controller.isVideoInitialized() != true) {
       return;
     }
 
@@ -1039,7 +1050,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 '${speed}x',
                 style: TextStyle(
                   color: current == speed ? NamizoTheme.primary : Colors.white,
-                  fontWeight: current == speed ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: current == speed
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                 ),
               ),
               onTap: () async {
@@ -1107,13 +1120,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             (quality) => ListTile(
               leading: Icon(
                 current == quality ? Icons.check_circle : Icons.circle_outlined,
-                color: current == quality ? NamizoTheme.primary : Colors.white70,
+                color: current == quality
+                    ? NamizoTheme.primary
+                    : Colors.white70,
               ),
               title: Text(
                 quality.toUpperCase(),
                 style: TextStyle(
-                  color: current == quality ? NamizoTheme.primary : Colors.white,
-                  fontWeight: current == quality ? FontWeight.w700 : FontWeight.w500,
+                  color: current == quality
+                      ? NamizoTheme.primary
+                      : Colors.white,
+                  fontWeight: current == quality
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                 ),
               ),
               onTap: () {
@@ -1146,40 +1165,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _showSettingsDrawer(
       title: 'Subtitles',
       children: subtitles
-          .map(
-            (source) {
-              final isNone = source.type == BetterPlayerSubtitlesSourceType.none;
-              final sourceName = isNone
-                  ? 'None'
-                  : (source.name?.trim().isNotEmpty == true
-                        ? source.name!
-                        : 'Default');
-              final isSelected =
-                  current == source ||
-                  (current != null &&
-                      isNone &&
-                      current.type == BetterPlayerSubtitlesSourceType.none);
+          .map((source) {
+            final isNone = source.type == BetterPlayerSubtitlesSourceType.none;
+            final sourceName = isNone
+                ? 'None'
+                : (source.name?.trim().isNotEmpty == true
+                      ? source.name!
+                      : 'Default');
+            final isSelected =
+                current == source ||
+                (current != null &&
+                    isNone &&
+                    current.type == BetterPlayerSubtitlesSourceType.none);
 
-              return ListTile(
-                leading: Icon(
-                  isSelected ? Icons.check_circle : Icons.circle_outlined,
-                  color: isSelected ? NamizoTheme.primary : Colors.white70,
+            return ListTile(
+              leading: Icon(
+                isSelected ? Icons.check_circle : Icons.circle_outlined,
+                color: isSelected ? NamizoTheme.primary : Colors.white70,
+              ),
+              title: Text(
+                sourceName,
+                style: TextStyle(
+                  color: isSelected ? NamizoTheme.primary : Colors.white,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 ),
-                title: Text(
-                  sourceName,
-                  style: TextStyle(
-                    color: isSelected ? NamizoTheme.primary : Colors.white,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-                onTap: () async {
-                  await controller.setupSubtitleSource(source);
-                  if (!mounted) return;
-                  Navigator.of(context).pop();
-                },
-              );
-            },
-          )
+              ),
+              onTap: () async {
+                await controller.setupSubtitleSource(source);
+                if (!mounted) return;
+                Navigator.of(context).pop();
+              },
+            );
+          })
           .toList(growable: false),
     );
   }
@@ -1301,7 +1318,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               'Sub',
               style: TextStyle(
                 color: selected == 'sub' ? NamizoTheme.primary : Colors.white,
-                fontWeight: selected == 'sub' ? FontWeight.bold : FontWeight.normal,
+                fontWeight: selected == 'sub'
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
           ],
@@ -1321,7 +1340,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               'Dub',
               style: TextStyle(
                 color: selected == 'dub' ? NamizoTheme.primary : Colors.white,
-                fontWeight: selected == 'dub' ? FontWeight.bold : FontWeight.normal,
+                fontWeight: selected == 'dub'
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
           ],
@@ -1376,10 +1397,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final media = ref.read(selectedMediaProvider);
     if (media == null) return;
 
-    final synced = await ref.read(aniListServiceProvider).updateProgressByMalId(
-      malId: media.id,
-      watchedEpisodes: _currentEpisode,
-    );
+    final synced = await ref
+        .read(aniListServiceProvider)
+        .updateProgressByMalId(
+          malId: media.id,
+          watchedEpisodes: _currentEpisode,
+        );
     if (!synced) return;
 
     _lastAniListSyncedEpisode = _currentEpisode;
@@ -1466,11 +1489,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _betterPlayerController = null;
     }
     _focusNode.dispose();
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     super.dispose();
   }
 
@@ -1479,7 +1498,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     final media = ref.watch(selectedMediaProvider);
     final shouldShowAppBar = _streamResult != null && !_isInFullscreen;
-    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+    final isPortrait =
+        MediaQuery.of(context).orientation == Orientation.portrait;
 
     return GestureDetector(
       child: Focus(
@@ -1593,8 +1613,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildDirectStreamLayout(bool isPortrait) {
     final controller = _betterPlayerController;
-    final aspectRatio =
-        controller?.videoPlayerController?.value.aspectRatio;
+    final aspectRatio = controller?.videoPlayerController?.value.aspectRatio;
     final safeAspectRatio =
         (aspectRatio != null && aspectRatio > 0 && !aspectRatio.isNaN)
         ? aspectRatio
@@ -1607,7 +1626,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             builder: (context, constraints) {
               final maxWidth = constraints.maxWidth;
               final maxHeight = constraints.maxHeight;
-              final fittedWidth = math.min(maxWidth, maxHeight * safeAspectRatio);
+              final fittedWidth = math.min(
+                maxWidth,
+                maxHeight * safeAspectRatio,
+              );
               final fittedHeight = fittedWidth / safeAspectRatio;
 
               return Align(
@@ -1628,21 +1650,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   Widget _buildFullscreenFloatingTopBar() {
     final appTheme = Theme.of(context);
-    final titleStyle = appTheme.textTheme.titleMedium?.copyWith(
-      color: Colors.white,
-      fontSize: 16,
-      fontWeight: FontWeight.w500,
-    ) ??
+    final titleStyle =
+        appTheme.textTheme.titleMedium?.copyWith(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ) ??
         const TextStyle(
           color: Colors.white,
           fontSize: 16,
           fontWeight: FontWeight.w500,
         );
-    final subtitleStyle = appTheme.textTheme.bodySmall?.copyWith(
-      color: Colors.white70,
-      fontSize: 12,
-      fontWeight: FontWeight.w400,
-    ) ??
+    final subtitleStyle =
+        appTheme.textTheme.bodySmall?.copyWith(
+          color: Colors.white70,
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+        ) ??
         const TextStyle(
           color: Colors.white70,
           fontSize: 12,
@@ -1670,7 +1694,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       },
                       padding: EdgeInsets.zero,
                       visualDensity: VisualDensity.compact,
-                      constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
                       icon: const PhosphorIcon(
                         PhosphorIconsRegular.caretLeft,
                         color: Colors.white,
@@ -1738,11 +1765,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _showFullscreenTopBarOverlayEntry() {
     if (!mounted || _fullscreenTopBarOverlayEntry != null) return;
     _fullscreenTopBarOverlayEntry = OverlayEntry(
-      builder: (_) => Positioned.fill(
-        child: _buildFullscreenFloatingTopBar(),
-      ),
+      builder: (_) => Positioned.fill(child: _buildFullscreenFloatingTopBar()),
     );
-    Overlay.of(context, rootOverlay: true).insert(_fullscreenTopBarOverlayEntry!);
+    Overlay.of(
+      context,
+      rootOverlay: true,
+    ).insert(_fullscreenTopBarOverlayEntry!);
   }
 
   void _removeFullscreenTopBarOverlayEntry() {
@@ -1841,7 +1869,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             onPressed: () {
                               if (volume <= 0.01) {
                                 controller.setVolume(
-                                  _lastNonZeroVolume > 0.01 ? _lastNonZeroVolume : 1.0,
+                                  _lastNonZeroVolume > 0.01
+                                      ? _lastNonZeroVolume
+                                      : 1.0,
                                 );
                               } else {
                                 _lastNonZeroVolume = volume;
@@ -1849,7 +1879,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               }
                             },
                             icon: Icon(
-                              volume <= 0.01 ? Icons.volume_off : Icons.volume_up,
+                              volume <= 0.01
+                                  ? Icons.volume_off
+                                  : Icons.volume_up,
                               color: Colors.white,
                             ),
                             tooltip: volume <= 0.01 ? 'Unmute' : 'Mute',
@@ -1885,7 +1917,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           onPressed: () {
                             controller.showOverflowMenu();
                           },
-                          icon: const Icon(Icons.more_vert, color: Colors.white),
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: Colors.white,
+                          ),
                           tooltip: 'Settings',
                         ),
                       ],
@@ -2416,9 +2451,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                   margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
                                     color: isCurrent
-                                        ? NamizoTheme.primary.withOpacity(
-                                            0.15,
-                                          )
+                                        ? NamizoTheme.primary.withOpacity(0.15)
                                         : const Color(0xFF1E1E1E),
                                     borderRadius: BorderRadius.circular(10),
                                     border: isCurrent
@@ -2487,7 +2520,8 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                               : Icons
                                                                     .play_arrow,
                                                           color: isCurrent
-                                                              ? NamizoTheme.primary
+                                                              ? NamizoTheme
+                                                                    .primary
                                                               : Colors.white,
                                                           size: 20,
                                                         ),
@@ -2530,7 +2564,8 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                             right: 6,
                                                           ),
                                                       decoration: BoxDecoration(
-                                                        color: NamizoTheme.primary,
+                                                        color:
+                                                            NamizoTheme.primary,
                                                         borderRadius:
                                                             BorderRadius.circular(
                                                               3,
@@ -2554,7 +2589,8 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                         fontWeight:
                                                             FontWeight.w600,
                                                         color: isCurrent
-                                                            ? NamizoTheme.primary
+                                                            ? NamizoTheme
+                                                                  .primary
                                                             : Colors.white,
                                                       ),
                                                       maxLines: 1,
@@ -2803,8 +2839,10 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                               width: 280,
                               height: 120,
                               fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) =>
-                                  Container(height: 60, color: Colors.grey[900]),
+                              errorWidget: (_, __, ___) => Container(
+                                height: 60,
+                                color: Colors.grey[900],
+                              ),
                             ),
                           );
                         },

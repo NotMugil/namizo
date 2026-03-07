@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:namizo/providers/home.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
+import 'package:namizo/providers/update.dart';
 import 'package:namizo/providers/watch_history.dart';
 import 'package:namizo/providers/watchlist.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/theme/theme.dart';
+import 'package:namizo/widgets/update_dialog.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -17,6 +18,7 @@ class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   bool get _supportsBackgroundTasks => true;
+  static const Set<String> _aniListOnlyFeedKeys = {'planning'};
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,12 +26,18 @@ class SettingsScreen extends ConsumerWidget {
     final episodeCheckEnabled = ref.watch(episodeCheckEnabledProvider);
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
     final currentThemeMode = ref.watch(themeModeProvider);
-    final lastCheckAsync = ref.watch(lastEpisodeCheckTimeProvider);
     final aniListAutoSync = ref.watch(aniListAutoSyncProvider);
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
     final hideAdultContent = ref.watch(hideAdultContentProvider);
     final scheduleTrackedOnly = ref.watch(scheduleTrackedOnlyProvider);
     final homeFeedOrder = ref.watch(homeFeedOrderProvider);
+    final hasAniListAccount = aniListViewerAsync.valueOrNull != null;
+    final reorderableFeedOrder = _filterReorderableFeedOrder(
+      homeFeedOrder,
+      includeAniListRows: hasAniListAccount,
+    );
+    final updateReminderDisabled = ref.watch(updateReminderDisabledProvider);
+    final updateCheckAsync = ref.watch(updateCheckProvider);
     void handleBack() {
       if (context.canPop()) {
         context.pop();
@@ -49,10 +57,7 @@ class SettingsScreen extends ConsumerWidget {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: NamizoTheme.background,
-          title: const Text(
-            'Settings',
-            style: NamizoTheme.pageHeaderStyle,
-          ),
+          title: const Text('Settings', style: NamizoTheme.pageHeaderStyle),
           leading: IconButton(
             icon: const PhosphorIcon(
               PhosphorIconsRegular.caretLeft,
@@ -63,469 +68,523 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
         body: ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () async {
-                  final uri = Uri.parse('https://keepandroidopen.org/');
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri);
-                  }
-                },
-                child: Ink(
-                  decoration: BoxDecoration(
-                    color: NamizoTheme.primary.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: NamizoTheme.primary.withValues(alpha: 0.35),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    final uri = Uri.parse('https://keepandroidopen.org/');
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri);
+                    }
+                  },
+                  child: Ink(
+                    decoration: BoxDecoration(
+                      color: NamizoTheme.primary.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: NamizoTheme.primary.withValues(alpha: 0.35),
+                      ),
                     ),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  child: const Row(
-                    children: [
-                      PhosphorIcon(
-                        PhosphorIconsRegular.warning,
-                        color: NamizoTheme.primary,
-                        size: 22,
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Keep Android Open',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Learn more about the developer verification issue',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: const Row(
+                      children: [
+                        PhosphorIcon(
+                          PhosphorIconsRegular.warning,
+                          color: NamizoTheme.primary,
+                          size: 22,
                         ),
-                      ),
-                      SizedBox(width: 8),
-                      PhosphorIcon(
-                        PhosphorIconsRegular.arrowSquareOut,
-                        color: Colors.white70,
-                        size: 18,
-                      ),
-                    ],
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Keep Android Open',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Learn more about the developer verification issue',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        PhosphorIcon(
+                          PhosphorIconsRegular.arrowSquareOut,
+                          color: Colors.white70,
+                          size: 18,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          _buildSectionHeader('Account'),
-          aniListViewerAsync.when(
-            data: (viewer) {
-              if (viewer == null) {
-                return _buildSettingsTile(
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.signIn,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  title: 'Login AniList',
-                  subtitle: 'Connect your AniList account',
-                  trailing: const PhosphorIcon(
-                    PhosphorIconsRegular.caretRight,
-                    color: Colors.white70,
-                    size: 18,
-                  ),
-                  onTap: () async {
-                    final result = await context.push<bool>('/anilist-login');
-                    if (result == true) {
-                      ref.read(aniListAccountRefreshProvider.notifier).state++;
-                    }
+            _buildSectionHeader('Appearance'),
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.listNumbers,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Home Feed Order',
+              subtitle:
+                  '${reorderableFeedOrder.length} rows • Tap to reorder sections',
+              trailing: const PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                color: Colors.white70,
+                size: 18,
+              ),
+              onTap: () => _showHomeFeedOrderSheet(
+                context,
+                ref,
+                includeAniListRows: hasAniListAccount,
+              ),
+            ),
+            // _buildSettingsTile(
+            //   icon: const PhosphorIcon(
+            //     PhosphorIconsRegular.moon,
+            //     color: Colors.white,
+            //     size: 24,
+            //   ),
+            //   title: 'Theme',
+            //   subtitle: themeModeDisplayName(currentThemeMode),
+            //   trailing: const PhosphorIcon(
+            //     PhosphorIconsRegular.caretRight,
+            //     color: Colors.white70,
+            //     size: 18,
+            //   ),
+            //   onTap: () => _showThemeModeDialog(context, ref),
+            // ),
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.sparkle,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Animations',
+              subtitle: animationsEnabled ? 'Enabled' : 'Disabled',
+              trailing: Switch(
+                value: animationsEnabled,
+                onChanged: (_) {
+                  ref.read(animationsEnabledProvider.notifier).toggle();
+                },
+                activeThumbColor: NamizoTheme.primary,
+              ),
+            ),
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.eyeSlash,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Hide Adult Content',
+              subtitle: hideAdultContent ? 'Enabled' : 'Disabled',
+              trailing: Switch(
+                value: hideAdultContent,
+                onChanged: (value) {
+                  ref.read(hideAdultContentProvider.notifier).setEnabled(value);
+                },
+                activeThumbColor: NamizoTheme.primary,
+              ),
+            ),
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.calendarCheck,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Tracked Only in Schedule',
+              subtitle: scheduleTrackedOnly ? 'Enabled' : 'Disabled',
+              trailing: Switch(
+                value: scheduleTrackedOnly,
+                onChanged: (value) {
+                  ref
+                      .read(scheduleTrackedOnlyProvider.notifier)
+                      .setEnabled(value);
+                },
+                activeThumbColor: NamizoTheme.primary,
+              ),
+            ),
+            if (easterEggEnabled)
+              _buildSettingsTile(
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.arrowCounterClockwise,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                title: 'Revert Home Logo',
+                subtitle: 'Switch back to Namizo title text',
+                trailing: const PhosphorIcon(
+                  PhosphorIconsRegular.caretRight,
+                  color: Colors.white70,
+                  size: 18,
+                ),
+                onTap: () async {
+                  await ref
+                      .read(easterEggHomeLogoProvider.notifier)
+                      .setEnabled(false);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Home logo reverted to Namizo'),
+                      backgroundColor: NamizoTheme.primary,
+                    ),
+                  );
+                },
+              ),
+
+            if (_supportsBackgroundTasks) ...[
+              _buildSectionHeader('Alert Preferences'),
+              _buildSettingsTile(
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.bell,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                title: 'Episode Notifications',
+                subtitle: episodeCheckEnabled ? 'Enabled' : 'Disabled',
+                trailing: Switch(
+                  value: episodeCheckEnabled,
+                  onChanged: (value) {
+                    ref
+                        .read(episodeCheckEnabledProvider.notifier)
+                        .setEnabled(value);
                   },
-                );
-              }
+                  activeThumbColor: NamizoTheme.primary,
+                ),
+              ),
+              _buildSettingsTile(
+                icon: PhosphorIcon(
+                  updateReminderDisabled
+                      ? PhosphorIconsRegular.bellSlash
+                      : PhosphorIconsRegular.bell,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                title: 'Update Notifications',
+                subtitle: 'Notify on launch when a new version is available',
+                trailing: Switch(
+                  value: !updateReminderDisabled,
+                  onChanged: (value) {
+                    ref
+                        .read(updateReminderDisabledProvider.notifier)
+                        .setDisabled(!value);
+                  },
+                  activeThumbColor: NamizoTheme.primary,
+                ),
+                onTap: () {
+                  ref
+                      .read(updateReminderDisabledProvider.notifier)
+                      .setDisabled(!updateReminderDisabled);
+                },
+              ),
+            ],
 
-              final username = (viewer['name'] ?? 'Unknown').toString();
-
-              return Column(
-                children: [
-                  _buildSettingsTile(
+            // _buildSectionHeader('Checks'),
+            // if (_supportsBackgroundTasks)
+            //   _buildSettingsTile(
+            //     icon: const PhosphorIcon(
+            //       PhosphorIconsRegular.arrowsClockwise,
+            //       color: Colors.white,
+            //       size: 24,
+            //     ),
+            //     title: 'Check for Notifications',
+            //     subtitle: 'Manually check for new episode notifications',
+            //     trailing: const PhosphorIcon(
+            //       PhosphorIconsRegular.caretRight,
+            //       color: Colors.white70,
+            //       size: 18,
+            //     ),
+            //     onTap: () async {
+            //       _showCheckingDialog(context, ref);
+            //     },
+            //   ),
+            // updateCheckAsync.when(
+            //   data: (info) => _buildSettingsTile(
+            //     icon: PhosphorIcon(
+            //       info != null && info.isUpdateAvailable
+            //           ? PhosphorIconsFill.arrowCircleUp
+            //           : PhosphorIconsRegular.arrowCircleUp,
+            //       color: info != null && info.isUpdateAvailable
+            //           ? NamizoTheme.primary
+            //           : Colors.white,
+            //       size: 24,
+            //     ),
+            //     title: 'Check for Updates',
+            //     subtitle: info == null
+            //         ? 'Could not check for updates'
+            //         : info.isUpdateAvailable
+            //         ? 'Update available: v${info.latestVersion}'
+            //         : 'Up to date',
+            //     trailing: const PhosphorIcon(
+            //       PhosphorIconsRegular.arrowCounterClockwise,
+            //       color: Colors.white70,
+            //       size: 18,
+            //     ),
+            //     onTap: () {
+            //       ref.read(updateCheckRefreshProvider.notifier).state++;
+            //       if (info != null && info.isUpdateAvailable) {
+            //         showDialog(
+            //           context: context,
+            //           builder: (_) => UpdateDialog(update: info),
+            //         );
+            //       } else {
+            //         ScaffoldMessenger.of(context).showSnackBar(
+            //           const SnackBar(
+            //             content: Text('Checking for updates...'),
+            //             duration: Duration(seconds: 1),
+            //           ),
+            //         );
+            //       }
+            //     },
+            //   ),
+            //   loading: () => _buildSettingsTile(
+            //     icon: const SizedBox(
+            //       width: 24,
+            //       height: 24,
+            //       child: CircularProgressIndicator(strokeWidth: 2),
+            //     ),
+            //     title: 'Check for Updates',
+            //     subtitle: 'Checking...',
+            //     trailing: null,
+            //     onTap: null,
+            //   ),
+            //   error: (_, __) => _buildSettingsTile(
+            //     icon: const PhosphorIcon(
+            //       PhosphorIconsRegular.arrowCircleUp,
+            //       color: Colors.white,
+            //       size: 24,
+            //     ),
+            //     title: 'Check for Updates',
+            //     subtitle: 'Tap to retry',
+            //     trailing: const PhosphorIcon(
+            //       PhosphorIconsRegular.arrowCounterClockwise,
+            //       color: Colors.white70,
+            //       size: 18,
+            //     ),
+            //     onTap: () {
+            //       ref.read(updateCheckRefreshProvider.notifier).state++;
+            //     },
+            //   ),
+            // ),
+            _buildSectionHeader('Account'),
+            aniListViewerAsync.when(
+              data: (viewer) {
+                if (viewer == null) {
+                  return _buildSettingsTile(
                     icon: const PhosphorIcon(
-                      PhosphorIconsRegular.userCircle,
+                      PhosphorIconsRegular.signIn,
                       color: Colors.white,
                       size: 24,
                     ),
-                    title: 'AniList Username',
-                    subtitle: username,
-                    trailing: null,
-                  ),
-                  _buildSettingsTile(
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.cloudArrowUp,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    title: 'Auto AniList Sync',
-                    subtitle: aniListAutoSync
-                        ? 'Automatically sync add/remove/progress'
-                        : 'Manual sync only',
-                    trailing: Switch(
-                      value: aniListAutoSync,
-                      onChanged: (value) {
-                        ref
-                            .read(aniListAutoSyncProvider.notifier)
-                            .setEnabled(value);
-                      },
-                      activeThumbColor: NamizoTheme.primary,
-                    ),
-                  ),
-                  _buildSettingsTile(
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.arrowsClockwise,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    title: 'Sync Local Watchlist',
-                    subtitle: 'Push local watchlist entries to AniList planning',
-                    trailing: const PhosphorIcon(
-                      PhosphorIconsRegular.caretRight,
-                      color: Colors.white70,
-                      size: 18,
-                    ),
-                    onTap: () => _syncLocalWatchlistToAniList(context, ref),
-                  ),
-                  _buildSettingsTile(
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.signOut,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    title: 'Logout AniList',
-                    subtitle: 'Disconnect AniList account',
+                    title: 'Login AniList',
+                    subtitle: 'Connect your AniList account',
                     trailing: const PhosphorIcon(
                       PhosphorIconsRegular.caretRight,
                       color: Colors.white70,
                       size: 18,
                     ),
                     onTap: () async {
-                      await ref.read(aniListServiceProvider).logout();
-                      ref.read(aniListAccountRefreshProvider.notifier).state++;
+                      final result = await context.push<bool>('/anilist-login');
+                      if (result == true) {
+                        ref
+                            .read(aniListAccountRefreshProvider.notifier)
+                            .state++;
+                      }
                     },
-                  ),
-                ],
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
+                  );
+                }
 
-                    _buildSectionHeader('Appearance'),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.listNumbers,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Home Feed Order',
-            subtitle:
-                '${homeFeedOrder.length} rows • Tap to reorder sections',
-            trailing: const PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              color: Colors.white70,
-              size: 18,
-            ),
-            onTap: () => _showHomeFeedOrderSheet(context, ref),
-          ),
-          // _buildSettingsTile(
-          //   icon: const PhosphorIcon(
-          //     PhosphorIconsRegular.moon,
-          //     color: Colors.white,
-          //     size: 24,
-          //   ),
-          //   title: 'Theme',
-          //   subtitle: themeModeDisplayName(currentThemeMode),
-          //   trailing: const PhosphorIcon(
-          //     PhosphorIconsRegular.caretRight,
-          //     color: Colors.white70,
-          //     size: 18,
-          //   ),
-          //   onTap: () => _showThemeModeDialog(context, ref),
-          // ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.sparkle,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Animations',
-            subtitle: animationsEnabled ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: animationsEnabled,
-              onChanged: (_) {
-                ref.read(animationsEnabledProvider.notifier).toggle();
+                final username = (viewer['name'] ?? 'Unknown').toString();
+
+                return Column(
+                  children: [
+                    _buildSettingsTile(
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.userCircle,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      title: 'AniList Username',
+                      subtitle: username,
+                      trailing: null,
+                    ),
+                    _buildSettingsTile(
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.cloudArrowUp,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      title: 'Auto AniList Sync',
+                      subtitle: aniListAutoSync
+                          ? 'Automatically sync add/remove/progress'
+                          : 'Manual sync only',
+                      trailing: Switch(
+                        value: aniListAutoSync,
+                        onChanged: (value) {
+                          ref
+                              .read(aniListAutoSyncProvider.notifier)
+                              .setEnabled(value);
+                        },
+                        activeThumbColor: NamizoTheme.primary,
+                      ),
+                    ),
+                    _buildSettingsTile(
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.arrowsClockwise,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      title: 'Sync Local Watchlist',
+                      subtitle:
+                          'Push local watchlist entries to AniList planning',
+                      trailing: const PhosphorIcon(
+                        PhosphorIconsRegular.caretRight,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                      onTap: () => _syncLocalWatchlistToAniList(context, ref),
+                    ),
+                    _buildSettingsTile(
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.signOut,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                      title: 'Logout AniList',
+                      subtitle: 'Disconnect AniList account',
+                      trailing: const PhosphorIcon(
+                        PhosphorIconsRegular.caretRight,
+                        color: Colors.white70,
+                        size: 18,
+                      ),
+                      onTap: () async {
+                        await ref.read(aniListServiceProvider).logout();
+                        ref
+                            .read(aniListAccountRefreshProvider.notifier)
+                            .state++;
+                      },
+                    ),
+                  ],
+                );
               },
-              activeThumbColor: NamizoTheme.primary,
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
             ),
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.eyeSlash,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Hide Adult Content',
-            subtitle: hideAdultContent ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: hideAdultContent,
-              onChanged: (value) {
-                ref.read(hideAdultContentProvider.notifier).setEnabled(value);
-              },
-              activeThumbColor: NamizoTheme.primary,
-            ),
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.calendarCheck,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Tracked Only in Schedule',
-            subtitle: scheduleTrackedOnly ? 'Enabled' : 'Disabled',
-            trailing: Switch(
-              value: scheduleTrackedOnly,
-              onChanged: (value) {
-                ref.read(scheduleTrackedOnlyProvider.notifier).setEnabled(value);
-              },
-              activeThumbColor: NamizoTheme.primary,
-            ),
-          ),
-          if (easterEggEnabled)
             _buildSettingsTile(
               icon: const PhosphorIcon(
-                PhosphorIconsRegular.arrowCounterClockwise,
+                PhosphorIconsRegular.clockCounterClockwise,
                 color: Colors.white,
                 size: 24,
               ),
-              title: 'Revert Home Logo',
-              subtitle: 'Switch back to Namizo title text',
+              title: 'Clear Watch History',
+              subtitle: 'Remove all watch history data',
               trailing: const PhosphorIcon(
                 PhosphorIconsRegular.caretRight,
                 color: Colors.white70,
                 size: 18,
               ),
-              onTap: () async {
-                await ref.read(easterEggHomeLogoProvider.notifier).setEnabled(false);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Home logo reverted to Namizo'),
-                    backgroundColor: NamizoTheme.primary,
-                  ),
-                );
+              onTap: () {
+                _showClearHistoryDialog(context, ref);
               },
             ),
-
-
-          if (_supportsBackgroundTasks) ...[
-            _buildSectionHeader('Notifications'),
             _buildSettingsTile(
               icon: const PhosphorIcon(
-                PhosphorIconsRegular.bell,
+                PhosphorIconsRegular.database,
                 color: Colors.white,
                 size: 24,
               ),
-              title: 'New Episode Alerts',
-              subtitle: episodeCheckEnabled ? 'Enabled' : 'Disabled',
-              trailing: Switch(
-                value: episodeCheckEnabled,
-                onChanged: (value) {
-                  ref.read(episodeCheckEnabledProvider.notifier).setEnabled(value);
-                },
-                activeThumbColor: NamizoTheme.primary,
+              title: 'Clear Cache',
+              subtitle: 'Remove cached metadata and artwork',
+              trailing: const PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                color: Colors.white70,
+                size: 18,
               ),
+              onTap: () {
+                _showClearCacheDialog(context, ref);
+              },
             ),
-            if (episodeCheckEnabled) ...[
-              _buildSettingsTile(
-                icon: const PhosphorIcon(
-                  PhosphorIconsRegular.calendar,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                title: 'Check Frequency',
-                subtitle: ref.read(episodeCheckFrequencyProvider.notifier).displayName,
-                trailing: const PhosphorIcon(
-                  PhosphorIconsRegular.caretRight,
-                  color: Colors.white70,
-                  size: 18,
-                ),
-                onTap: () {
-                  _showFrequencyDialog(context, ref);
-                },
-              ),
-              _buildSettingsTile(
-                icon: const PhosphorIcon(
-                  PhosphorIconsRegular.arrowsClockwise,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                title: 'Check Now',
-                subtitle: 'Manually check for new episodes',
-                trailing: const PhosphorIcon(
-                  PhosphorIconsRegular.caretRight,
-                  color: Colors.white70,
-                  size: 18,
-                ),
-                onTap: () async {
-                  _showCheckingDialog(context, ref);
-                },
-              ),
-              lastCheckAsync.when(
-                data: (lastCheck) {
-                  final subtitle = lastCheck != null
-                      ? 'Last checked: ${DateFormat.yMMMd().add_jm().format(lastCheck)}'
-                      : 'Never checked';
-                  return _buildSettingsTile(
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.clock,
-                      color: Colors.white,
-                      size: 24,
-                    ),
-                    title: 'Last Check',
-                    subtitle: subtitle,
-                    trailing: null,
-                  );
-                },
-                loading: () => _buildSettingsTile(
+
+            _buildSectionHeader('App Info'),
+            FutureBuilder<String>(
+              future: _getAppVersionLabel(),
+              builder: (context, snapshot) {
+                return _buildSettingsTile(
                   icon: const PhosphorIcon(
-                    PhosphorIconsRegular.clock,
+                    PhosphorIconsRegular.info,
                     color: Colors.white,
                     size: 24,
                   ),
-                  title: 'Last Check',
-                  subtitle: 'Loading...',
+                  title: 'App Version',
+                  subtitle: snapshot.data ?? 'Loading...',
                   trailing: null,
-                ),
-                error: (_, __) => _buildSettingsTile(
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.clock,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  title: 'Last Check',
-                  subtitle: 'Unavailable',
-                  trailing: null,
-                ),
-              ),
-            ],
-          ],
-
-          _buildSectionHeader('Data & Storage'),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.clockCounterClockwise,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Clear Watch History',
-            subtitle: 'Remove all watch history data',
-            trailing: const PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              color: Colors.white70,
-              size: 18,
-            ),
-            onTap: () {
-              _showClearHistoryDialog(context, ref);
-            },
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.database,
-              color: Colors.white,
-              size: 24,
-            ),
-            title: 'Clear Cache',
-            subtitle: 'Remove cached metadata and artwork',
-            trailing: const PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              color: Colors.white70,
-              size: 18,
-            ),
-            onTap: () {
-              _showClearCacheDialog(context, ref);
-            },
-          ),
-          _buildSectionHeader('About'),
-          FutureBuilder<String>(
-            future: _getAppVersionLabel(),
-            builder: (context, snapshot) {
-              return _buildSettingsTile(
-                icon: const PhosphorIcon(
-                  PhosphorIconsRegular.info,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                title: 'App Version',
-                subtitle: snapshot.data ?? 'Loading...',
-                trailing: null,
-                onTap: () async {
-                  final currentCount =
-                      ref.read(easterEggVersionTapCountProvider) + 1;
-                  ref.read(easterEggVersionTapCountProvider.notifier).state =
-                      currentCount;
-
-                  if (!easterEggEnabled && currentCount >= 6) {
-                    await ref
-                        .read(easterEggHomeLogoProvider.notifier)
-                        .setEnabled(true);
+                  onTap: () async {
+                    final currentCount =
+                        ref.read(easterEggVersionTapCountProvider) + 1;
                     ref.read(easterEggVersionTapCountProvider.notifier).state =
-                        0;
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('🎉 Easter egg enabled!'),
-                        backgroundColor: NamizoTheme.primary,
-                      ),
-                    );
-                  }
-                },
-              );
-            },
-          ),
-          _buildSettingsTile(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.githubLogo,
-              color: Colors.white,
-              size: 24,
+                        currentCount;
+
+                    if (!easterEggEnabled && currentCount >= 6) {
+                      await ref
+                          .read(easterEggHomeLogoProvider.notifier)
+                          .setEnabled(true);
+                      ref
+                              .read(easterEggVersionTapCountProvider.notifier)
+                              .state =
+                          0;
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🎉 Easter egg enabled!'),
+                          backgroundColor: NamizoTheme.primary,
+                        ),
+                      );
+                    }
+                  },
+                );
+              },
             ),
-            title: 'GitHub Repository',
-            subtitle: 'View source code',
-            trailing: const PhosphorIcon(
-              PhosphorIconsRegular.arrowSquareOut,
-              color: Colors.white70,
-              size: 18,
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.githubLogo,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'GitHub Repository',
+              subtitle: 'View source code',
+              trailing: const PhosphorIcon(
+                PhosphorIconsRegular.arrowSquareOut,
+                color: Colors.white70,
+                size: 18,
+              ),
+              onTap: () async {
+                final uri = Uri.parse('https://github.com/NotMugil/namizo');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri);
+                }
+              },
             ),
-            onTap: () async {
-              final uri = Uri.parse('https://github.com/NotMugil/namizo');
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri);
-              }
-            },
-          ),
-          const SizedBox(height: 40),
-        ],
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
@@ -533,10 +592,14 @@ class SettingsScreen extends ConsumerWidget {
 
   Future<void> _showHomeFeedOrderSheet(
     BuildContext context,
-    WidgetRef ref,
-  ) async {
+    WidgetRef ref, {
+    required bool includeAniListRows,
+  }) async {
     final currentOrder = ref.read(homeFeedOrderProvider);
-    final editable = List<String>.from(currentOrder);
+    final editable = _filterReorderableFeedOrder(
+      currentOrder,
+      includeAniListRows: includeAniListRows,
+    );
 
     await showModalBottomSheet<void>(
       context: context,
@@ -572,6 +635,14 @@ class SettingsScreen extends ConsumerWidget {
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                       ),
                     ),
+                    if (!includeAniListRows)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Text(
+                          'Planning row appears after login.',
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      ),
                     Expanded(
                       child: ReorderableListView.builder(
                         buildDefaultDragHandles: false,
@@ -589,28 +660,28 @@ class SettingsScreen extends ConsumerWidget {
                         itemBuilder: (context, index) {
                           final key = editable[index];
                           return ReorderableDelayedDragStartListener(
+                            key: ValueKey('home_feed_$key'),
                             index: index,
                             child: Container(
-                            key: ValueKey('home_feed_$key'),
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.12),
+                                ),
                               ),
-                            ),
-                            child: ListTile(
-                              dense: true,
-                              title: Text(
-                                _homeFeedLabel(key),
-                                style: const TextStyle(color: Colors.white),
+                              child: ListTile(
+                                dense: true,
+                                title: Text(
+                                  _homeFeedLabel(key),
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                trailing: const Icon(
+                                  Icons.drag_handle,
+                                  color: Colors.white60,
+                                ),
                               ),
-                              trailing: const Icon(
-                                Icons.drag_handle,
-                                color: Colors.white60,
-                              ),
-                            ),
                             ),
                           );
                         },
@@ -624,6 +695,16 @@ class SettingsScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  List<String> _filterReorderableFeedOrder(
+    List<String> order, {
+    required bool includeAniListRows,
+  }) {
+    if (includeAniListRows) return List<String>.from(order);
+    return order
+        .where((key) => !_aniListOnlyFeedKeys.contains(key))
+        .toList(growable: false);
   }
 
   String _homeFeedLabel(String key) {
@@ -668,10 +749,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: NamizoTheme.sectionHeaderStyle,
-      ),
+      child: Text(title, style: NamizoTheme.sectionHeaderStyle),
     );
   }
 
@@ -805,60 +883,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showFrequencyDialog(BuildContext context, WidgetRef ref) {
-    final frequencies = [
-      {'value': 12, 'label': 'Every 12 hours (Frequent)'},
-      {'value': 24, 'label': 'Daily (Recommended)'},
-      {'value': 48, 'label': 'Every 2 days (Battery Saver)'},
-    ];
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: NamizoTheme.surface,
-        title: const Text(
-          'Check Frequency',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(bottom: 16.0),
-              child: Text(
-                'Choose how often to check for new episodes. More frequent checks use more battery.',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-            ),
-            RadioGroup<int>(
-              groupValue: ref.read(episodeCheckFrequencyProvider),
-              onChanged: (value) {
-                if (value == null) return;
-                ref.read(episodeCheckFrequencyProvider.notifier).setFrequency(value);
-                Navigator.pop(dialogContext);
-              },
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: frequencies
-                    .map(
-                      (freq) => RadioListTile<int>(
-                        value: freq['value'] as int,
-                        activeColor: NamizoTheme.primary,
-                        title: Text(
-                          freq['label'] as String,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showThemeModeDialog(BuildContext context, WidgetRef ref) {
     final themeModeNotifier = ref.read(themeModeProvider.notifier);
     final currentThemeMode = ref.read(themeModeProvider);
@@ -867,10 +891,7 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: NamizoTheme.surface,
-        title: const Text(
-          'Theme',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Theme', style: TextStyle(color: Colors.white)),
         content: RadioGroup<ThemeMode>(
           groupValue: currentThemeMode,
           onChanged: (value) {
@@ -892,10 +913,7 @@ class SettingsScreen extends ConsumerWidget {
               RadioListTile<ThemeMode>(
                 value: ThemeMode.dark,
                 activeColor: NamizoTheme.primary,
-                title: Text(
-                  'Dark',
-                  style: TextStyle(color: Colors.white),
-                ),
+                title: Text('Dark', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -1000,10 +1018,7 @@ class SettingsScreen extends ConsumerWidget {
         : 'Synced ${result.synced} entries to AniList';
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: NamizoTheme.primary,
-      ),
+      SnackBar(content: Text(message), backgroundColor: NamizoTheme.primary),
     );
   }
 }

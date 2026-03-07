@@ -52,10 +52,26 @@ class AiringEntry {
 
 // Grayscale matrix used to desaturate non-watchlisted shows.
 const _grayscaleMatrix = ColorFilter.matrix(<double>[
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
-  0,      0,      0,      1, 0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0.2126,
+  0.7152,
+  0.0722,
+  0,
+  0,
+  0,
+  0,
+  0,
+  1,
+  0,
 ]);
 
 /// Card displayed for each show in the schedule list.
@@ -77,13 +93,15 @@ class ScheduleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final resolvedPoster = posterUrl(entry.posterPath);
     final resolvedBanner = posterUrl(bannerUrl);
-    final backgroundUrl =
-        resolvedBanner.isNotEmpty ? resolvedBanner : resolvedPoster;
+    final backgroundUrl = resolvedBanner.isNotEmpty
+        ? resolvedBanner
+        : resolvedPoster;
 
     final progressText = '${entry.lastEpisode}/${entry.totalEpisodesText}';
     final yearText = '${entry.airDate.year}';
-    final scoreText =
-        entry.score != null ? entry.score!.toStringAsFixed(1) : '--';
+    final scoreText = entry.score != null
+        ? entry.score!.toStringAsFixed(1)
+        : '--';
     final timeText = DateFormat('EEE HH:mm').format(entry.airDate);
 
     return Container(
@@ -97,20 +115,20 @@ class ScheduleCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             child: backgroundUrl.isNotEmpty
                 ? (inWatchlist
-                    ? CachedNetworkImage(
-                        imageUrl: backgroundUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                      )
-                    : ColorFiltered(
-                        colorFilter: _grayscaleMatrix,
-                        child: CachedNetworkImage(
+                      ? CachedNetworkImage(
                           imageUrl: backgroundUrl,
                           fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) =>
-                              const SizedBox.shrink(),
-                        ),
-                      ))
+                          errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                        )
+                      : ColorFiltered(
+                          colorFilter: _grayscaleMatrix,
+                          child: CachedNetworkImage(
+                            imageUrl: backgroundUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                const SizedBox.shrink(),
+                          ),
+                        ))
                 : const SizedBox.shrink(),
           ),
           // Gradient overlay
@@ -148,23 +166,24 @@ class ScheduleCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           child: resolvedPoster.isNotEmpty
                               ? (inWatchlist
-                                  ? CachedNetworkImage(
-                                      imageUrl: resolvedPoster,
-                                      fit: BoxFit.cover,
-                                      errorWidget: (_, __, ___) => Container(
-                                        color: const Color(0xFF1D212B),
-                                      ),
-                                    )
-                                  : ColorFiltered(
-                                      colorFilter: _grayscaleMatrix,
-                                      child: CachedNetworkImage(
+                                    ? CachedNetworkImage(
                                         imageUrl: resolvedPoster,
                                         fit: BoxFit.cover,
                                         errorWidget: (_, __, ___) => Container(
                                           color: const Color(0xFF1D212B),
                                         ),
-                                      ),
-                                    ))
+                                      )
+                                    : ColorFiltered(
+                                        colorFilter: _grayscaleMatrix,
+                                        child: CachedNetworkImage(
+                                          imageUrl: resolvedPoster,
+                                          fit: BoxFit.cover,
+                                          errorWidget: (_, __, ___) =>
+                                              Container(
+                                                color: const Color(0xFF1D212B),
+                                              ),
+                                        ),
+                                      ))
                               : Container(color: const Color(0xFF1D212B)),
                         ),
                       ),

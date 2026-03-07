@@ -5,8 +5,8 @@ import 'package:namizo/models/media/stream_result.dart';
 /// Anime streaming via aimi_lib providers (AnimePahe/AllAnime/Anizone).
 class AimiAnimeService {
   static const List<_ProviderConfig> _providerOrder = [
-    _ProviderConfig('AllAnime', _ProviderKind.allAnime),
     _ProviderConfig('AnimePahe', _ProviderKind.animePahe),
+    _ProviderConfig('AllAnime', _ProviderKind.allAnime),
     _ProviderConfig('Anizone', _ProviderKind.anizone),
   ];
 

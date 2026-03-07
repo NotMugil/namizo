@@ -21,32 +21,28 @@ class TvdbMetadataService {
   Map<int, String>? _artworkTypeById;
 
   TvdbMetadataService(this._cache)
-      : _mappingDio = Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 20),
-            receiveTimeout: const Duration(seconds: 20),
-          ),
+    : _mappingDio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 20),
+          receiveTimeout: const Duration(seconds: 20),
         ),
-        _jikanDio = Dio(
-          BaseOptions(
-            baseUrl: AppConfigurations.jikanBaseUrl,
-            connectTimeout: standardTimeout,
-            receiveTimeout: standardTimeout,
-            headers: {
-              'User-Agent': AppConfigurations.defaultAppUserAgent,
-            },
-          ),
+      ),
+      _jikanDio = Dio(
+        BaseOptions(
+          baseUrl: AppConfigurations.jikanBaseUrl,
+          connectTimeout: standardTimeout,
+          receiveTimeout: standardTimeout,
+          headers: {'User-Agent': AppConfigurations.defaultAppUserAgent},
         ),
-        _tvdbDio = Dio(
-          BaseOptions(
-            baseUrl: AppConfigurations.tvdbBaseUrl,
-            connectTimeout: extendedTimeout,
-            receiveTimeout: extendedTimeout,
-            headers: {
-              'Accept-Language': 'eng',
-            },
-          ),
-        );
+      ),
+      _tvdbDio = Dio(
+        BaseOptions(
+          baseUrl: AppConfigurations.tvdbBaseUrl,
+          connectTimeout: extendedTimeout,
+          receiveTimeout: extendedTimeout,
+          headers: {'Accept-Language': 'eng'},
+        ),
+      );
 
   bool get isEnabled => UserConfig.tvdbApiKey.trim().isNotEmpty;
 
@@ -54,7 +50,9 @@ class TvdbMetadataService {
     final cacheKey = 'tvdb_mapping_mal_$malId';
     final cached = await _cache.getRaw(cacheKey);
     if (cached != null) {
-      final resolved = TvdbMappingEntry.fromJson(cached.cast<String, dynamic>());
+      final resolved = TvdbMappingEntry.fromJson(
+        cached.cast<String, dynamic>(),
+      );
       if (resolved.tvdbId > 0) return resolved;
     }
 
@@ -67,11 +65,7 @@ class TvdbMetadataService {
       }
 
       if (parsed != null && parsed.tvdbId > 0) {
-        await _cache.set(
-          cacheKey,
-          parsed.toJson(),
-          ttl: longCache,
-        );
+        await _cache.set(cacheKey, parsed.toJson(), ttl: longCache);
       }
 
       return parsed;
@@ -192,10 +186,7 @@ class TvdbMetadataService {
 
     for (final params in endpoints) {
       try {
-        final response = await _tvdbDio.get(
-          '/search',
-          queryParameters: params,
-        );
+        final response = await _tvdbDio.get('/search', queryParameters: params);
         final root = response.data;
         if (root is! Map) continue;
 
@@ -206,7 +197,9 @@ class TvdbMetadataService {
           if (row is! Map) continue;
           final item = row.cast<String, dynamic>();
           final tvdbId =
-              _toInt(item['tvdb_id']) ?? _toInt(item['id']) ?? _toInt(item['seriesId']);
+              _toInt(item['tvdb_id']) ??
+              _toInt(item['id']) ??
+              _toInt(item['seriesId']);
           if (tvdbId == null || tvdbId <= 0 || !seenIds.add(tvdbId)) {
             continue;
           }
@@ -217,14 +210,11 @@ class TvdbMetadataService {
           if (name == null || name.isEmpty) continue;
 
           final year =
-              _toInt(item['year']) ?? _extractYearFromDateString(item['firstAired']?.toString());
+              _toInt(item['year']) ??
+              _extractYearFromDateString(item['firstAired']?.toString());
 
           results.add(
-            _TvdbSeriesCandidate(
-              tvdbId: tvdbId,
-              name: name,
-              year: year,
-            ),
+            _TvdbSeriesCandidate(tvdbId: tvdbId, name: name, year: year),
           );
         }
       } catch (_) {
@@ -325,17 +315,12 @@ class TvdbMetadataService {
     final series = await _fetchBestArtworkSeries(mapping.tvdbId);
     if (series == null) return null;
 
-    final logo = _extractArtworkUrl(series, typeHints: const [
-      'clearlogo',
-      'logo',
-      'wordmark',
-    ]);
-
-    await _cache.set(
-      cacheKey,
-      {'logo': logo ?? ''},
-      ttl: longCache,
+    final logo = _extractArtworkUrl(
+      series,
+      typeHints: const ['clearlogo', 'logo', 'wordmark'],
     );
+
+    await _cache.set(cacheKey, {'logo': logo ?? ''}, ttl: longCache);
 
     return logo;
   }
@@ -359,17 +344,12 @@ class TvdbMetadataService {
     );
     if (series == null) return null;
 
-    final clearLogo = _extractArtworkUrlStrict(series, typeHints: const [
-      'clearlogo',
-      'clear_logo',
-      'clear logo',
-    ]);
-
-    await _cache.set(
-      cacheKey,
-      {'clearlogo': clearLogo ?? ''},
-      ttl: longCache,
+    final clearLogo = _extractArtworkUrlStrict(
+      series,
+      typeHints: const ['clearlogo', 'clear_logo', 'clear logo'],
     );
+
+    await _cache.set(cacheKey, {'clearlogo': clearLogo ?? ''}, ttl: longCache);
 
     return clearLogo;
   }
@@ -407,11 +387,7 @@ class TvdbMetadataService {
       carouselBackdropUrl: surfaceArtwork.carouselBackdropUrl,
     );
 
-    await _cache.set(
-      cacheKey,
-      artwork.toJson(),
-      ttl: longCache,
-    );
+    await _cache.set(cacheKey, artwork.toJson(), ttl: longCache);
 
     return artwork;
   }
@@ -460,7 +436,9 @@ class TvdbMetadataService {
       if (rows is List) {
         return rows
             .whereType<Map>()
-            .map((row) => TvdbSimilarSeries.fromJson(row.cast<String, dynamic>()))
+            .map(
+              (row) => TvdbSimilarSeries.fromJson(row.cast<String, dynamic>()),
+            )
             .toList(growable: false);
       }
     }
@@ -485,11 +463,9 @@ class TvdbMetadataService {
       if (output.length >= 18) break;
     }
 
-    await _cache.set(
-      cacheKey,
-      {'items': output.map((item) => item.toJson()).toList(growable: false)},
-      ttl: mediumCache,
-    );
+    await _cache.set(cacheKey, {
+      'items': output.map((item) => item.toJson()).toList(growable: false),
+    }, ttl: mediumCache);
 
     return output;
   }
@@ -531,11 +507,13 @@ class TvdbMetadataService {
       String? name = (match['name'] ?? match['episodeName']) as String?;
       String? overview = (match['overview'] ?? match['summary']) as String?;
       final image =
-          (match['image'] ?? match['filename'] ?? match['thumbnail']) as String?;
+          (match['image'] ?? match['filename'] ?? match['thumbnail'])
+              as String?;
       final score = (match['score'] as num?)?.toDouble();
       final runtime = (match['runtime'] as num?)?.toInt();
-      final aired = (match['aired'] ?? match['airedAt'] ?? match['firstAired'])
-          as String?;
+      final aired =
+          (match['aired'] ?? match['airedAt'] ?? match['firstAired'])
+              as String?;
 
       final episodeId = (match['id'] as num?)?.toInt();
       final shouldTranslate =
@@ -548,13 +526,18 @@ class TvdbMetadataService {
 
       enrichedEpisodes.add(
         episode.copyWith(
-        episodeName:
-            name != null && name.trim().isNotEmpty ? name : episode.episodeName,
-        overview: overview?.trim().isNotEmpty == true ? overview : episode.overview,
-        stillPath: image?.trim().isNotEmpty == true ? image : episode.stillPath,
-        voteAverage: score ?? episode.voteAverage,
-        runtime: runtime ?? episode.runtime,
-        airDate: _normalizeDate(aired) ?? episode.airDate,
+          episodeName: name != null && name.trim().isNotEmpty
+              ? name
+              : episode.episodeName,
+          overview: overview?.trim().isNotEmpty == true
+              ? overview
+              : episode.overview,
+          stillPath: image?.trim().isNotEmpty == true
+              ? image
+              : episode.stillPath,
+          voteAverage: score ?? episode.voteAverage,
+          runtime: runtime ?? episode.runtime,
+          airDate: _normalizeDate(aired) ?? episode.airDate,
         ),
       );
     }
@@ -578,16 +561,14 @@ class TvdbMetadataService {
       throw Exception('Failed to load TVDB mapping YAML');
     }
 
-    await _cache.set(
-      cacheKey,
-      {'content': body},
-      ttl: longCache,
-    );
+    await _cache.set(cacheKey, {'content': body}, ttl: longCache);
 
     return body;
   }
 
-  Future<List<Map<String, dynamic>>> _fetchSimilarSeriesRecords(int seriesId) async {
+  Future<List<Map<String, dynamic>>> _fetchSimilarSeriesRecords(
+    int seriesId,
+  ) async {
     final ready = await _ensureToken();
     if (!ready) return const [];
 
@@ -661,24 +642,43 @@ class TvdbMetadataService {
       raw['name'] ?? raw['seriesName'] ?? raw['title'],
     );
     String? overview = _toCleanString(raw['overview'] ?? raw['summary']);
-    String? image = _toCleanString(raw['image'] ?? raw['poster'] ?? raw['banner']);
+    String? image = _toCleanString(
+      raw['image'] ?? raw['poster'] ?? raw['banner'],
+    );
     final score = (raw['score'] as num?)?.toDouble();
-    int? year = _toInt(raw['year']) ?? _extractYearFromDateString(raw['firstAired']?.toString());
+    int? year =
+        _toInt(raw['year']) ??
+        _extractYearFromDateString(raw['firstAired']?.toString());
     int? malId = _extractMalIdFromRemoteIds(raw['remoteIds']);
 
-    if (tvdbId != null && (title == null || title.isEmpty || image == null || image.isEmpty)) {
+    if (tvdbId != null &&
+        (title == null || title.isEmpty || image == null || image.isEmpty)) {
       final extended = await _fetchSeriesExtended(tvdbId);
       if (extended != null) {
         title ??= _toCleanString(
           extended['name'] ?? extended['seriesName'] ?? extended['title'],
         );
-        overview ??= _toCleanString(extended['overview'] ?? extended['summary']);
-        image ??= _extractArtworkUrl(
+        overview ??= _toCleanString(
+          extended['overview'] ?? extended['summary'],
+        );
+        image ??=
+            _extractArtworkUrl(
               extended,
-              typeHints: const ['poster', 'cover', 'keyart', 'banner', 'fanart'],
+              typeHints: const [
+                'poster',
+                'cover',
+                'keyart',
+                'banner',
+                'fanart',
+              ],
             ) ??
-            _extractFirstArtworkField(extended, const ['image', 'poster', 'banner']);
-        year ??= _toInt(extended['year']) ??
+            _extractFirstArtworkField(extended, const [
+              'image',
+              'poster',
+              'banner',
+            ]);
+        year ??=
+            _toInt(extended['year']) ??
             _extractYearFromDateString(extended['firstAired']?.toString());
         malId ??= _extractMalIdFromRemoteIds(extended['remoteIds']);
       }
@@ -706,7 +706,10 @@ class TvdbMetadataService {
           .toLowerCase();
       if (source == null || !source.contains('myanimelist')) continue;
 
-      final direct = _toInt(item['id']) ?? _toInt(item['sourceId']) ?? _toInt(item['value']);
+      final direct =
+          _toInt(item['id']) ??
+          _toInt(item['sourceId']) ??
+          _toInt(item['value']);
       if (direct != null && direct > 0) return direct;
 
       final text = item['url']?.toString() ?? item['value']?.toString() ?? '';
@@ -791,10 +794,11 @@ class TvdbMetadataService {
 
       final response = await _tvdbDio.post('/login', data: body);
       final data = response.data;
-        final root = data is Map ? Map<String, dynamic>.from(data) : null;
-        final payload =
-          root?['data'] is Map ? Map<String, dynamic>.from(root!['data']) : null;
-        final token = payload?['token']?.toString().trim();
+      final root = data is Map ? Map<String, dynamic>.from(data) : null;
+      final payload = root?['data'] is Map
+          ? Map<String, dynamic>.from(root!['data'])
+          : null;
+      final token = payload?['token']?.toString().trim();
       if (token == null || token.isEmpty) return false;
 
       _token = token;
@@ -855,10 +859,7 @@ class TvdbMetadataService {
     final ready = await _ensureToken();
     if (!ready) return null;
 
-    final endpoints = [
-      '/seasons/$seasonId/extended',
-      '/seasons/$seasonId',
-    ];
+    final endpoints = ['/seasons/$seasonId/extended', '/seasons/$seasonId'];
 
     for (final endpoint in endpoints) {
       try {
@@ -890,16 +891,15 @@ class TvdbMetadataService {
     final season = await _fetchSeasonExtended(seasonId);
     if (season == null) return null;
 
-    final posterUrl = _extractArtworkUrl(season, typeHints: const [
-      'poster',
-      'cover',
-      'keyart',
-    ]);
-    final bannerUrl = _extractArtworkUrlStrict(season, typeHints: const [
-          'banner',
-          'fanart',
-          'background',
-        ]) ??
+    final posterUrl = _extractArtworkUrl(
+      season,
+      typeHints: const ['poster', 'cover', 'keyart'],
+    );
+    final bannerUrl =
+        _extractArtworkUrlStrict(
+          season,
+          typeHints: const ['banner', 'fanart', 'background'],
+        ) ??
         _extractFirstArtworkField(season, const [
           'banner',
           'fanart',
@@ -911,10 +911,7 @@ class TvdbMetadataService {
       return null;
     }
 
-    return TvdbArtworkMetadata(
-      posterUrl: posterUrl,
-      bannerUrl: bannerUrl,
-    );
+    return TvdbArtworkMetadata(posterUrl: posterUrl, bannerUrl: bannerUrl);
   }
 
   Future<int?> _resolveSeasonIdForMapping(TvdbMappingEntry mapping) async {
@@ -932,8 +929,9 @@ class TvdbMetadataService {
       }
 
       final series = directSeason['series'];
-      final nestedSeriesId =
-          series is Map ? (series['id'] as num?)?.toInt() : null;
+      final nestedSeriesId = series is Map
+          ? (series['id'] as num?)?.toInt()
+          : null;
       if (nestedSeriesId != null && nestedSeriesId > 0) {
         final resolved = await _resolveSeasonIdByNumber(
           nestedSeriesId,
@@ -978,7 +976,10 @@ class TvdbMetadataService {
 
         if (payload is List) {
           final id = _extractSeasonIdFromList(
-            payload.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(),
+            payload
+                .whereType<Map>()
+                .map((e) => e.cast<String, dynamic>())
+                .toList(),
             seasonNumber,
           );
           if (id != null) return id;
@@ -998,7 +999,10 @@ class TvdbMetadataService {
     final directSeasons = container['seasons'];
     if (directSeasons is List) {
       return _extractSeasonIdFromList(
-        directSeasons.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(),
+        directSeasons
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList(),
         seasonNumber,
       );
     }
@@ -1006,7 +1010,10 @@ class TvdbMetadataService {
     final nestedData = container['data'];
     if (nestedData is List) {
       return _extractSeasonIdFromList(
-        nestedData.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList(),
+        nestedData
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList(),
         seasonNumber,
       );
     }
@@ -1046,11 +1053,10 @@ class TvdbMetadataService {
 
     if (primary != null) {
       if (!requireClearLogo ||
-          _extractArtworkUrlStrict(primary, typeHints: const [
-            'clearlogo',
-            'clear_logo',
-            'clear logo',
-          ]) !=
+          _extractArtworkUrlStrict(
+                primary,
+                typeHints: const ['clearlogo', 'clear_logo', 'clear logo'],
+              ) !=
               null) {
         return primary;
       }
@@ -1071,11 +1077,10 @@ class TvdbMetadataService {
     }
 
     if (!requireClearLogo) return parent;
-    final parentClearLogo = _extractArtworkUrlStrict(parent, typeHints: const [
-      'clearlogo',
-      'clear_logo',
-      'clear logo',
-    ]);
+    final parentClearLogo = _extractArtworkUrlStrict(
+      parent,
+      typeHints: const ['clearlogo', 'clear_logo', 'clear logo'],
+    );
     return parentClearLogo != null ? parent : primary;
   }
 
@@ -1083,10 +1088,7 @@ class TvdbMetadataService {
     final ready = await _ensureToken();
     if (!ready) return null;
 
-    final endpoints = [
-      '/seasons/$seasonId/extended',
-      '/seasons/$seasonId',
-    ];
+    final endpoints = ['/seasons/$seasonId/extended', '/seasons/$seasonId'];
 
     for (final endpoint in endpoints) {
       try {
@@ -1146,7 +1148,10 @@ class TvdbMetadataService {
 
     final data = raw['data'];
     if (data is List) {
-      return data.whereType<Map>().map((e) => e.cast<String, dynamic>()).toList();
+      return data
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
     }
 
     if (data is Map) {
@@ -1197,8 +1202,7 @@ class TvdbMetadataService {
 
   bool _isLikelyNonEnglish(String? text) {
     if (text == null || text.trim().isEmpty) return false;
-    return RegExp(r'[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]')
-        .hasMatch(text);
+    return RegExp(r'[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF]').hasMatch(text);
   }
 
   Future<_EpisodeEnglishTranslation?> _fetchEpisodeEnglishTranslation(
@@ -1245,11 +1249,7 @@ class TvdbMetadataService {
           ),
         );
 
-        await _cache.set(
-          cacheKey,
-          translation.toJson(),
-          ttl: longCache,
-        );
+        await _cache.set(cacheKey, translation.toJson(), ttl: longCache);
 
         if (translation.hasContent) {
           return translation;
@@ -1287,7 +1287,8 @@ class TvdbMetadataService {
       ),
     );
 
-    final detailPoster = seasonArtwork?.posterUrl ??
+    final detailPoster =
+        seasonArtwork?.posterUrl ??
         _selectArtworkUrl(
           series,
           policy: const _ArtworkSelectionPolicy(
@@ -1299,9 +1300,13 @@ class TvdbMetadataService {
             strictNoText: false,
           ),
         ) ??
-        _extractArtworkUrl(series, typeHints: const ['poster', 'cover', 'keyart']);
+        _extractArtworkUrl(
+          series,
+          typeHints: const ['poster', 'cover', 'keyart'],
+        );
 
-    final detailBackdrop = seasonArtwork?.bannerUrl ??
+    final detailBackdrop =
+        seasonArtwork?.bannerUrl ??
         _selectArtworkUrl(
           series,
           policy: const _ArtworkSelectionPolicy(
@@ -1325,7 +1330,8 @@ class TvdbMetadataService {
           ),
         );
 
-    final carouselBackdrop = _selectArtworkUrl(
+    final carouselBackdrop =
+        _selectArtworkUrl(
           series,
           policy: const _ArtworkSelectionPolicy(
             mode: 'carousel-backdrop',
@@ -1397,7 +1403,9 @@ class TvdbMetadataService {
     final artworks = _extractArtworkRecords(series);
     if (artworks.isEmpty) return const [];
 
-    final normalizedHints = policy.typeHints.map((e) => e.toLowerCase()).toList();
+    final normalizedHints = policy.typeHints
+        .map((e) => e.toLowerCase())
+        .toList();
     final selected = <Map<String, dynamic>>[];
 
     for (final artwork in artworks) {
@@ -1433,12 +1441,7 @@ class TvdbMetadataService {
       return _artworkRankScore(
         b,
         policy: policy,
-      ).compareTo(
-        _artworkRankScore(
-          a,
-          policy: policy,
-        ),
-      );
+      ).compareTo(_artworkRankScore(a, policy: policy));
     });
     return ranked.first;
   }
@@ -1463,7 +1466,8 @@ class TvdbMetadataService {
     }
 
     final width = _toInt(artwork['width']) ?? _toInt(artwork['thumbnailWidth']);
-    final height = _toInt(artwork['height']) ?? _toInt(artwork['thumbnailHeight']);
+    final height =
+        _toInt(artwork['height']) ?? _toInt(artwork['thumbnailHeight']);
     if (width != null && height != null && width > 0 && height > 0) {
       final area = width * height;
       score += (area / 100000).clamp(0, 60).toDouble();
@@ -1656,7 +1660,9 @@ class TvdbMetadataService {
     }
   }
 
-  List<Map<String, dynamic>> _extractArtworkRecords(Map<String, dynamic> series) {
+  List<Map<String, dynamic>> _extractArtworkRecords(
+    Map<String, dynamic> series,
+  ) {
     final collected = <Map<String, dynamic>>[];
     final candidates = [
       series['artworks'],
@@ -1725,7 +1731,9 @@ class TvdbMetadataService {
     final typeId = (selected['type'] as num?)?.toInt();
     final typeName = _artworkTypeTokens(selected).join(' | ');
     final score = selected['score'];
-    final shortImage = image.length > 120 ? '${image.substring(0, 120)}…' : image;
+    final shortImage = image.length > 120
+        ? '${image.substring(0, 120)}…'
+        : image;
 
     print(
       '[TVDB][Artwork][$mode] hints=${hints.join(',')} '
@@ -1839,9 +1847,9 @@ class _EpisodeEnglishTranslation {
       (overview != null && overview!.trim().isNotEmpty);
 
   Map<String, dynamic> toJson() => {
-        'name': name ?? '',
-        'overview': overview ?? '',
-      };
+    'name': name ?? '',
+    'overview': overview ?? '',
+  };
 
   factory _EpisodeEnglishTranslation.fromJson(Map<String, dynamic> json) {
     String? toNullableString(dynamic value) {

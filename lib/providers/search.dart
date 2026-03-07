@@ -13,15 +13,18 @@ final searchPageProvider = StateProvider<int>((ref) => 1);
 final searchLanguageFilterProvider = StateProvider<String?>((ref) => null);
 
 // Sort option ('relevance', 'popularity', 'rating', 'year', 'title')
-final searchSortProvider = StateProvider<String>((ref) => 'popularity');
+final searchSortProvider = StateProvider<String>((ref) => 'relevance');
 
 // All accumulated search results (for pagination)
-final accumulatedSearchResultsProvider = StateProvider<List<SearchResult>>((ref) => []);
+final accumulatedSearchResultsProvider = StateProvider<List<SearchResult>>(
+  (ref) => [],
+);
 
 // Total pages and results info
-final searchMetadataProvider = StateProvider<({int totalPages, int totalResults})>((ref) {
-  return (totalPages: 0, totalResults: 0);
-});
+final searchMetadataProvider =
+    StateProvider<({int totalPages, int totalResults})>((ref) {
+      return (totalPages: 0, totalResults: 0);
+    });
 
 // Search results provider with pagination
 final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
@@ -51,11 +54,7 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
   } catch (_) {
     try {
       results = query.isEmpty
-          ? await _browseFallback(
-              kuroiru: kuroiru,
-              page: page,
-              sortBy: sortBy,
-            )
+          ? await _browseFallback(kuroiru: kuroiru, page: page, sortBy: sortBy)
           : await kuroiru.search(
               query,
               page: page,

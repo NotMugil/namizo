@@ -8,8 +8,10 @@ class AppConfigurations {
   static const String anilistGraphQlBaseUrl = 'https://graphql.anilist.co';
   static const String anilistOauthAuthorizeUrl =
       'https://anilist.co/api/v2/oauth/authorize';
-  static const String anilistOauthClientId =
-      String.fromEnvironment('ANILIST_CLIENT_ID', defaultValue: '');
+  static const String anilistOauthClientId = String.fromEnvironment(
+    'ANILIST_CLIENT_ID',
+    defaultValue: '',
+  );
   static const String anilistOauthRedirectUri = String.fromEnvironment(
     'ANILIST_REDIRECT_URI',
     defaultValue: '',

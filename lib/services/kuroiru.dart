@@ -25,9 +25,7 @@ class KuroiruService {
           baseUrl: AppConfigurations.jikanBaseUrl,
           connectTimeout: standardTimeout,
           receiveTimeout: standardTimeout,
-          headers: {
-            'User-Agent': AppConfigurations.defaultAppUserAgent,
-          },
+          headers: {'User-Agent': AppConfigurations.defaultAppUserAgent},
         ),
       ),
       _kuroiruDio = Dio(
@@ -35,9 +33,7 @@ class KuroiruService {
           baseUrl: 'https://kuroiru.co',
           connectTimeout: standardTimeout,
           receiveTimeout: standardTimeout,
-          headers: {
-            'User-Agent': AppConfigurations.defaultAppUserAgent,
-          },
+          headers: {'User-Agent': AppConfigurations.defaultAppUserAgent},
         ),
       ),
       _kuroiru = aimi.Kuroiru(),
@@ -107,24 +103,23 @@ class KuroiruService {
     final normalizedSort = sortBy == 'rating' ? 'score' : sortBy;
     final normalizedType = type?.trim().toLowerCase();
     final normalizedStatus = status?.trim().toLowerCase();
-    final normalizedGenres = (genreIds ?? const <int>[])
-        .where((id) => id > 0)
-        .toSet()
-        .toList()
-      ..sort();
+    final normalizedGenres =
+        (genreIds ?? const <int>[]).where((id) => id > 0).toSet().toList()
+          ..sort();
     final normalizedStartYear = startYear;
     final normalizedEndYear = endYear;
     final normalizedMinScore = minScore;
 
-    final genreCachePart =
-        normalizedGenres.isEmpty ? 'none' : normalizedGenres.join('-');
+    final genreCachePart = normalizedGenres.isEmpty
+        ? 'none'
+        : normalizedGenres.join('-');
     final yearCachePart =
         '${normalizedStartYear ?? 'none'}-${normalizedEndYear ?? 'none'}';
     final scoreCachePart = normalizedMinScore == null
         ? 'none'
         : normalizedMinScore.toStringAsFixed(1);
     final cacheKey =
-      'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}_g:${genreCachePart}_s:${normalizedStatus ?? 'all'}_t:${normalizedType ?? 'all'}_y:${yearCachePart}_sc:${scoreCachePart}';
+        'search_anime_${normalizedQuery}_${page}_${normalizedSort ?? 'relevance'}_${language ?? 'all'}_g:${genreCachePart}_s:${normalizedStatus ?? 'all'}_t:${normalizedType ?? 'all'}_y:${yearCachePart}_sc:${scoreCachePart}';
 
     if (normalizedQuery.isEmpty) {
       return const SearchResults(
@@ -166,11 +161,12 @@ class KuroiruService {
             if (normalizedType != null && normalizedType.isNotEmpty)
               'type': normalizedType,
             if (normalizedStartYear != null)
-              'start_date': '${normalizedStartYear.toString().padLeft(4, '0')}-01-01',
+              'start_date':
+                  '${normalizedStartYear.toString().padLeft(4, '0')}-01-01',
             if (normalizedEndYear != null)
-              'end_date': '${normalizedEndYear.toString().padLeft(4, '0')}-12-31',
-            if (normalizedMinScore != null)
-              'min_score': normalizedMinScore,
+              'end_date':
+                  '${normalizedEndYear.toString().padLeft(4, '0')}-12-31',
+            if (normalizedMinScore != null) 'min_score': normalizedMinScore,
             ..._searchSortToJikanParams(normalizedSort),
           },
         );
@@ -204,11 +200,13 @@ class KuroiruService {
         sortBy: normalizedSort,
       );
 
-      final pagination = (jikanData?['pagination'] as Map?)?.cast<String, dynamic>();
-      final jikanTotalPages = (pagination?['last_visible_page'] as num?)?.toInt() ??
+      final pagination = (jikanData?['pagination'] as Map?)
+          ?.cast<String, dynamic>();
+      final jikanTotalPages =
+          (pagination?['last_visible_page'] as num?)?.toInt() ??
           (processed.isEmpty ? 0 : 1);
-      final jikanTotalResults = (pagination?['items']?['total'] as num?)?.toInt() ??
-          processed.length;
+      final jikanTotalResults =
+          (pagination?['items']?['total'] as num?)?.toInt() ?? processed.length;
 
       const pageSize = 25;
       final pageResults = page == 1 && processed.length > pageSize
@@ -231,7 +229,9 @@ class KuroiruService {
     }
   }
 
-  List<SearchResult> _mapKuroiruSearchResults(List<aimi.AnimeSearchResult> raw) {
+  List<SearchResult> _mapKuroiruSearchResults(
+    List<aimi.AnimeSearchResult> raw,
+  ) {
     final mapped = <SearchResult>[];
 
     for (final item in raw) {
@@ -297,7 +297,8 @@ class KuroiruService {
 
       final images = (mal['images'] as Map?)?.cast<String, dynamic>();
       final jpg = (images?['jpg'] as Map?)?.cast<String, dynamic>();
-      final posterUrl = (jpg?['large_image_url'] ?? jpg?['image_url']) as String?;
+      final posterUrl =
+          (jpg?['large_image_url'] ?? jpg?['image_url']) as String?;
 
       final genres = (mal['genres'] as List<dynamic>? ?? [])
           .map((g) => (g as Map?)?['mal_id'])
@@ -559,81 +560,81 @@ class KuroiruService {
 
   Future<List<dynamic>> getAnime() async {
     return _runSingleFlightList('anime_popular', () async {
-    final cacheKey = 'anime_popular';
+      final cacheKey = 'anime_popular';
 
-    final cached = await _cache.getRaw(cacheKey);
-    if (cached != null) {
-      return (cached['results'] as List<dynamic>?) ?? [];
-    }
+      final cached = await _cache.getRaw(cacheKey);
+      if (cached != null) {
+        return (cached['results'] as List<dynamic>?) ?? [];
+      }
 
-    try {
-      final results = await _fetchJikanAnimeList(
-        queryParameters: {
-          'type': 'tv',
-          'order_by': 'members',
-          'sort': 'desc',
-          'sfw': true,
-          'limit': 25,
-          'page': 1,
-        },
-      );
-      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
-      return results;
-    } catch (e) {
-      throw Exception('Failed to get anime: $e');
-    }
+      try {
+        final results = await _fetchJikanAnimeList(
+          queryParameters: {
+            'type': 'tv',
+            'order_by': 'members',
+            'sort': 'desc',
+            'sfw': true,
+            'limit': 25,
+            'page': 1,
+          },
+        );
+        await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
+        return results;
+      } catch (e) {
+        throw Exception('Failed to get anime: $e');
+      }
     });
   }
 
   Future<List<dynamic>> getTrendingAnime() async {
     return _runSingleFlightList('anime_trending', () async {
-    final cacheKey = 'anime_trending';
+      final cacheKey = 'anime_trending';
 
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-    if (_cache.isExpired(cacheKey)) {
-      _cache.updateInBackground(cacheKey, () async {
+      final staleCache = await _cache.getStaleRaw(cacheKey);
+      if (_cache.isExpired(cacheKey)) {
+        _cache.updateInBackground(cacheKey, () async {
+          final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
+          return {'results': results};
+        }, shortCache);
+      }
+
+      if (staleCache != null) {
+        return (staleCache['results'] as List<dynamic>?) ?? [];
+      }
+
+      try {
         final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
-        return {'results': results};
-      }, shortCache);
-    }
-
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
-
-    try {
-      final results = await _fetchJikanCurrentSeasonAnime(limit: 25);
-      await _cache.set(cacheKey, {'results': results}, ttl: shortCache);
-      return results;
-    } catch (e) {
-      throw Exception('Failed to get trending anime: $e');
-    }
+        await _cache.set(cacheKey, {'results': results}, ttl: shortCache);
+        return results;
+      } catch (e) {
+        throw Exception('Failed to get trending anime: $e');
+      }
     });
   }
 
   Future<List<dynamic>> getTopRatedAnime() async {
     return _runSingleFlightList('anime_top_rated', () async {
-    final cacheKey = 'anime_top_rated';
+      final cacheKey = 'anime_top_rated';
 
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-    if (_cache.isExpired(cacheKey)) {
-      _cache.updateInBackground(cacheKey, () async {
+      final staleCache = await _cache.getStaleRaw(cacheKey);
+      if (_cache.isExpired(cacheKey)) {
+        _cache.updateInBackground(cacheKey, () async {
+          final results = await _fetchJikanTopAnime(limit: 25);
+          return {'results': results};
+        }, mediumCache);
+      }
+
+      if (staleCache != null) {
+        return (staleCache['results'] as List<dynamic>?) ?? [];
+      }
+
+      try {
         final results = await _fetchJikanTopAnime(limit: 25);
-        return {'results': results};
-      }, mediumCache);
-    }
-
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
-
-    try {
-      final results = await _fetchJikanTopAnime(limit: 25);
-      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
-      return results;
-    } catch (e) {
-      throw Exception('Failed to get top rated anime: $e');
-    }
+        await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
+        return results;
+      } catch (e) {
+        throw Exception('Failed to get top rated anime: $e');
+      }
     });
   }
 
@@ -645,48 +646,48 @@ class KuroiruService {
     return _runSingleFlightList(
       'anime_genre_${genreId}_${sortBy.replaceAll('.', '_')}_$voteCountGte',
       () async {
-    final cacheKey =
-        'anime_genre_${genreId}_${sortBy.replaceAll('.', '_')}_$voteCountGte';
+        final cacheKey =
+            'anime_genre_${genreId}_${sortBy.replaceAll('.', '_')}_$voteCountGte';
 
-    final staleCache = await _cache.getStaleRaw(cacheKey);
-    if (_cache.isExpired(cacheKey)) {
-      _cache.updateInBackground(cacheKey, () async {
-        final mappedGenreId = _mapTmdbGenreToMal(genreId);
-        final results = await _fetchJikanAnimeList(
-          queryParameters: {
-            'type': 'tv',
-            'genres': mappedGenreId,
-            'sfw': true,
-            'limit': 25,
-            'page': 1,
-            ..._sortToJikan(sortBy),
-          },
-        );
-        return {'results': results};
-      }, mediumCache);
-    }
+        final staleCache = await _cache.getStaleRaw(cacheKey);
+        if (_cache.isExpired(cacheKey)) {
+          _cache.updateInBackground(cacheKey, () async {
+            final mappedGenreId = _mapTmdbGenreToMal(genreId);
+            final results = await _fetchJikanAnimeList(
+              queryParameters: {
+                'type': 'tv',
+                'genres': mappedGenreId,
+                'sfw': true,
+                'limit': 25,
+                'page': 1,
+                ..._sortToJikan(sortBy),
+              },
+            );
+            return {'results': results};
+          }, mediumCache);
+        }
 
-    if (staleCache != null) {
-      return (staleCache['results'] as List<dynamic>?) ?? [];
-    }
+        if (staleCache != null) {
+          return (staleCache['results'] as List<dynamic>?) ?? [];
+        }
 
-    try {
-      final mappedGenreId = _mapTmdbGenreToMal(genreId);
-      final results = await _fetchJikanAnimeList(
-        queryParameters: {
-          'type': 'tv',
-          'genres': mappedGenreId,
-          'sfw': true,
-          'limit': 25,
-          'page': 1,
-          ..._sortToJikan(sortBy),
-        },
-      );
-      await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
-      return results;
-    } catch (e) {
-      throw Exception('Failed to get genre anime: $e');
-    }
+        try {
+          final mappedGenreId = _mapTmdbGenreToMal(genreId);
+          final results = await _fetchJikanAnimeList(
+            queryParameters: {
+              'type': 'tv',
+              'genres': mappedGenreId,
+              'sfw': true,
+              'limit': 25,
+              'page': 1,
+              ..._sortToJikan(sortBy),
+            },
+          );
+          await _cache.set(cacheKey, {'results': results}, ttl: mediumCache);
+          return results;
+        } catch (e) {
+          throw Exception('Failed to get genre anime: $e');
+        }
       },
     );
   }
@@ -748,7 +749,9 @@ class KuroiruService {
 
       return data;
     } catch (e) {
-      throw Exception('Failed to get anime details with videos from Kuroiru: $e');
+      throw Exception(
+        'Failed to get anime details with videos from Kuroiru: $e',
+      );
     }
   }
 
@@ -789,23 +792,23 @@ class KuroiruService {
       if (rows is List) {
         return rows
             .whereType<Map>()
-            .map((row) => TvdbSimilarSeries.fromJson(row.cast<String, dynamic>()))
-            .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
+            .map(
+              (row) => TvdbSimilarSeries.fromJson(row.cast<String, dynamic>()),
+            )
+            .where(
+              (item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime',
+            )
             .toList(growable: false);
       }
     }
 
     final jikanRecommendations = await _fetchJikanAnimeRecommendations(id);
     if (jikanRecommendations.isNotEmpty) {
-      await _cache.set(
-        cacheKey,
-        {
-          'items': jikanRecommendations
-              .map((item) => item.toJson())
-              .toList(growable: false),
-        },
-        ttl: mediumCache,
-      );
+      await _cache.set(cacheKey, {
+        'items': jikanRecommendations
+            .map((item) => item.toJson())
+            .toList(growable: false),
+      }, ttl: mediumCache);
       return jikanRecommendations;
     }
 
@@ -814,15 +817,11 @@ class KuroiruService {
         .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
         .toList(growable: false);
     if (animeOnlyPrimary.isNotEmpty) {
-      await _cache.set(
-        cacheKey,
-        {
-          'items': animeOnlyPrimary
-              .map((item) => item.toJson())
-              .toList(growable: false),
-        },
-        ttl: mediumCache,
-      );
+      await _cache.set(cacheKey, {
+        'items': animeOnlyPrimary
+            .map((item) => item.toJson())
+            .toList(growable: false),
+      }, ttl: mediumCache);
       return animeOnlyPrimary;
     }
 
@@ -831,21 +830,21 @@ class KuroiruService {
     final animeOnlyFallback = kuroiruFallback
         .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
         .toList(growable: false);
-    await _cache.set(
-      cacheKey,
-      {
-        'items': animeOnlyFallback
-            .map((item) => item.toJson())
-            .toList(growable: false),
-      },
-      ttl: mediumCache,
-    );
+    await _cache.set(cacheKey, {
+      'items': animeOnlyFallback
+          .map((item) => item.toJson())
+          .toList(growable: false),
+    }, ttl: mediumCache);
     return animeOnlyFallback;
   }
 
-  Future<List<TvdbSimilarSeries>> _fetchJikanAnimeRecommendations(int malId) async {
+  Future<List<TvdbSimilarSeries>> _fetchJikanAnimeRecommendations(
+    int malId,
+  ) async {
     try {
-      final response = await _jikanGetWithRetry('/anime/$malId/recommendations');
+      final response = await _jikanGetWithRetry(
+        '/anime/$malId/recommendations',
+      );
       final root = response.data;
       if (root is! Map) return const [];
 
@@ -873,7 +872,9 @@ class KuroiruService {
         if (images is Map) {
           final jpg = images['jpg'];
           if (jpg is Map) {
-            poster = (jpg['large_image_url'] ?? jpg['image_url'])?.toString().trim();
+            poster = (jpg['large_image_url'] ?? jpg['image_url'])
+                ?.toString()
+                .trim();
           }
         }
 
@@ -1004,13 +1005,10 @@ class KuroiruService {
       final jpg = images['jpg'];
       if (jpg is! Map) return null;
 
-      final poster =
-          (jpg['large_image_url'] ?? jpg['image_url'])?.toString().trim();
-      await _cache.set(
-        cacheKey,
-        {'poster': poster ?? ''},
-        ttl: longCache,
-      );
+      final poster = (jpg['large_image_url'] ?? jpg['image_url'])
+          ?.toString()
+          .trim();
+      await _cache.set(cacheKey, {'poster': poster ?? ''}, ttl: longCache);
 
       return (poster != null && poster.isNotEmpty) ? poster : null;
     } catch (_) {
@@ -1127,26 +1125,28 @@ class KuroiruService {
   }
 
   Future<List<dynamic>> _fetchJikanCurrentSeasonAnime({int limit = 25}) async {
-    final response = await _jikanGetWithRetry('/seasons/now', queryParameters: {
-      'limit': limit,
-      'sfw': true,
-    });
+    final response = await _jikanGetWithRetry(
+      '/seasons/now',
+      queryParameters: {'limit': limit, 'sfw': true},
+    );
     return _toUiList(response.data);
   }
 
   Future<List<dynamic>> _fetchJikanTopAnime({int limit = 25}) async {
-    final response = await _jikanGetWithRetry('/top/anime', queryParameters: {
-      'type': 'tv',
-      'limit': limit,
-      'sfw': true,
-    });
+    final response = await _jikanGetWithRetry(
+      '/top/anime',
+      queryParameters: {'type': 'tv', 'limit': limit, 'sfw': true},
+    );
     return _toUiList(response.data);
   }
 
   Future<List<dynamic>> _fetchJikanAnimeList({
     required Map<String, dynamic> queryParameters,
   }) async {
-    final response = await _jikanGetWithRetry('/anime', queryParameters: queryParameters);
+    final response = await _jikanGetWithRetry(
+      '/anime',
+      queryParameters: queryParameters,
+    );
     return _toUiList(response.data);
   }
 
@@ -1168,7 +1168,8 @@ class KuroiruService {
             error.type == DioExceptionType.receiveTimeout ||
             error.type == DioExceptionType.connectionError;
 
-        final shouldRetry = attempt < maxAttempts && (isRateLimit || isTransient);
+        final shouldRetry =
+            attempt < maxAttempts && (isRateLimit || isTransient);
         if (!shouldRetry) rethrow;
 
         final wait = Duration(milliseconds: 600 * attempt * attempt);

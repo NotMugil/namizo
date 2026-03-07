@@ -21,7 +21,8 @@ class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
   @override
-  ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
 }
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
@@ -34,9 +35,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   void _refreshEpisodes() {
     if (!mounted) return;
-    ref.read(newEpisodesProvider.notifier).state = 
+    ref.read(newEpisodesProvider.notifier).state =
         EpisodeCheckService.getNewEpisodes();
-    ref.read(unreadEpisodeCountProvider.notifier).state = 
+    ref.read(unreadEpisodeCountProvider.notifier).state =
         EpisodeCheckService.getUnreadCount();
   }
 
@@ -50,10 +51,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         elevation: 0,
         backgroundColor: NamizoTheme.background,
         automaticallyImplyLeading: false,
-        title: const Text(
-          'Notifications',
-          style: NamizoTheme.pageHeaderStyle,
-        ),
+        title: const Text('Notifications', style: NamizoTheme.pageHeaderStyle),
         actions: [
           if (episodes.isNotEmpty)
             PopupMenuButton<String>(
@@ -78,7 +76,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     children: [
                       Icon(Icons.done_all, color: Colors.white70, size: 20),
                       SizedBox(width: 12),
-                      Text('Mark all as read', style: TextStyle(color: Colors.white)),
+                      Text(
+                        'Mark all as read',
+                        style: TextStyle(color: Colors.white),
+                      ),
                     ],
                   ),
                 ),
@@ -86,7 +87,11 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   value: 'clear',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline, color: Colors.white70, size: 20),
+                      Icon(
+                        Icons.delete_outline,
+                        color: Colors.white70,
+                        size: 20,
+                      ),
                       SizedBox(width: 12),
                       Text('Clear all', style: TextStyle(color: Colors.white)),
                     ],
@@ -96,9 +101,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
         ],
       ),
-      body: episodes.isEmpty
-          ? _buildEmptyState()
-          : _buildEpisodeList(episodes),
+      body: episodes.isEmpty ? _buildEmptyState() : _buildEpisodeList(episodes),
     );
   }
 
@@ -191,9 +194,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ? (firstEpisode.posterPath!.startsWith('http://') ||
                   firstEpisode.posterPath!.startsWith('https://')
               ? firstEpisode.posterPath!
-          : firstEpisode.posterPath!.startsWith('/')
-          ? 'https://kuroiru.co${firstEpisode.posterPath}'
-          : firstEpisode.posterPath!)
+              : firstEpisode.posterPath!.startsWith('/')
+              ? 'https://kuroiru.co${firstEpisode.posterPath}'
+              : firstEpisode.posterPath!)
         : '';
 
     return Container(
@@ -204,9 +207,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             : Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: hasUnread
-            ? Border.all(
-                color: NamizoTheme.primary.withValues(alpha: 0.3),
-              )
+            ? Border.all(color: NamizoTheme.primary.withValues(alpha: 0.3))
             : null,
       ),
       child: InkWell(
@@ -315,9 +316,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     else
                       Text(
                         episodes
-                            .take(3)
-                            .map((e) => 'S${e.seasonNumber}E${e.episodeNumber}')
-                            .join(', ') +
+                                .take(3)
+                                .map(
+                                  (e) =>
+                                      'S${e.seasonNumber}E${e.episodeNumber}',
+                                )
+                                .join(', ') +
                             (episodes.length > 3 ? '...' : ''),
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.7),

@@ -13,10 +13,11 @@ import 'package:namizo/providers/media.dart';
 import 'package:namizo/providers/settings.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/watchlist.dart';
-import 'package:namizo/services/tvdb.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:namizo/screens/media/trailer_overlay.dart';
 import 'package:namizo/screens/media/episode_list.dart';
+import 'package:namizo/screens/media/related_media.dart';
+import 'package:namizo/screens/media/similar_media.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MediaDetailScreen extends ConsumerStatefulWidget {
@@ -30,8 +31,8 @@ class MediaDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
-  with SingleTickerProviderStateMixin {
-  static const List<String> _detailTabs = ['Episodes', 'More Like This'];
+    with SingleTickerProviderStateMixin {
+  static const List<String> _detailTabs = ['Episodes', 'Related', 'Similar'];
 
   SearchResult? _media;
   List<String> _genres = const [];
@@ -44,6 +45,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
   String? _preferredBackdropUrl;
   String? _preferredPosterUrl;
   int _activeTabIndex = 0;
+  Future<List<SearchResult>>? _relatedSeriesFuture;
   Future<List<TvdbSimilarSeries>>? _similarSeriesFuture;
   late final TabController _detailTabController;
   final ScrollController _scrollController = ScrollController();
@@ -51,7 +53,10 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
   @override
   void initState() {
     super.initState();
-    _detailTabController = TabController(length: _detailTabs.length, vsync: this);
+    _detailTabController = TabController(
+      length: _detailTabs.length,
+      vsync: this,
+    );
     _detailTabController.addListener(() {
       if (!_detailTabController.indexIsChanging &&
           _activeTabIndex != _detailTabController.index) {
@@ -102,7 +107,12 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
 
     try {
       final tmdbService = ref.read(kuroiruServiceProvider);
-      _similarSeriesFuture = tmdbService.getTVShowSimilarFromTvdb(widget.mediaId);
+      _relatedSeriesFuture = ref
+          .read(aniListServiceProvider)
+          .getRelatedAnimeByMalId(widget.mediaId);
+      _similarSeriesFuture = tmdbService.getTVShowSimilarFromTvdb(
+        widget.mediaId,
+      );
       Map<String, dynamic>? detailsWithVideos;
 
       int retries = 3;
@@ -131,7 +141,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
         tmdbService.getTVShowPosterUrl(widget.mediaId),
       ]);
 
-      final preferredBackdrop = _resolveImageUrl(artwork[0]) ??
+      final preferredBackdrop =
+          _resolveImageUrl(artwork[0]) ??
           _resolveImageUrl(artwork[1]) ??
           _resolveImageUrl(artwork[2]);
       final preferredPoster = _resolveImageUrl(artwork[2]);
@@ -230,8 +241,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     final tmdbService = ref.read(kuroiruServiceProvider);
     final fallbackBackdropUrl = tmdbService.getBackdropUrl(media.backdropPath);
     final fallbackPosterUrl = tmdbService.getPosterUrl(media.posterPath);
-    final backdropUrl =
-      _preferredBackdropUrl ?? fallbackBackdropUrl ?? fallbackPosterUrl;
+    final backdropUrl = _preferredBackdropUrl ?? fallbackBackdropUrl;
     final posterUrl = _preferredPosterUrl ?? fallbackPosterUrl;
     final watchlistState = ref.watch(isInWatchlistProvider(media.id));
     final isInWatchlist = _watchlistOverride ?? watchlistState;
@@ -241,7 +251,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
 
     final screenHeight = MediaQuery.sizeOf(context).height;
     final heroHeight = screenHeight * 0.42;
-    final year = media.releaseDate?.substring(0, 4) ??
+    final year =
+        media.releaseDate?.substring(0, 4) ??
         media.firstAirDate?.substring(0, 4) ??
         'Unknown';
     final mediaName = media.title ?? media.name ?? 'Unknown';
@@ -410,9 +421,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                           children: [
                             Text(
                               mediaName,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .displaySmall
+                              style: Theme.of(context).textTheme.displaySmall
                                   ?.copyWith(
                                     fontWeight: FontWeight.w700,
                                     color: NamizoTheme.textPrimary,
@@ -481,8 +490,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                               Align(
                                 alignment: Alignment.centerLeft,
                                 child: TextButton.icon(
-                                  onPressed: () =>
-                                      _showTrailerPlayer(context),
+                                  onPressed: () => _showTrailerPlayer(context),
                                   icon: const Icon(
                                     Icons.play_circle_outline,
                                     size: 17,
@@ -500,9 +508,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                             const SizedBox(height: 14),
                             Text(
                               'About',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
+                              style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: NamizoTheme.textPrimary,
                                     fontWeight: FontWeight.w700,
@@ -657,8 +663,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
   Future<void> _toggleWatchlist(SearchResult media, bool isInWatchlist) async {
     final watchlistService = ref.read(watchlistServiceProvider);
     final shouldAutoSyncAniList =
-      ref.read(aniListViewerProvider).valueOrNull != null &&
-      ref.read(aniListAutoSyncProvider);
+        ref.read(aniListViewerProvider).valueOrNull != null &&
+        ref.read(aniListAutoSyncProvider);
     final aniListService = ref.read(aniListServiceProvider);
 
     if (isInWatchlist) {
@@ -671,7 +677,9 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
           (await aniListService.getAccessToken())?.isNotEmpty == true;
       var aniListDeleted = true;
       if (hasAniListLogin) {
-        aniListDeleted = await aniListService.removeFromTrackedByMalId(media.id);
+        aniListDeleted = await aniListService.removeFromTrackedByMalId(
+          media.id,
+        );
         ref.read(aniListAccountRefreshProvider.notifier).state++;
       }
 
@@ -690,7 +698,9 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
       }
 
       _showToast(
-        message: hasAniListLogin ? 'Removed from list' : 'Removed from watchlist',
+        message: hasAniListLogin
+            ? 'Removed from list'
+            : 'Removed from watchlist',
         icon: PhosphorIconsRegular.bookmarkSimple,
         accent: const Color(0xFFEF4444),
       );
@@ -807,7 +817,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
           ),
           tabs: const [
             Tab(text: 'Episodes'),
-            Tab(text: 'More Like This'),
+            Tab(text: 'Related'),
+            Tab(text: 'Similar'),
           ],
         ),
         SizedBox(height: _activeTabIndex == 0 ? 14 : 0),
@@ -818,116 +829,21 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
             colors: colors,
             scrollController: _scrollController,
           )
+        else if (_activeTabIndex == 1)
+          RelatedMediaSection(
+            relatedFuture: _relatedSeriesFuture ??= ref
+                .read(aniListServiceProvider)
+                .getRelatedAnimeByMalId(media.id),
+            colors: colors,
+          )
         else
-          _buildMoreLikeThis(media.id, colors),
-      ],
-    );
-  }
-
-  Widget _buildMoreLikeThis(int mediaId, DynamicColors colors) {
-    _similarSeriesFuture ??= ref
-        .read(kuroiruServiceProvider)
-        .getTVShowSimilarFromTvdb(mediaId);
-
-    return FutureBuilder<List<TvdbSimilarSeries>>(
-      future: _similarSeriesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
-              child: CircularProgressIndicator(color: NamizoTheme.primary),
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Text(
-            'Failed to load similar titles',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: NamizoTheme.textTertiary,
-                ),
-          );
-        }
-
-        final items = (snapshot.data ?? const [])
-          .where((item) => (item.sourceType ?? 'anime').toLowerCase() == 'anime')
-          .toList(growable: false);
-        if (items.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.all(32),
-            child: Center(
-              child: Column(
-                children: [
-                  Image.asset(
-                    'assets/images/oops.png',
-                    height: 72,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Oops! No similar matches found',
-                    style: TextStyle(
-                      color: colors.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: items.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 2 / 3,
+          SimilarMediaSection(
+            similarFuture: _similarSeriesFuture ??= ref
+                .read(kuroiruServiceProvider)
+                .getTVShowSimilarFromTvdb(media.id),
+            colors: colors,
           ),
-          itemBuilder: (context, index) {
-            final item = items[index];
-            return _buildSimilarPoster(item);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSimilarPoster(TvdbSimilarSeries item) {
-    final isAnime = (item.sourceType ?? 'anime') == 'anime';
-    final hasMalRoute = item.malId != null && item.malId! > 0 && isAnime;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: hasMalRoute ? () => context.push('/media/${item.malId}?type=tv') : null,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: item.imageUrl != null && item.imageUrl!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: item.imageUrl!,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  color: NamizoTheme.surface,
-                ),
-                errorWidget: (context, url, error) => Container(
-                  color: NamizoTheme.surface,
-                  child: const Icon(
-                    Icons.movie_creation_outlined,
-                    color: NamizoTheme.textSecondary,
-                  ),
-                ),
-              )
-            : Container(
-                color: NamizoTheme.surface,
-                child: const Icon(
-                  Icons.movie_creation_outlined,
-                  color: NamizoTheme.textSecondary,
-                ),
-              ),
-      ),
+      ],
     );
   }
 
@@ -960,8 +876,9 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
               aboutText,
               style: style,
               maxLines: _aboutExpanded ? null : 4,
-              overflow:
-                  _aboutExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              overflow: _aboutExpanded
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
             ),
             if (_aboutOverflow) ...[
               const SizedBox(height: 4),
@@ -990,4 +907,3 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     );
   }
 }
-

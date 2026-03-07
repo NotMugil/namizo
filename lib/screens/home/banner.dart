@@ -102,33 +102,40 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
         },
         itemCount: items.length + 2,
         itemBuilder: (context, index) {
-          final content = switch (index) {
-            0 => items.last,
-            _ when index == items.length + 1 => items.first,
-            _ => items[index - 1],
-          } as Map<String, dynamic>;
+          final content =
+              switch (index) {
+                    0 => items.last,
+                    _ when index == items.length + 1 => items.first,
+                    _ => items[index - 1],
+                  }
+                  as Map<String, dynamic>;
 
           final tmdbId = content['id'];
           final mediaId = (tmdbId as num?)?.toInt();
-          final tvdbBackdropUrl = mediaId != null ? widget.posters[mediaId] : null;
+          final tvdbBackdropUrl = mediaId != null
+              ? widget.posters[mediaId]
+              : null;
           final backdropUrl =
               (tvdbBackdropUrl != null && tvdbBackdropUrl.isNotEmpty)
-                  ? tvdbBackdropUrl
-                  : null;
+              ? tvdbBackdropUrl
+              : null;
           final title = content['title'] ?? content['name'] ?? 'Featured';
-          final aniListStatus =
-              mediaId == null ? null : aniListStatusById[mediaId];
+          final aniListStatus = mediaId == null
+              ? null
+              : aniListStatusById[mediaId];
           final isPlanningOrWatching =
               aniListStatus == 'PLANNING' || aniListStatus == 'WATCHING';
-          final isAlreadyInList = mediaId != null &&
+          final isAlreadyInList =
+              mediaId != null &&
               (watchlistIds.contains(mediaId) || isPlanningOrWatching);
           final episodeCount = (content['episode_count'] as num?)?.toInt();
-          final year = ((content['first_air_date'] ?? content['release_date'])
-                      ?.toString()
-                      .split('-')
-                      .first ??
-                  '')
-              .trim();
+          final year =
+              ((content['first_air_date'] ?? content['release_date'])
+                          ?.toString()
+                          .split('-')
+                          .first ??
+                      '')
+                  .trim();
           final genreIds = (content['genre_ids'] as List<dynamic>? ?? [])
               .whereType<num>()
               .map((g) => TmdbGenres.labels[g.toInt()])
@@ -187,8 +194,9 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
                         children: [
                           Builder(
                             builder: (context) {
-                              final logoUrl =
-                                  mediaId != null ? widget.logos[mediaId] : null;
+                              final logoUrl = mediaId != null
+                                  ? widget.logos[mediaId]
+                                  : null;
                               if (logoUrl != null && logoUrl.isNotEmpty) {
                                 return CachedNetworkImage(
                                   imageUrl: logoUrl,
@@ -319,15 +327,17 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
     final watchlistService = ref.read(watchlistServiceProvider);
     final shouldSyncAniList =
         ref.read(aniListViewerProvider).valueOrNull != null &&
-            ref.read(aniListAutoSyncProvider);
+        ref.read(aniListAutoSyncProvider);
     final aniListService = ref.read(aniListServiceProvider);
     final mediaId = content['id'] as int?;
     if (mediaId == null) return;
 
-    final localAlreadyExists =
-        ref.read(watchlistProvider).any((item) => item.id == mediaId);
-    final aniListAlreadyExists =
-        ref.read(watchlistStatusByIdProvider).containsKey(mediaId);
+    final localAlreadyExists = ref
+        .read(watchlistProvider)
+        .any((item) => item.id == mediaId);
+    final aniListAlreadyExists = ref
+        .read(watchlistStatusByIdProvider)
+        .containsKey(mediaId);
 
     if (localAlreadyExists || aniListAlreadyExists) {
       if (localAlreadyExists) {
@@ -358,8 +368,8 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
       mediaType: 'tv',
       addedAt: DateTime.now(),
       voteAverage: (content['vote_average'] as num?)?.toDouble(),
-      releaseDate:
-          (content['first_air_date'] ?? content['release_date'])?.toString(),
+      releaseDate: (content['first_air_date'] ?? content['release_date'])
+          ?.toString(),
       overview: content['overview']?.toString(),
     );
 
@@ -385,7 +395,12 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
     required IconData icon,
     required Color accent,
   }) {
-    AppToast.show(context: context, message: message, icon: icon, accent: accent);
+    AppToast.show(
+      context: context,
+      message: message,
+      icon: icon,
+      accent: accent,
+    );
   }
 }
 
@@ -442,11 +457,7 @@ Widget _smallSquareButton({required Widget icon, required VoidCallback onTap}) {
     child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 38,
-        height: 38,
-        child: Center(child: icon),
-      ),
+      child: SizedBox(width: 38, height: 38, child: Center(child: icon)),
     ),
   );
 }

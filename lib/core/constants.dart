@@ -66,5 +66,6 @@ const String easterEggHomeLogoKey = 'easter_egg_home_logo_enabled';
 const String hideAdultContentKey = 'hide_adult_content';
 const String scheduleTrackedOnlyKey = 'schedule_tracked_only';
 const String scheduleTrackedHintDismissedKey =
-  'schedule_tracked_hint_dismissed';
+    'schedule_tracked_hint_dismissed';
 const String homeFeedOrderKey = 'home_feed_order';
+const String updateReminderDisabledKey = 'update_reminder_disabled';

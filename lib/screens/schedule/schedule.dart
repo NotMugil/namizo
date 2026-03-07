@@ -7,7 +7,7 @@ import 'package:namizo/providers/settings.dart';
 import 'package:namizo/providers/watchlist.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/screens/calendar/schedule_card.dart';
+import 'package:namizo/screens/schedule/schedule_card.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ScheduleScreen extends ConsumerStatefulWidget {
@@ -24,7 +24,6 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   final Map<String, List<AiringEntry>> _aniListWeekCache = {};
   bool _isLoading = true;
   bool _isWeekLoading = false;
-  final Map<int, String?> _bannerByShowId = {};
 
   @override
   void initState() {
@@ -36,17 +35,17 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     setState(() => _isLoading = true);
     try {
       final raw = await ref.read(kuroiruServiceProvider).getAiringCalendar();
-      final parsed = raw
-          .map(AiringEntry.fromJson)
-          .whereType<AiringEntry>()
-          .toList(growable: false)
-        ..sort((a, b) => a.airDate.compareTo(b.airDate));
+      final parsed =
+          raw
+              .map(AiringEntry.fromJson)
+              .whereType<AiringEntry>()
+              .toList(growable: false)
+            ..sort((a, b) => a.airDate.compareTo(b.airDate));
       if (!mounted) return;
       setState(() {
         _allAiring = parsed;
         _isLoading = false;
       });
-      _ensureBannerUrls(_weeklyEntries(parsed).map((entry) => entry.showId).toSet());
       await _loadSelectedWeekAniListEntries();
     } catch (_) {
       if (!mounted) return;
@@ -58,54 +57,42 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     }
   }
 
-  Future<void> _ensureBannerUrls(Set<int> showIds) async {
-    final missingIds = showIds.where((id) => !_bannerByShowId.containsKey(id)).toList();
-    if (missingIds.isEmpty) return;
-
-    final service = ref.read(kuroiruServiceProvider);
-    final fetched = <int, String?>{};
-
-    await Future.wait(
-      missingIds.map((showId) async {
-        try {
-          fetched[showId] = await service.getTVShowBannerUrl(showId);
-        } catch (_) {
-          fetched[showId] = null;
-        }
-      }),
-    );
-
-    if (!mounted) return;
-    setState(() {
-      _bannerByShowId.addAll(fetched);
-    });
-  }
-
   DateTime _startOfWeek(DateTime date) {
     final normalized = DateTime(date.year, date.month, date.day);
-    return normalized.subtract(Duration(days: normalized.weekday - DateTime.monday));
+    return normalized.subtract(
+      Duration(days: normalized.weekday - DateTime.monday),
+    );
   }
 
   List<AiringEntry> _weeklyEntries(List<AiringEntry> source) {
     final weekStart = _startOfWeek(_weekAnchor);
     final weekEnd = weekStart.add(const Duration(days: 7));
 
-    return source.where((entry) {
-      final air = DateTime(
+    return source
+        .where((entry) {
+          final air = DateTime(
+            entry.airDate.year,
+            entry.airDate.month,
+            entry.airDate.day,
+            entry.airDate.hour,
+            entry.airDate.minute,
+          );
+          return !air.isBefore(weekStart) && air.isBefore(weekEnd);
+        })
+        .toList(growable: false);
+  }
+
+  List<_DaySection> _groupByWeek(
+    DateTime weekStart,
+    List<AiringEntry> entries,
+  ) {
+    final grouped = <DateTime, List<AiringEntry>>{};
+    for (final entry in entries) {
+      final day = DateTime(
         entry.airDate.year,
         entry.airDate.month,
         entry.airDate.day,
-        entry.airDate.hour,
-        entry.airDate.minute,
       );
-      return !air.isBefore(weekStart) && air.isBefore(weekEnd);
-    }).toList(growable: false);
-  }
-
-  List<_DaySection> _groupByWeek(DateTime weekStart, List<AiringEntry> entries) {
-    final grouped = <DateTime, List<AiringEntry>>{};
-    for (final entry in entries) {
-      final day = DateTime(entry.airDate.year, entry.airDate.month, entry.airDate.day);
       grouped.putIfAbsent(day, () => <AiringEntry>[]).add(entry);
     }
 
@@ -116,7 +103,10 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         weekStart.day,
       ).add(Duration(days: index));
       final key = DateTime(day.year, day.month, day.day);
-      return _DaySection(day: key, entries: grouped[key] ?? const <AiringEntry>[]);
+      return _DaySection(
+        day: key,
+        entries: grouped[key] ?? const <AiringEntry>[],
+      );
     }, growable: false);
   }
 
@@ -124,9 +114,6 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     setState(() {
       _weekAnchor = _weekAnchor.add(Duration(days: offsetDays));
     });
-    _ensureBannerUrls(
-      _weeklyEntries(_allAiring).map((entry) => entry.showId).toSet(),
-    );
     _loadSelectedWeekAniListEntries();
   }
 
@@ -141,22 +128,21 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _selectedWeekAniListAiring = cached;
         _isWeekLoading = false;
       });
-      _ensureBannerUrls(cached.map((entry) => entry.showId).toSet());
       return;
     }
 
     setState(() => _isWeekLoading = true);
     try {
-      final raw = await ref.read(aniListServiceProvider).getAiringScheduleRange(
-            start: weekStart,
-            end: weekEnd,
-          );
+      final raw = await ref
+          .read(aniListServiceProvider)
+          .getAiringScheduleRange(start: weekStart, end: weekEnd);
 
-      final parsed = raw
-          .map(AiringEntry.fromJson)
-          .whereType<AiringEntry>()
-          .toList(growable: false)
-        ..sort((a, b) => a.airDate.compareTo(b.airDate));
+      final parsed =
+          raw
+              .map(AiringEntry.fromJson)
+              .whereType<AiringEntry>()
+              .toList(growable: false)
+            ..sort((a, b) => a.airDate.compareTo(b.airDate));
 
       if (!mounted) return;
       _aniListWeekCache[cacheKey] = parsed;
@@ -164,7 +150,6 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _selectedWeekAniListAiring = parsed;
         _isWeekLoading = false;
       });
-      _ensureBannerUrls(parsed.map((entry) => entry.showId).toSet());
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -178,19 +163,35 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     List<AiringEntry> primary,
     List<AiringEntry> secondary,
   ) {
-    final merged = <AiringEntry>[];
-    final seen = <String>{};
+    final mergedByKey = <String, AiringEntry>{};
 
     for (final entry in [...primary, ...secondary]) {
-      final key =
-          '${entry.showId}_${entry.airDate.millisecondsSinceEpoch}_${entry.lastEpisode}';
-      if (seen.add(key)) {
-        merged.add(entry);
+      final episodePart = entry.lastEpisode > 0
+          ? entry.lastEpisode.toString()
+          : DateFormat('yyyy-MM-dd').format(entry.airDate);
+      final key = '${entry.showId}_$episodePart';
+
+      final existing = mergedByKey[key];
+      if (existing == null) {
+        mergedByKey[key] = entry;
+        continue;
+      }
+
+      final existingHasJapanese = _hasJapaneseTitle(existing.showName);
+      final nextHasJapanese = _hasJapaneseTitle(entry.showName);
+
+      if (!existingHasJapanese && nextHasJapanese) {
+        mergedByKey[key] = entry;
       }
     }
 
+    final merged = mergedByKey.values.toList(growable: false);
     merged.sort((a, b) => a.airDate.compareTo(b.airDate));
     return merged;
+  }
+
+  bool _hasJapaneseTitle(String title) {
+    return RegExp(r'[\u3040-\u30FF\u3400-\u9FFF]').hasMatch(title);
   }
 
   String _weekLabel() {
@@ -205,7 +206,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   Widget build(BuildContext context) {
     final unreadCount = EpisodeCheckService.getUnreadCount();
     final trackedOnlyInSchedule = ref.watch(scheduleTrackedOnlyProvider);
-    final trackedHintDismissed = ref.watch(scheduleTrackedHintDismissedProvider);
+    final trackedHintDismissed = ref.watch(
+      scheduleTrackedHintDismissedProvider,
+    );
     final aniListTrackedIdsAsync = ref.watch(aniListTrackedIdsProvider);
     final watchlistIds = ref.watch(watchlistProvider).map((e) => e.id).toSet();
     final trackedIds = {
@@ -218,10 +221,10 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
       _selectedWeekAniListAiring,
     );
     final entries = trackedOnlyInSchedule
-      ? weekEntries
-          .where((entry) => trackedIds.contains(entry.showId))
-          .toList(growable: false)
-      : weekEntries;
+        ? weekEntries
+              .where((entry) => trackedIds.contains(entry.showId))
+              .toList(growable: false)
+        : weekEntries;
     final weekStart = _startOfWeek(_weekAnchor);
     final sections = _groupByWeek(weekStart, entries);
 
@@ -381,11 +384,17 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                       (_isLoading || _isWeekLoading)
                           ? 'Loading weekly schedule...'
                           : 'No scheduled episodes this week',
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
                   )
                 : ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     children: [
                       for (final section in sections) ...[
                         Padding(
@@ -415,7 +424,6 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                             ScheduleCard(
                               entry: entry,
                               inWatchlist: watchlistIds.contains(entry.showId),
-                              bannerUrl: _bannerByShowId[entry.showId],
                             ),
                       ],
                     ],

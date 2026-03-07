@@ -7,3 +7,4 @@ export 'user/watch_history.dart';
 export 'user/new_episode.dart';
 export 'cache/cache_entry.dart';
 export 'tvdb/tvdb_models.dart';
+export 'update_info.dart';

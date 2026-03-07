@@ -7,8 +7,8 @@ import 'package:namizo/screens/player/player.dart';
 import 'package:namizo/screens/settings/settings.dart';
 import 'package:namizo/screens/profile/anilist_login.dart';
 import 'package:namizo/screens/profile/profile.dart';
-import 'package:namizo/screens/calendar/new_episodes.dart';
-import 'package:namizo/screens/calendar/schedule.dart';
+import 'package:namizo/screens/schedule/new_episodes.dart';
+import 'package:namizo/screens/schedule/schedule.dart';
 import 'package:namizo/screens/watchlist/watchlist.dart';
 
 final appRouter = GoRouter(
@@ -78,20 +78,15 @@ final appRouter = GoRouter(
       builder: (context, state) {
         final id = state.pathParameters['id']!;
         final mediaType = state.uri.queryParameters['type'];
-        return MediaDetailScreen(
-          mediaId: int.parse(id),
-          mediaType: mediaType,
-        );
+        return MediaDetailScreen(mediaId: int.parse(id), mediaType: mediaType);
       },
     ),
     GoRoute(
       path: '/player/:id',
       builder: (context, state) {
         final id = state.pathParameters['id']!;
-        final season =
-            int.parse(state.uri.queryParameters['season'] ?? '1');
-        final episode =
-            int.parse(state.uri.queryParameters['episode'] ?? '1');
+        final season = int.parse(state.uri.queryParameters['season'] ?? '1');
+        final episode = int.parse(state.uri.queryParameters['episode'] ?? '1');
         final mediaType = state.uri.queryParameters['type'];
         return PlayerScreen(
           mediaId: int.parse(id),

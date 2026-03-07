@@ -6,9 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/episodes.dart';
 
 // Playback Speed Provider
-final playbackSpeedProvider = StateNotifierProvider<PlaybackSpeedNotifier, double>((ref) {
-  return PlaybackSpeedNotifier();
-});
+final playbackSpeedProvider =
+    StateNotifierProvider<PlaybackSpeedNotifier, double>((ref) {
+      return PlaybackSpeedNotifier();
+    });
 
 class PlaybackSpeedNotifier extends StateNotifier<double> {
   PlaybackSpeedNotifier() : super(UserConfig.defaultPlaybackSpeed) {
@@ -17,7 +18,8 @@ class PlaybackSpeedNotifier extends StateNotifier<double> {
 
   Future<void> _loadSpeed() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getDouble(playbackSpeedKey) ?? UserConfig.defaultPlaybackSpeed;
+    state =
+        prefs.getDouble(playbackSpeedKey) ?? UserConfig.defaultPlaybackSpeed;
   }
 
   Future<void> setSpeed(double speed) async {
@@ -28,9 +30,10 @@ class PlaybackSpeedNotifier extends StateNotifier<double> {
 }
 
 // Video Quality Provider
-final videoQualityProvider = StateNotifierProvider<VideoQualityNotifier, String>((ref) {
-  return VideoQualityNotifier();
-});
+final videoQualityProvider =
+    StateNotifierProvider<VideoQualityNotifier, String>((ref) {
+      return VideoQualityNotifier();
+    });
 
 class VideoQualityNotifier extends StateNotifier<String> {
   VideoQualityNotifier() : super(UserConfig.defaultVideoQuality) {
@@ -67,9 +70,10 @@ class VideoQualityNotifier extends StateNotifier<String> {
 }
 
 // Subtitle Enabled Provider
-final subtitlesEnabledProvider = StateNotifierProvider<SubtitlesEnabledNotifier, bool>((ref) {
-  return SubtitlesEnabledNotifier();
-});
+final subtitlesEnabledProvider =
+    StateNotifierProvider<SubtitlesEnabledNotifier, bool>((ref) {
+      return SubtitlesEnabledNotifier();
+    });
 
 class SubtitlesEnabledNotifier extends StateNotifier<bool> {
   SubtitlesEnabledNotifier() : super(UserConfig.defaultSubtitlesEnabled) {
@@ -78,7 +82,9 @@ class SubtitlesEnabledNotifier extends StateNotifier<bool> {
 
   Future<void> _loadSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool(subtitlesEnabledKey) ?? UserConfig.defaultSubtitlesEnabled;
+    state =
+        prefs.getBool(subtitlesEnabledKey) ??
+        UserConfig.defaultSubtitlesEnabled;
   }
 
   Future<void> toggle() async {
@@ -89,9 +95,10 @@ class SubtitlesEnabledNotifier extends StateNotifier<bool> {
 }
 
 // Animations Enabled Provider
-final animationsEnabledProvider = StateNotifierProvider<AnimationsEnabledNotifier, bool>((ref) {
-  return AnimationsEnabledNotifier();
-});
+final animationsEnabledProvider =
+    StateNotifierProvider<AnimationsEnabledNotifier, bool>((ref) {
+      return AnimationsEnabledNotifier();
+    });
 
 class AnimationsEnabledNotifier extends StateNotifier<bool> {
   AnimationsEnabledNotifier() : super(UserConfig.defaultAnimationsEnabled) {
@@ -100,7 +107,9 @@ class AnimationsEnabledNotifier extends StateNotifier<bool> {
 
   Future<void> _loadSetting() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool(animationsEnabledKey) ?? UserConfig.defaultAnimationsEnabled;
+    state =
+        prefs.getBool(animationsEnabledKey) ??
+        UserConfig.defaultAnimationsEnabled;
   }
 
   Future<void> toggle() async {
@@ -111,7 +120,9 @@ class AnimationsEnabledNotifier extends StateNotifier<bool> {
 }
 
 // Anime Sub/Dub Preference Provider
-final animeSubDubProvider = StateNotifierProvider<AnimeSubDubNotifier, String>((ref) {
+final animeSubDubProvider = StateNotifierProvider<AnimeSubDubNotifier, String>((
+  ref,
+) {
   return AnimeSubDubNotifier();
 });
 
@@ -122,7 +133,9 @@ class AnimeSubDubNotifier extends StateNotifier<String> {
 
   Future<void> _loadPreference() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getString(animeSubDubKey) ?? UserConfig.defaultAnimeSubDubPreference;
+    state =
+        prefs.getString(animeSubDubKey) ??
+        UserConfig.defaultAnimeSubDubPreference;
   }
 
   Future<void> setPreference(String preference) async {
@@ -139,8 +152,8 @@ class AnimeSubDubNotifier extends StateNotifier<String> {
 
 final aniListAutoSyncProvider =
     StateNotifierProvider<AniListAutoSyncNotifier, bool>((ref) {
-  return AniListAutoSyncNotifier();
-});
+      return AniListAutoSyncNotifier();
+    });
 
 class AniListAutoSyncNotifier extends StateNotifier<bool> {
   AniListAutoSyncNotifier() : super(UserConfig.defaultAniListAutoSync) {
@@ -161,9 +174,10 @@ class AniListAutoSyncNotifier extends StateNotifier<bool> {
 }
 
 // Episode Check Enabled Provider
-final episodeCheckEnabledProvider = StateNotifierProvider<EpisodeCheckEnabledNotifier, bool>((ref) {
-  return EpisodeCheckEnabledNotifier();
-});
+final episodeCheckEnabledProvider =
+    StateNotifierProvider<EpisodeCheckEnabledNotifier, bool>((ref) {
+      return EpisodeCheckEnabledNotifier();
+    });
 
 class EpisodeCheckEnabledNotifier extends StateNotifier<bool> {
   EpisodeCheckEnabledNotifier() : super(UserConfig.defaultEpisodeCheckEnabled) {
@@ -186,12 +200,14 @@ class EpisodeCheckEnabledNotifier extends StateNotifier<bool> {
 }
 
 // Episode Check Frequency Provider
-final episodeCheckFrequencyProvider = StateNotifierProvider<EpisodeCheckFrequencyNotifier, int>((ref) {
-  return EpisodeCheckFrequencyNotifier();
-});
+final episodeCheckFrequencyProvider =
+    StateNotifierProvider<EpisodeCheckFrequencyNotifier, int>((ref) {
+      return EpisodeCheckFrequencyNotifier();
+    });
 
 class EpisodeCheckFrequencyNotifier extends StateNotifier<int> {
-  EpisodeCheckFrequencyNotifier() : super(UserConfig.defaultEpisodeCheckFrequencyHours) {
+  EpisodeCheckFrequencyNotifier()
+    : super(UserConfig.defaultEpisodeCheckFrequencyHours) {
     _loadSetting();
   }
 
@@ -218,8 +234,7 @@ class EpisodeCheckFrequencyNotifier extends StateNotifier<int> {
   }
 }
 
-final episodeCheckLastCheckRefreshProvider =
-    StateProvider<int>((ref) => 0);
+final episodeCheckLastCheckRefreshProvider = StateProvider<int>((ref) => 0);
 
 final lastEpisodeCheckTimeProvider = FutureProvider<DateTime?>((ref) async {
   ref.watch(episodeCheckLastCheckRefreshProvider);
@@ -230,8 +245,8 @@ final easterEggVersionTapCountProvider = StateProvider<int>((ref) => 0);
 
 final easterEggHomeLogoProvider =
     StateNotifierProvider<EasterEggHomeLogoNotifier, bool>((ref) {
-  return EasterEggHomeLogoNotifier();
-});
+      return EasterEggHomeLogoNotifier();
+    });
 
 class EasterEggHomeLogoNotifier extends StateNotifier<bool> {
   EasterEggHomeLogoNotifier() : super(false) {
@@ -252,8 +267,8 @@ class EasterEggHomeLogoNotifier extends StateNotifier<bool> {
 
 final hideAdultContentProvider =
     StateNotifierProvider<HideAdultContentNotifier, bool>((ref) {
-  return HideAdultContentNotifier();
-});
+      return HideAdultContentNotifier();
+    });
 
 class HideAdultContentNotifier extends StateNotifier<bool> {
   HideAdultContentNotifier() : super(true) {
@@ -274,8 +289,8 @@ class HideAdultContentNotifier extends StateNotifier<bool> {
 
 final scheduleTrackedOnlyProvider =
     StateNotifierProvider<ScheduleTrackedOnlyNotifier, bool>((ref) {
-  return ScheduleTrackedOnlyNotifier();
-});
+      return ScheduleTrackedOnlyNotifier();
+    });
 
 class ScheduleTrackedOnlyNotifier extends StateNotifier<bool> {
   ScheduleTrackedOnlyNotifier() : super(false) {
@@ -296,8 +311,8 @@ class ScheduleTrackedOnlyNotifier extends StateNotifier<bool> {
 
 final scheduleTrackedHintDismissedProvider =
     StateNotifierProvider<ScheduleTrackedHintDismissedNotifier, bool>((ref) {
-  return ScheduleTrackedHintDismissedNotifier();
-});
+      return ScheduleTrackedHintDismissedNotifier();
+    });
 
 class ScheduleTrackedHintDismissedNotifier extends StateNotifier<bool> {
   ScheduleTrackedHintDismissedNotifier() : super(false) {
@@ -316,8 +331,9 @@ class ScheduleTrackedHintDismissedNotifier extends StateNotifier<bool> {
   }
 }
 
-final themeModeProvider =
-    StateNotifierProvider<ThemeModeNotifier, ThemeMode>((ref) {
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>((
+  ref,
+) {
   return ThemeModeNotifier();
 });
 
@@ -423,5 +439,27 @@ class HomeFeedOrderNotifier extends StateNotifier<List<String>> {
       if (seen.add(key)) normalized.add(key);
     }
     return normalized;
+  }
+}
+
+final updateReminderDisabledProvider =
+    StateNotifierProvider<UpdateReminderDisabledNotifier, bool>((ref) {
+      return UpdateReminderDisabledNotifier();
+    });
+
+class UpdateReminderDisabledNotifier extends StateNotifier<bool> {
+  UpdateReminderDisabledNotifier() : super(false) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(updateReminderDisabledKey) ?? false;
+  }
+
+  Future<void> setDisabled(bool disabled) async {
+    state = disabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(updateReminderDisabledKey, disabled);
   }
 }

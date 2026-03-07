@@ -7,3 +7,4 @@ export 'dynamic_colors.dart';
 export 'language_prefs.dart';
 export 'watch_history.dart';
 export 'watchlist.dart';
+export 'update.dart';

@@ -162,7 +162,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: RepaintBoundary(
               child: featuredContent.when(
                 data: (content) {
-                  final postersReady = featuredPosters.hasValue &&
+                  final postersReady =
+                      featuredPosters.hasValue &&
                       !featuredPosters.isLoading &&
                       (featuredPosters.valueOrNull?.isNotEmpty ?? false);
 
@@ -171,7 +172,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   return HeroBannerCarousel(
                     items: content,
                     logos: featuredLogos.value ?? {},
-                    posters: featuredPosters.valueOrNull ?? const <int, String?>{},
+                    posters:
+                        featuredPosters.valueOrNull ?? const <int, String?>{},
                   );
                 },
                 loading: () => const HeroBannerShimmer(),
@@ -259,7 +261,7 @@ class _ProfileButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final avatarUrl =
         aniListViewerAsync.valueOrNull?['avatar']?['large']?.toString() ??
-            aniListViewerAsync.valueOrNull?['avatar']?['medium']?.toString();
+        aniListViewerAsync.valueOrNull?['avatar']?['medium']?.toString();
 
     if (avatarUrl != null && avatarUrl.isNotEmpty) {
       return IconButton(

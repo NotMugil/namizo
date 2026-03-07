@@ -33,6 +33,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
   static const double _scrollThreshold = 400;
 
   String _searchQuery = '';
+  _EpisodeRange? _selectedRange;
   int _displayedCount = _pageSize;
   bool _hasMore = false;
   bool _nearBottom = false;
@@ -55,6 +56,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
       _searchController.clear();
       setState(() {
         _searchQuery = '';
+        _selectedRange = null;
         _displayedCount = _pageSize;
         _nearBottom = false;
       });
@@ -80,17 +82,158 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
     }
   }
 
+  Future<void> _scrollToTop() async {
+    final sc = widget.scrollController;
+    if (sc == null || !sc.hasClients) return;
+    await sc.animateTo(
+      0,
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  List<_EpisodeRange> _buildRanges(List<EpisodeData> episodes) {
+    if (episodes.isEmpty) return const [];
+    final maxEpisode = episodes
+        .map((ep) => ep.episodeNumber)
+        .fold<int>(0, (max, value) => value > max ? value : max);
+    if (maxEpisode <= 0) return const [];
+
+    final bucketCount = (maxEpisode / 100).ceil();
+    return List.generate(bucketCount, (index) {
+      final start = index * 100;
+      final end = (index + 1) * 100;
+      return _EpisodeRange(start: start, end: end);
+    });
+  }
+
+  Future<void> _openRangePicker(
+    BuildContext context,
+    List<_EpisodeRange> ranges,
+  ) async {
+    if (ranges.isEmpty) return;
+    final current = _selectedRange;
+
+    final selection = await showModalBottomSheet<_EpisodeRangeSelection>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          bottom: false,
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.72,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF111111),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 12, bottom: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 2),
+                  child: Text(
+                    'Episode Range',
+                    style: TextStyle(
+                      color: NamizoTheme.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+                  child: Text(
+                    'Pick a 100-episode bucket',
+                    style: TextStyle(
+                      color: NamizoTheme.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildRangeChip(
+                          label: 'All',
+                          selected: current == null,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(const _EpisodeRangeSelection(range: null)),
+                        ),
+                        ...ranges.map(
+                          (range) => _buildRangeChip(
+                            label: range.label,
+                            selected: current == range,
+                            onTap: () => Navigator.of(
+                              context,
+                            ).pop(_EpisodeRangeSelection(range: range)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (selection == null) return;
+    final pickedRange = selection.range;
+    if (pickedRange == _selectedRange) return;
+    setState(() {
+      _selectedRange = pickedRange;
+      _displayedCount = _pageSize;
+    });
+    await _scrollToTop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final seasonDataAsync = ref.watch(
-      seasonDataProvider((showId: widget.media.id, seasonNumber: widget.season)),
+      seasonDataWithFallbackProvider((
+        showId: widget.media.id,
+        seasonNumber: widget.season,
+      )),
     );
 
     return seasonDataAsync.when(
       data: (seasonData) {
-        final filteredEpisodes = _searchQuery.isEmpty
+        final ranges = _buildRanges(seasonData.episodes);
+        final filteredByRange = _selectedRange == null
             ? seasonData.episodes
             : seasonData.episodes.where((ep) {
+                final range = _selectedRange!;
+                return ep.episodeNumber > range.start &&
+                    ep.episodeNumber <= range.end;
+              }).toList();
+
+        final filteredEpisodes = _searchQuery.isEmpty
+            ? filteredByRange
+            : filteredByRange.where((ep) {
                 final query = _searchQuery.toLowerCase();
                 final name = ep.episodeName?.toLowerCase() ?? '';
                 final number = ep.episodeNumber.toString();
@@ -98,67 +241,119 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
               }).toList();
 
         _hasMore = filteredEpisodes.length > _displayedCount;
-        final visibleEpisodes =
-            filteredEpisodes.take(_displayedCount).toList();
+        final visibleEpisodes = filteredEpisodes.take(_displayedCount).toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() {
-                _searchQuery = value;
-                _displayedCount = _pageSize;
-              }),
-              style: const TextStyle(
-                color: NamizoTheme.textPrimary,
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search episodes',
-                hintStyle: const TextStyle(color: NamizoTheme.textSecondary),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: NamizoTheme.textTertiary.withValues(alpha: 0.7),
-                  size: 20,
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() {
+                      _searchQuery = value;
+                      _displayedCount = _pageSize;
+                    }),
+                    style: const TextStyle(
+                      color: NamizoTheme.textPrimary,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search episodes',
+                      hintStyle: const TextStyle(
+                        color: NamizoTheme.textSecondary,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: NamizoTheme.textTertiary.withValues(alpha: 0.7),
+                        size: 20,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _searchQuery = '';
+                                  _displayedCount = _pageSize;
+                                });
+                              },
+                              icon: Icon(
+                                Icons.close,
+                                color: NamizoTheme.textTertiary.withValues(
+                                  alpha: 0.7,
+                                ),
+                                size: 18,
+                              ),
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0x1FFFFFFF),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: const BorderSide(color: Color(0x26FFFFFF)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(999),
+                        borderSide: const BorderSide(color: Color(0x667C73FF)),
+                      ),
+                    ),
+                  ),
                 ),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {
-                            _searchQuery = '';
-                            _displayedCount = _pageSize;
-                          });
-                        },
-                        icon: Icon(
-                          Icons.close,
-                          color: NamizoTheme.textTertiary.withValues(
-                            alpha: 0.7,
-                          ),
-                          size: 18,
+                const SizedBox(width: 8),
+                Material(
+                  color: const Color(0x1FFFFFFF),
+                  borderRadius: BorderRadius.circular(999),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () => _openRangePicker(context, ranges),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 11,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: _selectedRange == null
+                              ? const Color(0x26FFFFFF)
+                              : const Color(0x667C73FF),
                         ),
-                      )
-                    : null,
-                filled: true,
-                fillColor: const Color(0x1FFFFFFF),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.filter_alt_rounded,
+                            size: 16,
+                            color: _selectedRange == null
+                                ? NamizoTheme.textSecondary
+                                : const Color(0xFFB5AEFF),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _selectedRange?.label ?? 'Range',
+                            style: TextStyle(
+                              color: _selectedRange == null
+                                  ? NamizoTheme.textPrimary
+                                  : const Color(0xFFE3E0FF),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: const BorderSide(color: Color(0x26FFFFFF)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(999),
-                  borderSide: const BorderSide(color: Color(0x667C73FF)),
-                ),
-              ),
+              ],
             ),
             const SizedBox(height: 12),
             if (filteredEpisodes.isEmpty)
@@ -225,8 +420,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
               : episode.stillPath!)
         : '';
 
-    final bgColor =
-        index.isEven ? const Color(0x0EFFFFFF) : Colors.transparent;
+    final bgColor = index.isEven ? const Color(0x0EFFFFFF) : Colors.transparent;
 
     // An episode is unaired if its air date is in the future or unknown
     final isUnaired = _isUnaired(episode.airDate);
@@ -280,7 +474,10 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                 );
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -332,7 +529,9 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                               style: TextStyle(
                                 fontSize: 11,
                                 color: isUnaired
-                                    ? NamizoTheme.textSecondary.withValues(alpha: 0.6)
+                                    ? NamizoTheme.textSecondary.withValues(
+                                        alpha: 0.6,
+                                      )
                                     : NamizoTheme.textSecondary,
                               ),
                             ),
@@ -424,29 +623,89 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
   }
 
   Widget _thumbPlaceholder() => Container(
-        width: 100,
-        height: 75,
-        color: const Color(0x33262C3D),
-        child: const Center(
-          child: SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Color(0xFF7C73FF),
+    width: 100,
+    height: 75,
+    color: const Color(0x33262C3D),
+    child: const Center(
+      child: SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: Color(0xFF7C73FF),
+        ),
+      ),
+    ),
+  );
+
+  Widget _thumbError() => Container(
+    width: 100,
+    height: 75,
+    color: const Color(0x33262C3D),
+    child: const Icon(
+      Icons.ondemand_video,
+      color: NamizoTheme.textSecondary,
+      size: 24,
+    ),
+  );
+
+  Widget _buildRangeChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? const Color(0x367C73FF) : const Color(0x1AFFFFFF),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? const Color(0x997C73FF)
+                  : const Color(0x33FFFFFF),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected
+                  ? const Color(0xFFEAE7FF)
+                  : NamizoTheme.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
-      );
+      ),
+    );
+  }
+}
 
-  Widget _thumbError() => Container(
-        width: 100,
-        height: 75,
-        color: const Color(0x33262C3D),
-        child: const Icon(
-          Icons.ondemand_video,
-          color: NamizoTheme.textSecondary,
-          size: 24,
-        ),
-      );
+class _EpisodeRange {
+  final int start;
+  final int end;
+
+  const _EpisodeRange({required this.start, required this.end});
+
+  String get label => '$start-$end';
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _EpisodeRange && other.start == start && other.end == end;
+  }
+
+  @override
+  int get hashCode => Object.hash(start, end);
+}
+
+class _EpisodeRangeSelection {
+  final _EpisodeRange? range;
+
+  const _EpisodeRangeSelection({required this.range});
 }

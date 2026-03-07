@@ -7,7 +7,8 @@ import 'package:namizo/models/media/search_result.dart';
 
 class AniListService {
   AniListService({Dio? dio})
-    : _dio = dio ??
+    : _dio =
+          dio ??
           Dio(
             BaseOptions(
               baseUrl: AppConfigurations.anilistGraphQlBaseUrl,
@@ -300,6 +301,39 @@ query AnimeSearch(
 }
 ''';
 
+  static const String _relatedAnimeByMalIdQuery = r'''
+query RelatedAnimeByMalId($malId: Int) {
+  Media(idMal: $malId, type: ANIME) {
+    relations {
+      edges {
+        relationType
+        node {
+          type
+          idMal
+          format
+          isAdult
+          title {
+            userPreferred
+            english
+            romaji
+          }
+          coverImage {
+            large
+          }
+          bannerImage
+          averageScore
+          startDate {
+            year
+            month
+            day
+          }
+        }
+      }
+    }
+  }
+}
+''';
+
   final Map<int, List<String>> _genreLabelsByMalId = <int, List<String>>{};
   final Map<int, String?> _statusByMalId = <int, String?>{};
   final Map<String, _CachedSearchPage> _searchPageCache = {};
@@ -355,10 +389,7 @@ mutation DeleteMediaListEntry($id: Int) {
     try {
       final response = await _dio.post<dynamic>(
         '',
-        data: const {
-          'query': _viewerQuery,
-          'variables': <String, dynamic>{},
-        },
+        data: const {'query': _viewerQuery, 'variables': <String, dynamic>{}},
         options: Options(headers: headers),
       );
 
@@ -451,6 +482,125 @@ mutation DeleteMediaListEntry($id: Int) {
     );
   }
 
+  Future<List<SearchResult>> getRelatedAnimeByMalId(int malId) async {
+    if (malId <= 0) return const [];
+
+    try {
+      final response = await _dio.post<dynamic>(
+        '',
+        data: {
+          'query': _relatedAnimeByMalIdQuery,
+          'variables': {'malId': malId},
+        },
+      );
+
+      final data = response.data;
+      if (data is! Map) return const [];
+
+      final typed = Map<String, dynamic>.from(data);
+      final errors = typed['errors'];
+      if (errors is List && errors.isNotEmpty) return const [];
+
+      final payload = typed['data'];
+      if (payload is! Map) return const [];
+
+      final media = payload['Media'];
+      if (media is! Map) return const [];
+
+      final relations = media['relations'];
+      if (relations is! Map) return const [];
+
+      final edges = relations['edges'];
+      if (edges is! List) return const [];
+
+      const openableFormats = <String>{
+        'TV',
+        'TV_SHORT',
+        'MOVIE',
+        'OVA',
+        'ONA',
+        'SPECIAL',
+      };
+
+      final results = <SearchResult>[];
+      final seenMalIds = <int>{};
+
+      for (final edgeRaw in edges.whereType<Map>()) {
+        final edge = Map<String, dynamic>.from(edgeRaw);
+        final node = edge['node'];
+        if (node is! Map) continue;
+        final nodeMap = Map<String, dynamic>.from(node);
+
+        final nodeType = nodeMap['type']?.toString().toUpperCase();
+        if (nodeType != 'ANIME') continue;
+
+        final relatedMalId = (nodeMap['idMal'] as num?)?.toInt();
+        if (relatedMalId == null || relatedMalId <= 0) continue;
+        if (relatedMalId == malId || !seenMalIds.add(relatedMalId)) continue;
+
+        final format = nodeMap['format']?.toString().toUpperCase();
+        if (format == null || !openableFormats.contains(format)) continue;
+
+        final titleObj = nodeMap['title'];
+        final titleMap = titleObj is Map
+            ? Map<String, dynamic>.from(titleObj)
+            : const <String, dynamic>{};
+        final title =
+            (titleMap['userPreferred'] ??
+                    titleMap['english'] ??
+                    titleMap['romaji'] ??
+                    'Unknown')
+                .toString();
+
+        final coverObj = nodeMap['coverImage'];
+        final coverMap = coverObj is Map
+            ? Map<String, dynamic>.from(coverObj)
+            : const <String, dynamic>{};
+
+        final firstAirDate = _toIsoDate(nodeMap['startDate']);
+
+        results.add(
+          SearchResult(
+            adult: nodeMap['isAdult'] == true,
+            id: relatedMalId,
+            title: title,
+            name: title,
+            originalLanguage: 'ja',
+            mediaType: _mapAniListFormatToMediaType(format),
+            releaseDate: firstAirDate,
+            firstAirDate: firstAirDate,
+            posterPath: coverMap['large']?.toString(),
+            backdropPath: nodeMap['bannerImage']?.toString(),
+            overview: null,
+            voteAverage:
+                ((nodeMap['averageScore'] as num?)?.toDouble() ?? 0) > 0
+                ? ((nodeMap['averageScore'] as num).toDouble() / 10.0)
+                : null,
+          ),
+        );
+      }
+
+      int releaseKey(SearchResult item) {
+        final raw = item.firstAirDate ?? item.releaseDate;
+        if (raw == null || raw.length < 10) return 99999999;
+        final digits = raw.replaceAll('-', '');
+        return int.tryParse(digits) ?? 99999999;
+      }
+
+      results.sort((a, b) {
+        final dateCmp = releaseKey(a).compareTo(releaseKey(b));
+        if (dateCmp != 0) return dateCmp;
+        final titleA = (a.title ?? a.name ?? '').toLowerCase();
+        final titleB = (b.title ?? b.name ?? '').toLowerCase();
+        return titleA.compareTo(titleB);
+      });
+
+      return results;
+    } on DioException {
+      return const [];
+    }
+  }
+
   List<String> getCachedGenreLabels(int malId) =>
       List<String>.from(_genreLabelsByMalId[malId] ?? const <String>[]);
 
@@ -473,13 +623,16 @@ mutation DeleteMediaListEntry($id: Int) {
     final normalizedStatuses = _mapStatusesToAniList(statuses);
     final normalizedFormats = _mapFormatsToAniList(formats);
     final normalizedSeason = _mapSeasonToAniList(season);
-    final genres = (genreLabels ?? const <String>[])
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
-    final startDateGreater = startYear != null ? (startYear * 10000 + 101) : null;
+    final genres =
+        (genreLabels ?? const <String>[])
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final startDateGreater = startYear != null
+        ? (startYear * 10000 + 101)
+        : null;
     final startDateLesser = endYear != null ? (endYear * 10000 + 1231) : null;
     final seasonYear = normalizedSeason != null ? startYear : null;
 
@@ -506,7 +659,9 @@ mutation DeleteMediaListEntry($id: Int) {
           'formatIn': normalizedFormats.isEmpty ? null : normalizedFormats,
           'season': normalizedSeason,
           'seasonYear': seasonYear,
-          'startDateGreater': normalizedSeason != null ? null : startDateGreater,
+          'startDateGreater': normalizedSeason != null
+              ? null
+              : startDateGreater,
           'startDateLesser': normalizedSeason != null ? null : startDateLesser,
         },
       },
@@ -514,23 +669,43 @@ mutation DeleteMediaListEntry($id: Int) {
 
     final data = response.data;
     if (data is! Map) {
-      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+      return const SearchResults(
+        page: 0,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
     }
 
     final typed = Map<String, dynamic>.from(data);
     final errors = typed['errors'];
     if (errors is List && errors.isNotEmpty) {
-      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+      return const SearchResults(
+        page: 0,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
     }
 
     final payload = typed['data'];
     if (payload is! Map) {
-      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+      return const SearchResults(
+        page: 0,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
     }
 
     final pageMap = payload['Page'];
     if (pageMap is! Map) {
-      return const SearchResults(page: 0, results: [], totalPages: 0, totalResults: 0);
+      return const SearchResults(
+        page: 0,
+        results: [],
+        totalPages: 0,
+        totalResults: 0,
+      );
     }
 
     final pageInfo = pageMap['pageInfo'];
@@ -550,11 +725,12 @@ mutation DeleteMediaListEntry($id: Int) {
         final titleMap = titleObj is Map
             ? Map<String, dynamic>.from(titleObj)
             : const <String, dynamic>{};
-        final title = (titleMap['userPreferred'] ??
-                titleMap['english'] ??
-                titleMap['romaji'] ??
-                'Unknown')
-            .toString();
+        final title =
+            (titleMap['userPreferred'] ??
+                    titleMap['english'] ??
+                    titleMap['romaji'] ??
+                    'Unknown')
+                .toString();
 
         final coverObj = media['coverImage'];
         final coverMap = coverObj is Map
@@ -571,7 +747,9 @@ mutation DeleteMediaListEntry($id: Int) {
 
         final averageScore = (media['averageScore'] as num?)?.toDouble();
         final scoreOutOf10 = averageScore != null ? averageScore / 10.0 : null;
-        if (minScore != null && scoreOutOf10 != null && scoreOutOf10 < minScore) {
+        if (minScore != null &&
+            scoreOutOf10 != null &&
+            scoreOutOf10 < minScore) {
           continue;
         }
 
@@ -581,7 +759,9 @@ mutation DeleteMediaListEntry($id: Int) {
             title: title,
             name: title,
             originalLanguage: 'ja',
-            mediaType: _mapAniListFormatToMediaType(media['format']?.toString()),
+            mediaType: _mapAniListFormatToMediaType(
+              media['format']?.toString(),
+            ),
             firstAirDate: _toIsoDate(media['startDate']),
             posterPath: coverMap['large']?.toString(),
             backdropPath: media['bannerImage']?.toString(),
@@ -592,9 +772,10 @@ mutation DeleteMediaListEntry($id: Int) {
       }
     }
 
-    final totalPages = (pageInfoMap['lastPage'] as num?)?.toInt() ??
-        (results.isEmpty ? 0 : 1);
-    final totalResults = (pageInfoMap['total'] as num?)?.toInt() ?? results.length;
+    final totalPages =
+        (pageInfoMap['lastPage'] as num?)?.toInt() ?? (results.isEmpty ? 0 : 1);
+    final totalResults =
+        (pageInfoMap['total'] as num?)?.toInt() ?? results.length;
 
     final out = SearchResults(
       page: page,
@@ -748,11 +929,7 @@ mutation DeleteMediaListEntry($id: Int) {
           '',
           data: {
             'query': _airingScheduleRangeQuery,
-            'variables': {
-              'page': page,
-              'from': from,
-              'to': to,
-            },
+            'variables': {'page': page, 'from': from, 'to': to},
           },
         );
 
@@ -784,7 +961,10 @@ mutation DeleteMediaListEntry($id: Int) {
 
             final malId = (media['idMal'] as num?)?.toInt();
             final airingAt = (map['airingAt'] as num?)?.toInt();
-            if (malId == null || malId <= 0 || airingAt == null || airingAt <= 0) {
+            if (malId == null ||
+                malId <= 0 ||
+                airingAt == null ||
+                airingAt <= 0) {
               continue;
             }
 
@@ -792,11 +972,12 @@ mutation DeleteMediaListEntry($id: Int) {
             final titleMap = titleObj is Map
                 ? Map<String, dynamic>.from(titleObj)
                 : const <String, dynamic>{};
-            final title = (titleMap['userPreferred'] ??
-                    titleMap['english'] ??
-                    titleMap['romaji'] ??
-                    'Unknown')
-                .toString();
+            final title =
+                (titleMap['userPreferred'] ??
+                        titleMap['english'] ??
+                        titleMap['romaji'] ??
+                        'Unknown')
+                    .toString();
 
             final coverObj = media['coverImage'];
             final coverMap = coverObj is Map
@@ -868,16 +1049,16 @@ mutation DeleteMediaListEntry($id: Int) {
       final merged = <Map<String, dynamic>>[];
       if (ownActivities is List) {
         merged.addAll(
-          ownActivities
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item)),
+          ownActivities.whereType<Map>().map(
+            (item) => Map<String, dynamic>.from(item),
+          ),
         );
       }
       if (followingActivities is List) {
         merged.addAll(
-          followingActivities
-              .whereType<Map>()
-              .map((item) => Map<String, dynamic>.from(item)),
+          followingActivities.whereType<Map>().map(
+            (item) => Map<String, dynamic>.from(item),
+          ),
         );
       }
 
@@ -952,18 +1133,22 @@ mutation DeleteMediaListEntry($id: Int) {
         final coverObj = mediaTyped['coverImage'];
         final startObj = mediaTyped['startDate'];
 
-        final titleMap =
-            titleObj is Map ? Map<String, dynamic>.from(titleObj) : const <String, dynamic>{};
-        final coverMap =
-            coverObj is Map ? Map<String, dynamic>.from(coverObj) : const <String, dynamic>{};
-        final startMap =
-            startObj is Map ? Map<String, dynamic>.from(startObj) : const <String, dynamic>{};
+        final titleMap = titleObj is Map
+            ? Map<String, dynamic>.from(titleObj)
+            : const <String, dynamic>{};
+        final coverMap = coverObj is Map
+            ? Map<String, dynamic>.from(coverObj)
+            : const <String, dynamic>{};
+        final startMap = startObj is Map
+            ? Map<String, dynamic>.from(startObj)
+            : const <String, dynamic>{};
 
-        final title = (titleMap['userPreferred'] ??
-                titleMap['english'] ??
-                titleMap['romaji'] ??
-                'Unknown')
-            .toString();
+        final title =
+            (titleMap['userPreferred'] ??
+                    titleMap['english'] ??
+                    titleMap['romaji'] ??
+                    'Unknown')
+                .toString();
 
         final year = (startMap['year'] as num?)?.toInt();
         final firstAirDate = year != null ? '$year-01-01' : null;
@@ -973,7 +1158,8 @@ mutation DeleteMediaListEntry($id: Int) {
           'title': title,
           'name': title,
           'poster_path': coverMap['large']?.toString(),
-          'vote_average': ((mediaTyped['averageScore'] as num?)?.toDouble() ?? 0) / 10,
+          'vote_average':
+              ((mediaTyped['averageScore'] as num?)?.toDouble() ?? 0) / 10,
           'first_air_date': firstAirDate,
           'media_type': 'tv',
           'adult': false,
@@ -1100,26 +1286,31 @@ mutation DeleteMediaListEntry($id: Int) {
 
           final updatedAt = (entry['updatedAt'] as num?)?.toInt();
           final updatedIso = updatedAt != null && updatedAt > 0
-              ? DateTime.fromMillisecondsSinceEpoch(updatedAt * 1000)
-                    .toIso8601String()
+              ? DateTime.fromMillisecondsSinceEpoch(
+                  updatedAt * 1000,
+                ).toIso8601String()
               : null;
 
           final titleObj = mediaTyped['title'];
           final coverObj = mediaTyped['coverImage'];
           final startObj = mediaTyped['startDate'];
 
-          final titleMap =
-              titleObj is Map ? Map<String, dynamic>.from(titleObj) : const <String, dynamic>{};
-          final coverMap =
-              coverObj is Map ? Map<String, dynamic>.from(coverObj) : const <String, dynamic>{};
-          final startMap =
-              startObj is Map ? Map<String, dynamic>.from(startObj) : const <String, dynamic>{};
+          final titleMap = titleObj is Map
+              ? Map<String, dynamic>.from(titleObj)
+              : const <String, dynamic>{};
+          final coverMap = coverObj is Map
+              ? Map<String, dynamic>.from(coverObj)
+              : const <String, dynamic>{};
+          final startMap = startObj is Map
+              ? Map<String, dynamic>.from(startObj)
+              : const <String, dynamic>{};
 
-          final title = (titleMap['userPreferred'] ??
-                  titleMap['english'] ??
-                  titleMap['romaji'] ??
-                  'Unknown')
-              .toString();
+          final title =
+              (titleMap['userPreferred'] ??
+                      titleMap['english'] ??
+                      titleMap['romaji'] ??
+                      'Unknown')
+                  .toString();
 
           final year = (startMap['year'] as num?)?.toInt();
           final firstAirDate = year != null ? '$year-01-01' : null;
@@ -1131,7 +1322,8 @@ mutation DeleteMediaListEntry($id: Int) {
             'name': title,
             'poster_path': coverMap['large']?.toString(),
             'backdrop_path': mediaTyped['bannerImage']?.toString(),
-            'vote_average': ((mediaTyped['averageScore'] as num?)?.toDouble() ?? 0) / 10,
+            'vote_average':
+                ((mediaTyped['averageScore'] as num?)?.toDouble() ?? 0) / 10,
             'first_air_date': firstAirDate,
             'media_type': 'tv',
             'adult': false,
@@ -1204,7 +1396,8 @@ mutation DeleteMediaListEntry($id: Int) {
         ? watchedEpisodes.clamp(0, totalEpisodes)
         : watchedEpisodes;
 
-    final shouldComplete = totalEpisodes != null &&
+    final shouldComplete =
+        totalEpisodes != null &&
         totalEpisodes > 0 &&
         cappedProgress >= totalEpisodes;
 
@@ -1279,11 +1472,7 @@ mutation DeleteMediaListEntry($id: Int) {
   }) async {
     final payload = await _executeGraphQl(
       query: _saveMediaListEntryMutation,
-      variables: {
-        'mediaId': mediaId,
-        'status': status,
-        'progress': progress,
-      },
+      variables: {'mediaId': mediaId, 'status': status, 'progress': progress},
       requireAccessToken: true,
     );
 
@@ -1380,10 +1569,7 @@ mutation DeleteMediaListEntry($id: Int) {
       try {
         final response = await _dio.post<dynamic>(
           '',
-          data: {
-            'query': query,
-            'variables': variables,
-          },
+          data: {'query': query, 'variables': variables},
           options: Options(headers: headers),
         );
 
@@ -1430,7 +1616,8 @@ mutation DeleteMediaListEntry($id: Int) {
       if (status == 429) return true;
 
       final message = error['message']?.toString().toLowerCase() ?? '';
-      if (message.contains('rate limit') || message.contains('too many requests')) {
+      if (message.contains('rate limit') ||
+          message.contains('too many requests')) {
         return true;
       }
     }

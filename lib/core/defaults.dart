@@ -4,13 +4,17 @@ class UserConfig {
   // Optional TVDB credentials for richer metadata enrichment.
   // Set via --dart-define=TVDB_API_KEY=... and --dart-define=TVDB_PIN=...
   // Keep empty to disable TVDB enrichment.
-  static const String tvdbApiKey =
-      String.fromEnvironment('TVDB_API_KEY', defaultValue: '');
-  static const String tvdbPin =
-      String.fromEnvironment('TVDB_PIN', defaultValue: '');
+  static const String tvdbApiKey = String.fromEnvironment(
+    'TVDB_API_KEY',
+    defaultValue: '',
+  );
+  static const String tvdbPin = String.fromEnvironment(
+    'TVDB_PIN',
+    defaultValue: '',
+  );
 
   static const bool defaultEpisodeCheckEnabled = true;
-  static const int defaultEpisodeCheckFrequencyHours = 24;
+  static const int defaultEpisodeCheckFrequencyHours = 6;
   static const bool defaultShowAnime = true;
   static const bool defaultSubtitlesEnabled = false;
   static const bool defaultAnimationsEnabled = true;
