@@ -19,8 +19,7 @@ dependencies:
 
   # Networking
   dio: ^5.7.0
-  aimi_lib:
-    path: packages/aimi-lib
+  aimi_lib: ^3.0.0
 
   # Local Storage
   hive: ^2.2.3
@@ -59,6 +58,7 @@ dependencies:
   better_player_plus:
     path: packages/better_player_plus
   open_filex: ^4.7.0
+  cupertino_icons: ^1.0.8
 
 
 dev_dependencies:

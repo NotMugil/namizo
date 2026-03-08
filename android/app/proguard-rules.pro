@@ -1,7 +1,3 @@
-# Flutter
--keep class io.flutter.** { *; }
--keep class io.flutter.plugins.** { *; }
-
 # Keep annotations
 -keepattributes *Annotation*
 
