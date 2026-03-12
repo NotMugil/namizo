@@ -24,22 +24,16 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
     final tmdbService = ref.watch(kuroiruServiceProvider);
     const statuses = ['WATCHING', 'PLANNING', 'PAUSED', 'DROPPED', 'COMPLETED'];
 
-    final titleWidget = Text(
+    const titleWidget = Text(
       'My Watchlist',
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w500,
-        fontSize: 18,
-      ),
+      style: NamizoTheme.pageHeaderStyle,
     );
 
     const actions = <Widget>[];
 
     if (watchlist.isEmpty) {
       return Scaffold(
-        appBar: AppBar(
-          title: titleWidget,
-          actions: actions,
-        ),
+        appBar: AppBar(title: titleWidget, actions: actions),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -72,10 +66,7 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
     final selectedStatus = statuses[_selectedStatusIndex];
 
     return Scaffold(
-      appBar: AppBar(
-        title: titleWidget,
-        actions: actions,
-      ),
+      appBar: AppBar(title: titleWidget, actions: actions),
       body: Column(
         children: [
           SizedBox(
@@ -107,13 +98,18 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                     backgroundColor: const Color(0xFF1A1A1A),
                     labelStyle: TextStyle(
                       fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                       color: isSelected
                           ? NamizoTheme.textPrimary
                           : NamizoTheme.textSecondary,
                     ),
                     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+                    visualDensity: const VisualDensity(
+                      horizontal: -2,
+                      vertical: -2,
+                    ),
                   ),
                 );
               },
@@ -131,14 +127,18 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
     );
   }
 
-  Widget _buildStatusGrid(BuildContext context, List<dynamic> items, dynamic tmdbService) {
+  Widget _buildStatusGrid(
+    BuildContext context,
+    List<dynamic> items,
+    dynamic tmdbService,
+  ) {
     if (items.isEmpty) {
       return Center(
         child: Text(
           'No titles here yet',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: NamizoTheme.textSecondary,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: NamizoTheme.textSecondary),
         ),
       );
     }
@@ -237,11 +237,12 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
                           item.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            height: 1.22,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                height: 1.22,
+                              ),
                         ),
                         const SizedBox(height: 5),
                         Row(

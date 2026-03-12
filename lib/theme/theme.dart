@@ -19,23 +19,21 @@ class NamizoTheme {
 
   static BoxDecoration glassDecoration({
     BorderRadius borderRadius = const BorderRadius.all(Radius.circular(14)),
-  }) =>
-      BoxDecoration(
-        color: glassFill,
-        borderRadius: borderRadius,
-        border: Border.all(color: glassStroke, width: 0.5),
-      );
+  }) => BoxDecoration(
+    color: glassFill,
+    borderRadius: borderRadius,
+    border: Border.all(color: glassStroke, width: 0.5),
+  );
 
   static BoxDecoration glassBlurDecoration({
     BorderRadius borderRadius = const BorderRadius.all(Radius.circular(14)),
     double sigmaX = 12,
     double sigmaY = 12,
-  }) =>
-      BoxDecoration(
-        color: glassFill,
-        borderRadius: borderRadius,
-        border: Border.all(color: glassStroke, width: 0.5),
-      );
+  }) => BoxDecoration(
+    color: glassFill,
+    borderRadius: borderRadius,
+    border: Border.all(color: glassStroke, width: 0.5),
+  );
 
   static ImageFilter glassBlur({double sigma = 12}) =>
       ImageFilter.blur(sigmaX: sigma, sigmaY: sigma);
@@ -56,7 +54,7 @@ class NamizoTheme {
 
   static const TextStyle pageHeaderStyle = TextStyle(
     fontSize: 24,
-    fontWeight: FontWeight.w500,
+    fontWeight: FontWeight.w600,
   );
 
   // ── Theme data ────────────────────────────────────────────────────────
@@ -118,10 +116,7 @@ class NamizoTheme {
         fontSize: 16,
         fontWeight: FontWeight.w500,
       ),
-      bodyLarge: TextStyle(
-        color: textPrimary,
-        fontSize: 16,
-      ),
+      bodyLarge: TextStyle(color: textPrimary, fontSize: 16),
       bodyMedium: TextStyle(
         color: textTertiary,
         fontSize: 14,
@@ -152,13 +147,8 @@ class NamizoTheme {
         backgroundColor: primary,
         foregroundColor: textPrimary,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
 
@@ -172,8 +162,6 @@ class NamizoTheme {
     ),
 
     // Progress Indicator
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: primary,
-    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(color: primary),
   );
 }

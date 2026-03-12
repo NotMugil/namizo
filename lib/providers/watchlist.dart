@@ -13,8 +13,9 @@ class WatchlistNotifier extends StateNotifier<int> {
   void refresh() => state++;
 }
 
-final watchlistRefreshProvider =
-    StateNotifierProvider<WatchlistNotifier, int>((ref) {
+final watchlistRefreshProvider = StateNotifierProvider<WatchlistNotifier, int>((
+  ref,
+) {
   return WatchlistNotifier();
 });
 
@@ -27,15 +28,15 @@ final watchlistProvider = Provider<List<WatchlistItem>>((ref) {
     for (final item in localItems) item.id: item,
   };
 
-  final aniListTracked = ref.watch(aniListTrackedAnimeProvider).valueOrNull ??
+  final aniListTracked =
+      ref.watch(aniListTrackedAnimeProvider).valueOrNull ??
       const <Map<String, dynamic>>[];
 
   for (final row in aniListTracked) {
     final id = (row['id'] as num?)?.toInt();
     if (id == null || id <= 0 || byId.containsKey(id)) continue;
 
-    final title =
-        (row['title'] ?? row['name'] ?? '').toString().trim();
+    final title = (row['title'] ?? row['name'] ?? '').toString().trim();
     if (title.isEmpty) continue;
 
     DateTime addedAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -75,9 +76,9 @@ final watchlistCountProvider = Provider<int>((ref) {
   return watchlist.length;
 });
 
-
 final watchlistStatusByIdProvider = Provider<Map<int, String>>((ref) {
-  final tracked = ref.watch(aniListTrackedAnimeProvider).valueOrNull ??
+  final tracked =
+      ref.watch(aniListTrackedAnimeProvider).valueOrNull ??
       const <Map<String, dynamic>>[];
 
   final byId = <int, String>{};
@@ -91,21 +92,21 @@ final watchlistStatusByIdProvider = Provider<Map<int, String>>((ref) {
 
 final watchlistGroupedByStatusProvider =
     Provider<Map<String, List<WatchlistItem>>>((ref) {
-  final items = ref.watch(watchlistProvider);
-  final statusById = ref.watch(watchlistStatusByIdProvider);
+      final items = ref.watch(watchlistProvider);
+      final statusById = ref.watch(watchlistStatusByIdProvider);
 
-  final grouped = <String, List<WatchlistItem>>{
-    'WATCHING': <WatchlistItem>[],
-    'PLANNING': <WatchlistItem>[],
-    'PAUSED': <WatchlistItem>[],
-    'DROPPED': <WatchlistItem>[],
-    'COMPLETED': <WatchlistItem>[],
-  };
+      final grouped = <String, List<WatchlistItem>>{
+        'WATCHING': <WatchlistItem>[],
+        'PLANNING': <WatchlistItem>[],
+        'PAUSED': <WatchlistItem>[],
+        'DROPPED': <WatchlistItem>[],
+        'COMPLETED': <WatchlistItem>[],
+      };
 
-  for (final item in items) {
-    final status = statusById[item.id] ?? 'WATCHING';
-    grouped.putIfAbsent(status, () => <WatchlistItem>[]).add(item);
-  }
+      for (final item in items) {
+        final status = statusById[item.id] ?? 'PLANNING';
+        grouped.putIfAbsent(status, () => <WatchlistItem>[]).add(item);
+      }
 
-  return grouped;
-});
+      return grouped;
+    });

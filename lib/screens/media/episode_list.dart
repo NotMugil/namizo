@@ -9,12 +9,14 @@ import 'package:namizo/models/media/season_info.dart';
 import 'package:namizo/providers/dynamic_colors.dart';
 import 'package:namizo/providers/media.dart';
 import 'package:namizo/theme/theme.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class EpisodeList extends ConsumerStatefulWidget {
   final SearchResult media;
   final int season;
   final DynamicColors colors;
   final ScrollController? scrollController;
+  final bool showEasterEggOops;
 
   const EpisodeList({
     super.key,
@@ -22,6 +24,7 @@ class EpisodeList extends ConsumerStatefulWidget {
     required this.season,
     required this.colors,
     this.scrollController,
+    required this.showEasterEggOops,
   });
 
   @override
@@ -362,11 +365,19 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                 child: Center(
                   child: Column(
                     children: [
-                      Image.asset(
-                        'assets/images/oops.png',
-                        height: 72,
-                        fit: BoxFit.contain,
-                      ),
+                      widget.showEasterEggOops
+                          ? Image.asset(
+                              'assets/images/oops.png',
+                              height: 72,
+                              fit: BoxFit.contain,
+                            )
+                          : PhosphorIcon(
+                              PhosphorIconsRegular.warningCircle,
+                              color: widget.colors.onSurface.withValues(
+                                alpha: 0.6,
+                              ),
+                              size: 42,
+                            ),
                       const SizedBox(height: 12),
                       Text(
                         'Oops! No episodes matches',

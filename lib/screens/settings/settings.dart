@@ -10,6 +10,7 @@ import 'package:namizo/providers/watchlist.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/widgets/update_dialog.dart';
+import 'package:namizo/widgets/toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -28,6 +29,7 @@ class SettingsScreen extends ConsumerWidget {
     final currentThemeMode = ref.watch(themeModeProvider);
     final aniListAutoSync = ref.watch(aniListAutoSyncProvider);
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
+    final easterEggUnlocked = ref.watch(easterEggUnlockedProvider);
     final hideAdultContent = ref.watch(hideAdultContentProvider);
     final scheduleTrackedOnly = ref.watch(scheduleTrackedOnlyProvider);
     final homeFeedOrder = ref.watch(homeFeedOrderProvider);
@@ -223,31 +225,28 @@ class SettingsScreen extends ConsumerWidget {
                 activeThumbColor: NamizoTheme.primary,
               ),
             ),
-            if (easterEggEnabled)
+            if (easterEggUnlocked)
               _buildSettingsTile(
                 icon: const PhosphorIcon(
-                  PhosphorIconsRegular.arrowCounterClockwise,
+                  PhosphorIconsRegular.sparkle,
                   color: Colors.white,
                   size: 24,
                 ),
-                title: 'Revert Home Logo',
-                subtitle: 'Switch back to Namizo title text',
-                trailing: const PhosphorIcon(
-                  PhosphorIconsRegular.caretRight,
-                  color: Colors.white70,
-                  size: 18,
+                title: 'Easter egg',
+                subtitle: easterEggEnabled ? 'Enabled' : 'Disabled',
+                trailing: Switch(
+                  value: easterEggEnabled,
+                  onChanged: (value) {
+                    ref
+                        .read(easterEggHomeLogoProvider.notifier)
+                        .setEnabled(value);
+                  },
+                  activeThumbColor: NamizoTheme.primary,
                 ),
-                onTap: () async {
-                  await ref
+                onTap: () {
+                  ref
                       .read(easterEggHomeLogoProvider.notifier)
-                      .setEnabled(false);
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Home logo reverted to Namizo'),
-                      backgroundColor: NamizoTheme.primary,
-                    ),
-                  );
+                      .setEnabled(!easterEggEnabled);
                 },
               ),
 
@@ -463,6 +462,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       onTap: () => _syncLocalWatchlistToAniList(context, ref),
                     ),
+                    ..._buildDataManagementTiles(context, ref),
                     _buildSettingsTile(
                       icon: const PhosphorIcon(
                         PhosphorIconsRegular.signOut,
@@ -489,40 +489,7 @@ class SettingsScreen extends ConsumerWidget {
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
             ),
-            _buildSettingsTile(
-              icon: const PhosphorIcon(
-                PhosphorIconsRegular.clockCounterClockwise,
-                color: Colors.white,
-                size: 24,
-              ),
-              title: 'Clear Watch History',
-              subtitle: 'Remove all watch history data',
-              trailing: const PhosphorIcon(
-                PhosphorIconsRegular.caretRight,
-                color: Colors.white70,
-                size: 18,
-              ),
-              onTap: () {
-                _showClearHistoryDialog(context, ref);
-              },
-            ),
-            _buildSettingsTile(
-              icon: const PhosphorIcon(
-                PhosphorIconsRegular.database,
-                color: Colors.white,
-                size: 24,
-              ),
-              title: 'Clear Cache',
-              subtitle: 'Remove cached metadata and artwork',
-              trailing: const PhosphorIcon(
-                PhosphorIconsRegular.caretRight,
-                color: Colors.white70,
-                size: 18,
-              ),
-              onTap: () {
-                _showClearCacheDialog(context, ref);
-              },
-            ),
+            if (!hasAniListAccount) ..._buildDataManagementTiles(context, ref),
 
             _buildSectionHeader('App Info'),
             FutureBuilder<String>(
@@ -543,7 +510,10 @@ class SettingsScreen extends ConsumerWidget {
                     ref.read(easterEggVersionTapCountProvider.notifier).state =
                         currentCount;
 
-                    if (!easterEggEnabled && currentCount >= 6) {
+                    if (!easterEggUnlocked && currentCount >= 6) {
+                      await ref
+                          .read(easterEggUnlockedProvider.notifier)
+                          .setUnlocked(true);
                       await ref
                           .read(easterEggHomeLogoProvider.notifier)
                           .setEnabled(true);
@@ -552,11 +522,11 @@ class SettingsScreen extends ConsumerWidget {
                               .state =
                           0;
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('🎉 Easter egg enabled!'),
-                          backgroundColor: NamizoTheme.primary,
-                        ),
+                      AppToast.show(
+                        context: context,
+                        message: 'Easter egg enabled!',
+                        icon: PhosphorIconsRegular.sparkle,
+                        accent: const Color(0xFF22C55E),
                       );
                     }
                   },
@@ -781,6 +751,45 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  List<Widget> _buildDataManagementTiles(BuildContext context, WidgetRef ref) {
+    return [
+      _buildSettingsTile(
+        icon: const PhosphorIcon(
+          PhosphorIconsRegular.clockCounterClockwise,
+          color: Colors.white,
+          size: 24,
+        ),
+        title: 'Clear Watch History',
+        subtitle: 'Remove all watch history data',
+        trailing: const PhosphorIcon(
+          PhosphorIconsRegular.caretRight,
+          color: Colors.white70,
+          size: 18,
+        ),
+        onTap: () {
+          _showClearHistoryDialog(context, ref);
+        },
+      ),
+      _buildSettingsTile(
+        icon: const PhosphorIcon(
+          PhosphorIconsRegular.database,
+          color: Colors.white,
+          size: 24,
+        ),
+        title: 'Clear Cache',
+        subtitle: 'Remove cached metadata and artwork',
+        trailing: const PhosphorIcon(
+          PhosphorIconsRegular.caretRight,
+          color: Colors.white70,
+          size: 18,
+        ),
+        onTap: () {
+          _showClearCacheDialog(context, ref);
+        },
+      ),
+    ];
+  }
+
   void _showClearHistoryDialog(BuildContext context, WidgetRef ref) async {
     showDialog(
       context: context,
@@ -810,11 +819,11 @@ class SettingsScreen extends ConsumerWidget {
 
               if (dialogContext.mounted) {
                 Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Watch history cleared successfully'),
-                    backgroundColor: NamizoTheme.primary,
-                  ),
+                AppToast.show(
+                  context: context,
+                  message: 'Watch history cleared successfully',
+                  icon: PhosphorIconsRegular.clockCounterClockwise,
+                  accent: const Color(0xFF22C55E),
                 );
               }
             },
@@ -865,11 +874,11 @@ class SettingsScreen extends ConsumerWidget {
 
               if (dialogContext.mounted) {
                 Navigator.pop(dialogContext);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Cache cleared successfully'),
-                    backgroundColor: NamizoTheme.primary,
-                  ),
+                AppToast.show(
+                  context: context,
+                  message: 'Cache cleared successfully',
+                  icon: PhosphorIconsRegular.database,
+                  accent: const Color(0xFF22C55E),
                 );
               }
             },
@@ -948,15 +957,17 @@ class SettingsScreen extends ConsumerWidget {
                           .state++;
                       Navigator.pop(dialogContext);
                       final count = snapshot.data ?? 0;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            count > 0
-                                ? '🎉 Found $count new episode${count > 1 ? 's' : ''}!'
-                                : 'No new episodes found',
-                          ),
-                          backgroundColor: NamizoTheme.primary,
-                        ),
+                      AppToast.show(
+                        context: context,
+                        message: count > 0
+                            ? 'Found $count new episode${count > 1 ? 's' : ''}!'
+                            : 'No new episodes found',
+                        icon: count > 0
+                            ? PhosphorIconsRegular.bellRinging
+                            : PhosphorIconsRegular.bellSlash,
+                        accent: count > 0
+                            ? const Color(0xFF22C55E)
+                            : const Color(0xFFF59E0B),
                       );
                     }
                   });
@@ -977,11 +988,11 @@ class SettingsScreen extends ConsumerWidget {
     final watchlistService = ref.read(watchlistServiceProvider);
     final localItems = watchlistService.getAllItems();
     if (localItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No local watchlist entries to sync'),
-          backgroundColor: NamizoTheme.primary,
-        ),
+      AppToast.show(
+        context: context,
+        message: 'No local watchlist entries to sync',
+        icon: PhosphorIconsRegular.warningCircle,
+        accent: const Color(0xFFF59E0B),
       );
       return;
     }
@@ -1017,8 +1028,15 @@ class SettingsScreen extends ConsumerWidget {
         ? 'Synced ${result.synced}/${result.attempted} entries to AniList'
         : 'Synced ${result.synced} entries to AniList';
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: NamizoTheme.primary),
+    AppToast.show(
+      context: context,
+      message: message,
+      icon: result.failed > 0
+          ? PhosphorIconsRegular.warningCircle
+          : PhosphorIconsRegular.checkCircle,
+      accent: result.failed > 0
+          ? const Color(0xFFF59E0B)
+          : const Color(0xFF22C55E),
     );
   }
 }

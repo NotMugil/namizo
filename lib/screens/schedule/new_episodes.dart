@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/user/new_episode.dart';
 import 'package:namizo/services/episodes.dart';
+import 'package:namizo/widgets/toast.dart';
 
 /// Provider for new episodes list
 final newEpisodesProvider = StateProvider<List<NewEpisode>>((ref) {
@@ -139,15 +140,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
               final count = await EpisodeCheckService.checkNow();
               _refreshEpisodes();
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      count > 0
-                          ? '🎉 Found $count new episode${count > 1 ? 's' : ''}!'
-                          : 'No new episodes found',
-                    ),
-                    backgroundColor: NamizoTheme.primary,
-                  ),
+                AppToast.show(
+                  context: context,
+                  message: count > 0
+                      ? 'Found $count new episode${count > 1 ? 's' : ''}!'
+                      : 'No new episodes found',
+                  icon: count > 0
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_off_outlined,
+                  accent: count > 0
+                      ? const Color(0xFF22C55E)
+                      : const Color(0xFFF59E0B),
                 );
               }
             },

@@ -58,7 +58,7 @@
 </td>
 <td align="center" width="25%">
 <img src="./.github/assets/preview-similar.jpg" alt="Similar Anime Listing" width="400" height="760" style="object-fit: cover; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>
-<br/><b>Similar Anime</b>
+<br/><b>Similar</b>
 </td>
 <td align="center" width="25%">
 <img src="./.github/assets/preview-search.jpg" alt="Search" width="400" height="760" style="object-fit: cover; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"/>

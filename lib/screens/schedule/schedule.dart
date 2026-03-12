@@ -22,6 +22,8 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
   List<AiringEntry> _allAiring = const [];
   List<AiringEntry> _selectedWeekAniListAiring = const [];
   final Map<String, List<AiringEntry>> _aniListWeekCache = {};
+  final Map<int, String?> _tvdbBannerByShowId = {};
+  final Set<int> _loadingTvdbBannerIds = <int>{};
   bool _isLoading = true;
   bool _isWeekLoading = false;
 
@@ -128,6 +130,9 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _selectedWeekAniListAiring = cached;
         _isWeekLoading = false;
       });
+      _primeWeekBannerUrls(
+        _mergeWeekEntries(_weeklyEntries(_allAiring), cached),
+      );
       return;
     }
 
@@ -150,13 +155,55 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
         _selectedWeekAniListAiring = parsed;
         _isWeekLoading = false;
       });
+      _primeWeekBannerUrls(
+        _mergeWeekEntries(_weeklyEntries(_allAiring), parsed),
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _selectedWeekAniListAiring = const [];
         _isWeekLoading = false;
       });
+      _primeWeekBannerUrls(
+        _mergeWeekEntries(_weeklyEntries(_allAiring), const []),
+      );
     }
+  }
+
+  Future<void> _primeWeekBannerUrls(List<AiringEntry> entries) async {
+    final ids = entries
+        .map((entry) => entry.showId)
+        .where((id) => id > 0)
+        .toSet();
+    final pending = ids
+        .where(
+          (id) =>
+              !_tvdbBannerByShowId.containsKey(id) &&
+              !_loadingTvdbBannerIds.contains(id),
+        )
+        .toList(growable: false);
+    if (pending.isEmpty) return;
+
+    _loadingTvdbBannerIds.addAll(pending);
+    final kuroiruService = ref.read(kuroiruServiceProvider);
+    final fetched = await Future.wait(
+      pending.map((id) async {
+        try {
+          final banner = await kuroiruService.getTVShowBannerUrl(id);
+          return MapEntry<int, String?>(id, banner);
+        } catch (_) {
+          return MapEntry<int, String?>(id, null);
+        }
+      }),
+    );
+    if (!mounted) return;
+
+    setState(() {
+      for (final entry in fetched) {
+        _tvdbBannerByShowId[entry.key] = entry.value;
+        _loadingTvdbBannerIds.remove(entry.key);
+      }
+    });
   }
 
   List<AiringEntry> _mergeWeekEntries(
@@ -164,25 +211,29 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
     List<AiringEntry> secondary,
   ) {
     final mergedByKey = <String, AiringEntry>{};
+    final slotToCanonical = <String, String>{};
 
     for (final entry in [...primary, ...secondary]) {
-      final episodePart = entry.lastEpisode > 0
-          ? entry.lastEpisode.toString()
-          : DateFormat('yyyy-MM-dd').format(entry.airDate);
-      final key = '${entry.showId}_$episodePart';
+      final episodeKey = entry.lastEpisode > 0
+          ? '${entry.showId}_ep_${entry.lastEpisode}'
+          : null;
+      final slotKey =
+          '${entry.showId}_slot_${DateFormat('yyyy-MM-dd_HH').format(entry.airDate)}';
 
-      final existing = mergedByKey[key];
+      final canonicalKey =
+          (episodeKey != null && mergedByKey.containsKey(episodeKey))
+          ? episodeKey
+          : slotToCanonical[slotKey] ?? episodeKey ?? slotKey;
+
+      final existing = mergedByKey[canonicalKey];
       if (existing == null) {
-        mergedByKey[key] = entry;
+        mergedByKey[canonicalKey] = entry;
+        slotToCanonical[slotKey] = canonicalKey;
         continue;
       }
 
-      final existingHasJapanese = _hasJapaneseTitle(existing.showName);
-      final nextHasJapanese = _hasJapaneseTitle(entry.showName);
-
-      if (!existingHasJapanese && nextHasJapanese) {
-        mergedByKey[key] = entry;
-      }
+      mergedByKey[canonicalKey] = _preferEnglishTitle(existing, entry);
+      slotToCanonical[slotKey] = canonicalKey;
     }
 
     final merged = mergedByKey.values.toList(growable: false);
@@ -192,6 +243,20 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
 
   bool _hasJapaneseTitle(String title) {
     return RegExp(r'[\u3040-\u30FF\u3400-\u9FFF]').hasMatch(title);
+  }
+
+  AiringEntry _preferEnglishTitle(AiringEntry current, AiringEntry next) {
+    final currentHasJapanese = _hasJapaneseTitle(current.showName);
+    final nextHasJapanese = _hasJapaneseTitle(next.showName);
+
+    if (currentHasJapanese && !nextHasJapanese) {
+      return next;
+    }
+    if (!currentHasJapanese && nextHasJapanese) {
+      return current;
+    }
+
+    return current;
   }
 
   String _weekLabel() {
@@ -424,6 +489,7 @@ class _ScheduleScreenState extends ConsumerState<ScheduleScreen> {
                             ScheduleCard(
                               entry: entry,
                               inWatchlist: watchlistIds.contains(entry.showId),
+                              bannerUrl: _tvdbBannerByShowId[entry.showId],
                             ),
                       ],
                     ],

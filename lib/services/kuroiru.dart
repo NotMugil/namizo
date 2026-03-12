@@ -729,7 +729,7 @@ class KuroiruService {
   }
 
   Future<Map<String, dynamic>> getTVShowDetailsWithVideos(int tvId) async {
-    final cacheKey = 'anime_details_videos_$tvId';
+    final cacheKey = 'anime_details_videos_v2_$tvId';
 
     final staleCache = await _cache.getStaleRaw(cacheKey);
     if (staleCache != null && _cache.isExpired(cacheKey)) {
@@ -1074,14 +1074,118 @@ class KuroiruService {
       _toSearchResult(details),
     );
     final mapped = enriched.toJson();
+    final trailerUrl = await _getKuroiruTrailerUrl(malId);
+    final trailerKey = _extractYouTubeVideoId(trailerUrl);
 
     mapped['genres'] = (details.genres ?? const <String>[])
         .map((genre) => {'id': 0, 'name': genre})
         .toList();
 
-    mapped['videos'] = {'results': <Map<String, dynamic>>[]};
+    mapped['trailer_url'] = trailerUrl ?? '';
+    mapped['videos'] = {
+      'results': trailerKey == null
+          ? <Map<String, dynamic>>[]
+          : <Map<String, dynamic>>[
+              {
+                'site': 'YouTube',
+                'type': 'Trailer',
+                'official': true,
+                'key': trailerKey,
+              },
+            ],
+    };
 
     return mapped;
+  }
+
+  Future<String?> _getKuroiruTrailerUrl(int malId) async {
+    final cacheKey = 'kuroiru_trailer_url_v1_$malId';
+    final cached = await _cache.getRaw(cacheKey);
+    if (cached != null) {
+      final cachedUrl = cached['url']?.toString().trim();
+      if (cachedUrl != null && cachedUrl.isNotEmpty) {
+        return cachedUrl;
+      }
+      return null;
+    }
+
+    try {
+      final response = await _kuroiruDio.post(
+        '/backend/api',
+        data: 'prompt=$malId',
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          headers: {
+            'Referer': 'https://kuroiru.co/',
+            'User-Agent': AppConfigurations.defaultAppUserAgent,
+          },
+        ),
+      );
+
+      final data = response.data;
+      String? trailerUrl;
+      if (data is Map) {
+        final mapped = data.cast<String, dynamic>();
+        trailerUrl =
+            _normalizeKuroiruTrailer(mapped['yt']) ??
+            _normalizeKuroiruTrailer(mapped['trailer']) ??
+            _normalizeKuroiruTrailer(mapped['youtube']) ??
+            _extractYoutubeWatchUrlFromLinks(mapped['links']);
+      }
+
+      await _cache.set(cacheKey, {'url': trailerUrl ?? ''}, ttl: longCache);
+      return trailerUrl;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _normalizeKuroiruTrailer(dynamic raw) {
+    final value = raw?.toString().trim();
+    if (value == null || value.isEmpty) return null;
+
+    final youtubeIdPattern = RegExp(r'^[a-zA-Z0-9_-]{11}$');
+    if (youtubeIdPattern.hasMatch(value)) {
+      return 'https://www.youtube.com/watch?v=$value';
+    }
+
+    final fullMatch = RegExp(
+      r'(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (fullMatch != null) {
+      return fullMatch.group(1);
+    }
+
+    return null;
+  }
+
+  String? _extractYoutubeWatchUrlFromLinks(dynamic links) {
+    if (links is! List) return null;
+    for (final item in links.whereType<Map>()) {
+      final row = item.cast<String, dynamic>();
+      final url = row['url']?.toString().trim();
+      if (url == null || url.isEmpty) continue;
+      if (!url.contains('youtube.com/watch') && !url.contains('youtu.be/')) {
+        continue;
+      }
+      return _normalizeKuroiruTrailer(url) ?? url;
+    }
+    return null;
+  }
+
+  String? _extractYouTubeVideoId(String? url) {
+    if (url == null || url.trim().isEmpty) return null;
+    final normalized = url.trim();
+    final idPattern = RegExp(r'^[a-zA-Z0-9_-]{11}$');
+    if (idPattern.hasMatch(normalized)) {
+      return normalized;
+    }
+    final match = RegExp(
+      r'(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    return match?.group(1);
   }
 
   Future<SearchResult> _enrichSearchResultWithTvdbArtwork(

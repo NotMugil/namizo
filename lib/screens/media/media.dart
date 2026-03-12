@@ -18,6 +18,7 @@ import 'package:namizo/screens/media/trailer_overlay.dart';
 import 'package:namizo/screens/media/episode_list.dart';
 import 'package:namizo/screens/media/related_media.dart';
 import 'package:namizo/screens/media/similar_media.dart';
+import 'package:namizo/widgets/toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MediaDetailScreen extends ConsumerStatefulWidget {
@@ -73,18 +74,58 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     super.dispose();
   }
 
+  String? _normalizeYoutubeUrl(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    final value = raw.trim();
+    final youtubeIdPattern = RegExp(r'^[a-zA-Z0-9_-]{11}$');
+    if (youtubeIdPattern.hasMatch(value)) {
+      return 'https://www.youtube.com/watch?v=$value';
+    }
+
+    final match = RegExp(
+      r'(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[a-zA-Z0-9_-]{11})',
+      caseSensitive: false,
+    ).firstMatch(value);
+    return match?.group(1);
+  }
+
   String? _extractTrailerKey(dynamic videosData) {
     if (videosData == null) return null;
     final results = videosData['results'] as List<dynamic>?;
     if (results == null || results.isEmpty) return null;
 
     for (final video in results) {
-      if (video['site'] == 'YouTube' &&
-          video['type'] == 'Trailer' &&
-          video['official'] == true) {
-        return 'https://www.youtube.com/watch?v=${video['key']}';
+      if (video['site'] == 'YouTube' && video['type'] == 'Trailer') {
+        final trailerUrl = _normalizeYoutubeUrl(video['key']?.toString());
+        if (trailerUrl != null) return trailerUrl;
       }
     }
+
+    for (final video in results) {
+      if (video['site'] == 'YouTube') {
+        final trailerUrl = _normalizeYoutubeUrl(video['key']?.toString());
+        if (trailerUrl != null) return trailerUrl;
+      }
+    }
+
+    return null;
+  }
+
+  String? _extractTrailerUrl(Map<String, dynamic> detailsData) {
+    final fromVideos = _extractTrailerKey(detailsData['videos']);
+    if (fromVideos != null) return fromVideos;
+
+    final directCandidates = <dynamic>[
+      detailsData['trailer_url'],
+      detailsData['yt'],
+      detailsData['trailer'],
+      detailsData['youtube'],
+    ];
+    for (final candidate in directCandidates) {
+      final trailerUrl = _normalizeYoutubeUrl(candidate?.toString());
+      if (trailerUrl != null) return trailerUrl;
+    }
+
     return null;
   }
 
@@ -147,7 +188,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
           _resolveImageUrl(artwork[2]);
       final preferredPoster = _resolveImageUrl(artwork[2]);
 
-      final trailerUrl = _extractTrailerKey(detailsWithVideos['videos']);
+      final trailerUrl = _extractTrailerUrl(detailsWithVideos);
       final genres = (detailsWithVideos['genres'] as List<dynamic>? ?? [])
           .map((genre) => (genre as Map<String, dynamic>)['name'] as String?)
           .whereType<String>()
@@ -354,12 +395,16 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                         size: 19,
                                       ),
                                       onTap: () {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Cast coming soon'),
-                                          ),
+                                        if (_trailerUrl != null) {
+                                          _showTrailerPlayer(context);
+                                          return;
+                                        }
+                                        AppToast.show(
+                                          context: context,
+                                          message:
+                                              'Trailer unavailable for this anime',
+                                          icon: PhosphorIconsRegular.warning,
+                                          accent: const Color(0xFFF59E0B),
                                         );
                                       },
                                     ),
@@ -459,10 +504,11 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                     size: 24,
                                   ),
                                   onTap: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Favorites coming soon'),
-                                      ),
+                                    AppToast.show(
+                                      context: context,
+                                      message: 'Favorites coming soon',
+                                      icon: Icons.favorite_border,
+                                      accent: const Color(0xFF3B82F6),
                                     );
                                   },
                                 ),
@@ -485,26 +531,6 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                 ),
                               ],
                             ),
-                            if (_trailerUrl != null) ...[
-                              const SizedBox(height: 12),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () => _showTrailerPlayer(context),
-                                  icon: const Icon(
-                                    Icons.play_circle_outline,
-                                    size: 17,
-                                    color: NamizoTheme.primary,
-                                  ),
-                                  label: const Text(
-                                    'Watch trailer',
-                                    style: TextStyle(
-                                      color: NamizoTheme.primary,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
                             const SizedBox(height: 14),
                             Text(
                               'About',
@@ -662,47 +688,101 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
 
   Future<void> _toggleWatchlist(SearchResult media, bool isInWatchlist) async {
     final watchlistService = ref.read(watchlistServiceProvider);
-    final shouldAutoSyncAniList =
-        ref.read(aniListViewerProvider).valueOrNull != null &&
-        ref.read(aniListAutoSyncProvider);
+    final hasAniListLogin = ref.read(aniListViewerProvider).valueOrNull != null;
+    final autoSyncAniList = ref.read(aniListAutoSyncProvider);
+    final shouldAutoSyncAniList = hasAniListLogin && autoSyncAniList;
     final aniListService = ref.read(aniListServiceProvider);
 
     if (isInWatchlist) {
-      if (mounted) {
-        setState(() => _watchlistOverride = false);
-      }
+      final localAlreadyExists = ref
+          .read(watchlistProvider)
+          .any((item) => item.id == media.id);
+      final aniListAlreadyExists = ref
+          .read(watchlistStatusByIdProvider)
+          .containsKey(media.id);
+      final canManageStatuses = hasAniListLogin && autoSyncAniList;
+      final action = await _showWatchlistActionSheet(
+        canManageStatuses: canManageStatuses,
+      );
+      if (action == null) return;
 
-      await watchlistService.removeFromWatchlist(media.id);
-      final hasAniListLogin =
-          (await aniListService.getAccessToken())?.isNotEmpty == true;
-      var aniListDeleted = true;
-      if (hasAniListLogin) {
-        aniListDeleted = await aniListService.removeFromTrackedByMalId(
-          media.id,
-        );
-        ref.read(aniListAccountRefreshProvider.notifier).state++;
-      }
+      if (action == _WatchlistAction.remove) {
+        if (mounted) {
+          setState(() => _watchlistOverride = false);
+        }
+        if (localAlreadyExists) {
+          await watchlistService.removeFromWatchlist(media.id);
+        }
 
-      ref.read(watchlistRefreshProvider.notifier).refresh();
-      ref.invalidate(watchlistProvider);
-      ref.invalidate(isInWatchlistProvider(media.id));
-      if (!mounted) return;
+        var aniListDeleted = true;
+        if (hasAniListLogin && aniListAlreadyExists) {
+          aniListDeleted = await aniListService.removeFromTrackedByMalId(
+            media.id,
+          );
+          ref.read(aniListAccountRefreshProvider.notifier).state++;
+        }
 
-      if (!aniListDeleted) {
+        ref.read(watchlistRefreshProvider.notifier).refresh();
+        ref.invalidate(watchlistProvider);
+        ref.invalidate(isInWatchlistProvider(media.id));
+        if (!mounted) return;
+
+        if (!aniListDeleted) {
+          _showToast(
+            message: 'Removed locally, but AniList delete failed',
+            icon: PhosphorIconsRegular.warning,
+            accent: const Color(0xFFF59E0B),
+          );
+          return;
+        }
+
         _showToast(
-          message: 'Removed locally, but AniList delete failed',
+          message: hasAniListLogin
+              ? 'Removed from list'
+              : 'Removed from watchlist',
+          icon: PhosphorIconsRegular.bookmarkSimple,
+          accent: const Color(0xFFEF4444),
+        );
+        return;
+      }
+
+      final status = switch (action) {
+        _WatchlistAction.dropped => 'DROPPED',
+        _WatchlistAction.paused => 'PAUSED',
+        _WatchlistAction.completed => 'COMPLETED',
+        _WatchlistAction.remove => null,
+      };
+      if (status == null) return;
+
+      final updated = await aniListService.updateStatusByMalId(
+        malId: media.id,
+        status: status,
+      );
+      if (!updated) {
+        if (!mounted) return;
+        _showToast(
+          message: 'Failed to update status',
           icon: PhosphorIconsRegular.warning,
           accent: const Color(0xFFF59E0B),
         );
         return;
       }
 
+      if (localAlreadyExists) {
+        await watchlistService.removeFromWatchlist(media.id);
+      }
+      if (mounted) {
+        setState(() => _watchlistOverride = true);
+      }
+      ref.read(aniListAccountRefreshProvider.notifier).state++;
+      ref.read(watchlistRefreshProvider.notifier).refresh();
+      ref.invalidate(watchlistProvider);
+      ref.invalidate(isInWatchlistProvider(media.id));
+      if (!mounted) return;
       _showToast(
-        message: hasAniListLogin
-            ? 'Removed from list'
-            : 'Removed from watchlist',
-        icon: PhosphorIconsRegular.bookmarkSimple,
-        accent: const Color(0xFFEF4444),
+        message: 'Moved to ${_statusLabel(status)}',
+        icon: PhosphorIconsFill.checkCircle,
+        accent: const Color(0xFF22C55E),
       );
     } else {
       final localAlreadyExists = ref
@@ -763,36 +843,114 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     required IconData icon,
     required Color accent,
   }) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-        elevation: 0,
-        duration: const Duration(seconds: 2),
-        backgroundColor: const Color(0xFF0A0A0A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: accent.withValues(alpha: 0.45), width: 1),
-        ),
-        content: Row(
-          children: [
-            Icon(icon, color: accent, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+    AppToast.show(
+      context: context,
+      message: message,
+      icon: icon,
+      accent: accent,
+    );
+  }
+
+  Future<_WatchlistAction?> _showWatchlistActionSheet({
+    required bool canManageStatuses,
+  }) {
+    return showModalBottomSheet<_WatchlistAction>(
+      context: context,
+      backgroundColor: const Color(0xFF121212),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    'Update bookmark',
+                    style: TextStyle(
+                      color: NamizoTheme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                if (canManageStatuses) ...[
+                  _buildActionTile(
+                    context: context,
+                    label: 'Move to Dropped',
+                    icon: PhosphorIconsRegular.xCircle,
+                    iconColor: const Color(0xFFF87171),
+                    action: _WatchlistAction.dropped,
+                  ),
+                  _buildActionTile(
+                    context: context,
+                    label: 'Move to Paused',
+                    icon: PhosphorIconsRegular.pauseCircle,
+                    iconColor: const Color(0xFFFBBF24),
+                    action: _WatchlistAction.paused,
+                  ),
+                  _buildActionTile(
+                    context: context,
+                    label: 'Move to Completed',
+                    icon: PhosphorIconsRegular.checkCircle,
+                    iconColor: const Color(0xFF34D399),
+                    action: _WatchlistAction.completed,
+                  ),
+                ],
+                _buildActionTile(
+                  context: context,
+                  label: 'Remove entry',
+                  icon: PhosphorIconsRegular.trash,
+                  iconColor: const Color(0xFFEF4444),
+                  action: _WatchlistAction.remove,
+                ),
+              ],
             ),
-          ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionTile({
+    required BuildContext context,
+    required String label,
+    required IconData icon,
+    required Color iconColor,
+    required _WatchlistAction action,
+  }) {
+    return ListTile(
+      dense: true,
+      onTap: () => Navigator.of(context).pop(action),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      leading: PhosphorIcon(icon, color: iconColor, size: 18),
+      title: Text(
+        label,
+        style: const TextStyle(
+          color: NamizoTheme.textPrimary,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'DROPPED':
+        return 'Dropped';
+      case 'PAUSED':
+        return 'Paused';
+      case 'COMPLETED':
+        return 'Completed';
+      default:
+        return status;
+    }
   }
 
   Widget _buildTVControls(
@@ -800,9 +958,13 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     SearchResult media,
     DynamicColors colors,
   ) {
+    final showEasterEggOops = ref.watch(easterEggHomeLogoProvider);
+    final kuroiruService = ref.read(kuroiruServiceProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: 8),
         TabBar(
           controller: _detailTabController,
           isScrollable: false,
@@ -828,6 +990,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
             season: 1,
             colors: colors,
             scrollController: _scrollController,
+            showEasterEggOops: showEasterEggOops,
           )
         else if (_activeTabIndex == 1)
           RelatedMediaSection(
@@ -835,6 +998,8 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 .read(aniListServiceProvider)
                 .getRelatedAnimeByMalId(media.id),
             colors: colors,
+            kuroiruService: kuroiruService,
+            showEasterEggOops: showEasterEggOops,
           )
         else
           SimilarMediaSection(
@@ -842,6 +1007,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                 .read(kuroiruServiceProvider)
                 .getTVShowSimilarFromTvdb(media.id),
             colors: colors,
+            showEasterEggOops: showEasterEggOops,
           ),
       ],
     );
@@ -907,3 +1073,5 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
     );
   }
 }
+
+enum _WatchlistAction { dropped, paused, completed, remove }

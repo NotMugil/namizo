@@ -4,15 +4,18 @@ import 'package:go_router/go_router.dart';
 import 'package:namizo/models/tvdb/tvdb_models.dart';
 import 'package:namizo/providers/dynamic_colors.dart';
 import 'package:namizo/theme/theme.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class SimilarMediaSection extends StatelessWidget {
   final Future<List<TvdbSimilarSeries>> similarFuture;
   final DynamicColors colors;
+  final bool showEasterEggOops;
 
   const SimilarMediaSection({
     super.key,
     required this.similarFuture,
     required this.colors,
+    required this.showEasterEggOops,
   });
 
   @override
@@ -49,11 +52,17 @@ class SimilarMediaSection extends StatelessWidget {
             child: Center(
               child: Column(
                 children: [
-                  Image.asset(
-                    'assets/images/oops.png',
-                    height: 72,
-                    fit: BoxFit.contain,
-                  ),
+                  showEasterEggOops
+                      ? Image.asset(
+                          'assets/images/oops.png',
+                          height: 72,
+                          fit: BoxFit.contain,
+                        )
+                      : PhosphorIcon(
+                          PhosphorIconsRegular.warningCircle,
+                          color: colors.onSurface.withValues(alpha: 0.6),
+                          size: 42,
+                        ),
                   const SizedBox(height: 12),
                   Text(
                     'Oops! No similar matches found',

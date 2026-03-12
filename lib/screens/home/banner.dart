@@ -325,9 +325,9 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
 
   Future<void> _toggleFeaturedWatchlist(Map<String, dynamic> content) async {
     final watchlistService = ref.read(watchlistServiceProvider);
-    final shouldSyncAniList =
-        ref.read(aniListViewerProvider).valueOrNull != null &&
-        ref.read(aniListAutoSyncProvider);
+    final hasAniListLogin = ref.read(aniListViewerProvider).valueOrNull != null;
+    final autoSyncAniList = ref.read(aniListAutoSyncProvider);
+    final shouldSyncAniList = hasAniListLogin && autoSyncAniList;
     final aniListService = ref.read(aniListServiceProvider);
     final mediaId = content['id'] as int?;
     if (mediaId == null) return;
@@ -340,22 +340,80 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
         .containsKey(mediaId);
 
     if (localAlreadyExists || aniListAlreadyExists) {
+      final canManageStatuses = hasAniListLogin && autoSyncAniList;
+      final action = await _showWatchlistActionSheet(
+        canManageStatuses: canManageStatuses,
+      );
+      if (action == null) return;
+
+      if (action == _WatchlistAction.remove) {
+        if (localAlreadyExists) {
+          await watchlistService.removeFromWatchlist(mediaId);
+        }
+        var aniListDeleted = true;
+        if (hasAniListLogin && aniListAlreadyExists) {
+          aniListDeleted = await aniListService.removeFromTrackedByMalId(
+            mediaId,
+          );
+          ref.read(aniListAccountRefreshProvider.notifier).state++;
+        }
+
+        ref.read(watchlistRefreshProvider.notifier).refresh();
+        ref.invalidate(watchlistProvider);
+        if (!mounted) return;
+
+        if (!aniListDeleted) {
+          _showWatchlistToast(
+            message: 'Removed locally, but AniList delete failed',
+            icon: PhosphorIconsRegular.warning,
+            accent: const Color(0xFFF59E0B),
+          );
+          return;
+        }
+
+        _showWatchlistToast(
+          message: hasAniListLogin
+              ? 'Removed from list'
+              : 'Removed from watchlist',
+          icon: PhosphorIconsRegular.bookmarkSimple,
+          accent: const Color(0xFFEF4444),
+        );
+        return;
+      }
+
+      final status = switch (action) {
+        _WatchlistAction.dropped => 'DROPPED',
+        _WatchlistAction.paused => 'PAUSED',
+        _WatchlistAction.completed => 'COMPLETED',
+        _WatchlistAction.remove => null,
+      };
+      if (status == null) return;
+
+      final updated = await aniListService.updateStatusByMalId(
+        malId: mediaId,
+        status: status,
+      );
+      if (!updated) {
+        if (!mounted) return;
+        _showWatchlistToast(
+          message: 'Failed to update status',
+          icon: PhosphorIconsRegular.warning,
+          accent: const Color(0xFFF59E0B),
+        );
+        return;
+      }
+
       if (localAlreadyExists) {
         await watchlistService.removeFromWatchlist(mediaId);
       }
-      final hasAniListLogin =
-          ref.read(aniListViewerProvider).valueOrNull != null;
-      if (hasAniListLogin && aniListAlreadyExists) {
-        await aniListService.removeFromTrackedByMalId(mediaId);
-        ref.read(aniListAccountRefreshProvider.notifier).state++;
-      }
+      ref.read(aniListAccountRefreshProvider.notifier).state++;
       ref.read(watchlistRefreshProvider.notifier).refresh();
       ref.invalidate(watchlistProvider);
       if (!mounted) return;
       _showWatchlistToast(
-        message: 'Removed from list',
-        icon: PhosphorIconsRegular.bookmarkSimple,
-        accent: const Color(0xFFEF4444),
+        message: 'Moved to ${_statusLabel(status)}',
+        icon: PhosphorIconsFill.checkCircle,
+        accent: const Color(0xFF22C55E),
       );
       return;
     }
@@ -401,6 +459,108 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
       icon: icon,
       accent: accent,
     );
+  }
+
+  Future<_WatchlistAction?> _showWatchlistActionSheet({
+    required bool canManageStatuses,
+  }) {
+    return showModalBottomSheet<_WatchlistAction>(
+      context: context,
+      backgroundColor: const Color(0xFF121212),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    'Update bookmark',
+                    style: TextStyle(
+                      color: NamizoTheme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (canManageStatuses) ...[
+                  _buildActionTile(
+                    context: context,
+                    label: 'Move to Dropped',
+                    icon: PhosphorIconsRegular.xCircle,
+                    iconColor: const Color(0xFFF87171),
+                    action: _WatchlistAction.dropped,
+                  ),
+                  _buildActionTile(
+                    context: context,
+                    label: 'Move to Paused',
+                    icon: PhosphorIconsRegular.pauseCircle,
+                    iconColor: const Color(0xFFFBBF24),
+                    action: _WatchlistAction.paused,
+                  ),
+                  _buildActionTile(
+                    context: context,
+                    label: 'Move to Completed',
+                    icon: PhosphorIconsRegular.checkCircle,
+                    iconColor: const Color(0xFF34D399),
+                    action: _WatchlistAction.completed,
+                  ),
+                ],
+                _buildActionTile(
+                  context: context,
+                  label: 'Remove entry',
+                  icon: PhosphorIconsRegular.trash,
+                  iconColor: const Color(0xFFEF4444),
+                  action: _WatchlistAction.remove,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionTile({
+    required BuildContext context,
+    required String label,
+    required IconData icon,
+    required Color iconColor,
+    required _WatchlistAction action,
+  }) {
+    return ListTile(
+      dense: true,
+      onTap: () => Navigator.of(context).pop(action),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      leading: PhosphorIcon(icon, color: iconColor, size: 18),
+      title: Text(
+        label,
+        style: const TextStyle(
+          color: NamizoTheme.textPrimary,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'DROPPED':
+        return 'Dropped';
+      case 'PAUSED':
+        return 'Paused';
+      case 'COMPLETED':
+        return 'Completed';
+      default:
+        return status;
+    }
   }
 }
 
@@ -461,3 +621,5 @@ Widget _smallSquareButton({required Widget icon, required VoidCallback onTap}) {
     ),
   );
 }
+
+enum _WatchlistAction { dropped, paused, completed, remove }

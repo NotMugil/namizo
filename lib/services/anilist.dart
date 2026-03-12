@@ -24,6 +24,7 @@ class AniListService {
   final Dio _dio;
   static const Duration _defaultRateLimitDelay = Duration(milliseconds: 1200);
   static const Duration _syncPacingDelay = Duration(milliseconds: 700);
+  static const String _namizoCustomListName = 'Watched using Namizo';
 
   static const String _viewerQuery = r'''
 query Viewer {
@@ -207,6 +208,7 @@ query MediaListEntryByMedia($mediaId: Int) {
     id
     progress
     status
+    customLists(asArray: true)
   }
 }
 ''';
@@ -339,11 +341,12 @@ query RelatedAnimeByMalId($malId: Int) {
   final Map<String, _CachedSearchPage> _searchPageCache = {};
 
   static const String _saveMediaListEntryMutation = r'''
-mutation SaveMediaListEntry($id: Int, $mediaId: Int, $status: MediaListStatus, $progress: Int) {
-  SaveMediaListEntry(id: $id, mediaId: $mediaId, status: $status, progress: $progress) {
+mutation SaveMediaListEntry($id: Int, $mediaId: Int, $status: MediaListStatus, $progress: Int, $customLists: [String]) {
+  SaveMediaListEntry(id: $id, mediaId: $mediaId, status: $status, progress: $progress, customLists: $customLists) {
     id
     status
     progress
+    customLists(asArray: true)
   }
 }
 ''';
@@ -1347,7 +1350,10 @@ mutation DeleteMediaListEntry($id: Int) {
         (currentStatus == 'PLANNING' ||
             currentStatus == 'CURRENT' ||
             currentStatus == 'REPEATING')) {
-      return true;
+      return _saveMediaListByMediaId(
+        mediaId: mediaEntryRef.mediaId,
+        status: currentStatus,
+      );
     }
 
     return _saveMediaListByMediaId(
@@ -1408,6 +1414,43 @@ mutation DeleteMediaListEntry($id: Int) {
     );
   }
 
+  Future<bool> markAsWatchingByMalId(int malId) async {
+    if (malId <= 0) return false;
+
+    final mediaRef = await _getMediaRefByMalId(malId);
+    if (mediaRef == null) return false;
+
+    final existing = await _getMediaListEntry(mediaRef.mediaId);
+    final currentStatus = (existing?.status ?? '').trim().toUpperCase();
+    if (currentStatus == 'CURRENT' || currentStatus == 'REPEATING') {
+      return true;
+    }
+
+    return _saveMediaListByMediaId(
+      mediaId: mediaRef.mediaId,
+      status: 'CURRENT',
+      progress: existing?.progress,
+    );
+  }
+
+  Future<bool> updateStatusByMalId({
+    required int malId,
+    required String status,
+    int? progress,
+  }) async {
+    if (malId <= 0) return false;
+    if (status.trim().isEmpty) return false;
+
+    final mediaRef = await _getMediaRefByMalId(malId);
+    if (mediaRef == null) return false;
+
+    return updateStatusByMediaId(
+      mediaId: mediaRef.mediaId,
+      status: status,
+      progress: progress,
+    );
+  }
+
   Future<bool> updateStatusByMediaId({
     required int mediaId,
     required String status,
@@ -1424,6 +1467,7 @@ mutation DeleteMediaListEntry($id: Int) {
         'mediaId': existing?.id == null ? mediaId : null,
         'status': status.trim().toUpperCase(),
         'progress': progress ?? existing?.progress,
+        'customLists': _withNamizoCustomList(existing?.customLists),
       },
       requireAccessToken: true,
     );
@@ -1470,9 +1514,16 @@ mutation DeleteMediaListEntry($id: Int) {
     required String status,
     int? progress,
   }) async {
+    final existing = await _getMediaListEntry(mediaId);
     final payload = await _executeGraphQl(
       query: _saveMediaListEntryMutation,
-      variables: {'mediaId': mediaId, 'status': status, 'progress': progress},
+      variables: {
+        'id': existing?.id,
+        'mediaId': existing?.id == null ? mediaId : null,
+        'status': status,
+        'progress': progress ?? existing?.progress,
+        'customLists': _withNamizoCustomList(existing?.customLists),
+      },
       requireAccessToken: true,
     );
 
@@ -1551,7 +1602,39 @@ mutation DeleteMediaListEntry($id: Int) {
     if (id == null || id <= 0) return null;
     final progress = (mediaList['progress'] as num?)?.toInt();
     final status = mediaList['status']?.toString();
-    return _AniListMediaListEntry(id: id, progress: progress, status: status);
+    final customListsRaw = mediaList['customLists'];
+    final customLists = customListsRaw is List
+        ? customListsRaw
+              .map((e) => e?.toString().trim())
+              .whereType<String>()
+              .where((e) => e.isNotEmpty)
+              .toList(growable: false)
+        : const <String>[];
+    return _AniListMediaListEntry(
+      id: id,
+      progress: progress,
+      status: status,
+      customLists: customLists,
+    );
+  }
+
+  List<String> _withNamizoCustomList(List<String>? existing) {
+    final result = <String>[];
+    final seen = <String>{};
+
+    void addValue(String value) {
+      final normalized = value.trim();
+      if (normalized.isEmpty) return;
+      final key = normalized.toLowerCase();
+      if (!seen.add(key)) return;
+      result.add(normalized);
+    }
+
+    for (final item in existing ?? const <String>[]) {
+      addValue(item);
+    }
+    addValue(_namizoCustomListName);
+    return result;
   }
 
   Future<Map<String, dynamic>?> _executeGraphQl({
@@ -1699,11 +1782,13 @@ class _AniListMediaListEntry {
     required this.id,
     required this.progress,
     required this.status,
+    required this.customLists,
   });
 
   final int id;
   final int? progress;
   final String? status;
+  final List<String> customLists;
 }
 
 class _CachedSearchPage {

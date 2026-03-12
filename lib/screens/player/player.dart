@@ -65,6 +65,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _isInFullscreen = false;
   bool _arePlayerControlsVisible = true;
   int? _lastAniListSyncedEpisode;
+  int? _lastAniListWatchingEpisode;
   final ValueNotifier<bool> _fullscreenTopBarVisibleNotifier = ValueNotifier(
     false,
   );
@@ -560,6 +561,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // Set playback speed after initialization
         final speed = ref.read(playbackSpeedProvider);
         _betterPlayerController?.setSpeed(speed);
+        unawaited(_markAniListWatchingIfNeeded());
         // Show resume snackbar
         if (_resumePosition != null && mounted) {
           AppToast.show(
@@ -777,6 +779,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // ── Next episode popup ──────────────────────────────────────────
   void _showNextEpisodePopup() {
     if (_showNextEpisodeButton) return;
+    unawaited(_syncAniListProgressIfNeeded());
     setState(() {
       _showNextEpisodeButton = true;
       _nextEpisodeCountdown = 15;
@@ -828,6 +831,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (media == null) return;
     switch (event) {
       case 'time':
+        unawaited(_markAniListWatchingIfNeeded());
         _saveWebViewProgress(currentTime, duration);
         final progress = duration > 0 ? currentTime / duration : 0.0;
         if (progress >= 0.90 &&
@@ -1387,6 +1391,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       totalDuration: Duration(seconds: duration.toInt()),
     );
     await _syncAniListProgressIfNeeded();
+  }
+
+  Future<void> _markAniListWatchingIfNeeded() async {
+    if (_lastAniListWatchingEpisode == _currentEpisode) return;
+    if (!ref.read(aniListAutoSyncProvider)) return;
+    if (ref.read(aniListViewerProvider).valueOrNull == null) return;
+
+    final media = ref.read(selectedMediaProvider);
+    if (media == null) return;
+
+    final updated = await ref
+        .read(aniListServiceProvider)
+        .markAsWatchingByMalId(media.id);
+    if (!updated) return;
+
+    _lastAniListWatchingEpisode = _currentEpisode;
+    ref.read(aniListAccountRefreshProvider.notifier).state++;
   }
 
   Future<void> _syncAniListProgressIfNeeded() async {

@@ -243,6 +243,29 @@ final lastEpisodeCheckTimeProvider = FutureProvider<DateTime?>((ref) async {
 
 final easterEggVersionTapCountProvider = StateProvider<int>((ref) => 0);
 
+final easterEggUnlockedProvider =
+    StateNotifierProvider<EasterEggUnlockedNotifier, bool>((ref) {
+      return EasterEggUnlockedNotifier();
+    });
+
+class EasterEggUnlockedNotifier extends StateNotifier<bool> {
+  EasterEggUnlockedNotifier() : super(false) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    final wasEnabledBefore = prefs.getBool(easterEggHomeLogoKey) ?? false;
+    state = prefs.getBool(easterEggUnlockedKey) ?? wasEnabledBefore;
+  }
+
+  Future<void> setUnlocked(bool unlocked) async {
+    state = unlocked;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(easterEggUnlockedKey, unlocked);
+  }
+}
+
 final easterEggHomeLogoProvider =
     StateNotifierProvider<EasterEggHomeLogoNotifier, bool>((ref) {
       return EasterEggHomeLogoNotifier();
