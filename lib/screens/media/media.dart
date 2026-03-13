@@ -808,11 +808,12 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
         setState(() => _watchlistOverride = true);
       }
 
+      final artwork = await aniListService.getArtworkByMalId(media.id);
       final item = WatchlistItem(
         id: media.id,
         title: media.title ?? media.name ?? 'Unknown',
-        posterPath: media.posterPath,
-        backdropPath: media.backdropPath,
+        posterPath: artwork?.posterPath ?? media.posterPath,
+        backdropPath: artwork?.backdropPath ?? media.backdropPath,
         mediaType: media.mediaType,
         addedAt: DateTime.now(),
         voteAverage: media.voteAverage,

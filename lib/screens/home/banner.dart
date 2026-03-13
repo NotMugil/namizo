@@ -418,11 +418,13 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
       return;
     }
 
+    final artwork = await aniListService.getArtworkByMalId(mediaId);
     final item = WatchlistItem(
       id: mediaId,
       title: (content['title'] ?? content['name'] ?? 'Unknown').toString(),
-      posterPath: content['poster_path']?.toString(),
-      backdropPath: content['backdrop_path']?.toString(),
+      posterPath: artwork?.posterPath ?? content['poster_path']?.toString(),
+      backdropPath:
+          artwork?.backdropPath ?? content['backdrop_path']?.toString(),
       mediaType: 'tv',
       addedAt: DateTime.now(),
       voteAverage: (content['vote_average'] as num?)?.toDouble(),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:namizo/providers/settings.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:namizo/models/user/new_episode.dart';
 import 'package:namizo/services/episodes.dart';
@@ -45,6 +46,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final episodes = ref.watch(newEpisodesProvider);
+    final hideSpoilers = ref.watch(hideSpoilersProvider);
 
     return Scaffold(
       backgroundColor: NamizoTheme.background,
@@ -102,7 +104,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             ),
         ],
       ),
-      body: episodes.isEmpty ? _buildEmptyState() : _buildEpisodeList(episodes),
+      body: episodes.isEmpty
+          ? _buildEmptyState()
+          : _buildEpisodeList(episodes, hideSpoilers),
     );
   }
 
@@ -166,7 +170,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  Widget _buildEpisodeList(List<NewEpisode> episodes) {
+  Widget _buildEpisodeList(List<NewEpisode> episodes, bool hideSpoilers) {
     // Group episodes by show
     final Map<int, List<NewEpisode>> groupedByShow = {};
     for (final episode in episodes) {
@@ -181,7 +185,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         final showEpisodes = groupedByShow[showId]!;
         final firstEpisode = showEpisodes.first;
 
-        return _buildShowCard(context, showId, showEpisodes, firstEpisode);
+        return _buildShowCard(
+          context,
+          showId,
+          showEpisodes,
+          firstEpisode,
+          hideSpoilers,
+        );
       },
     );
   }
@@ -191,6 +201,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     int showId,
     List<NewEpisode> episodes,
     NewEpisode firstEpisode,
+    bool hideSpoilers,
   ) {
     final hasUnread = episodes.any((e) => !e.isRead);
     final posterUrl = firstEpisode.posterPath != null
@@ -308,7 +319,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                     const SizedBox(height: 4),
                     if (episodes.length == 1)
                       Text(
-                        firstEpisode.episodeName,
+                        hideSpoilers
+                            ? 'Episode ${firstEpisode.episodeNumber}'
+                            : firstEpisode.episodeName,
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.7),
                           fontSize: 13,

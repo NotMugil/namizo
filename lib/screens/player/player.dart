@@ -16,6 +16,7 @@ import 'package:namizo/widgets/toast.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final int mediaId;
@@ -45,6 +46,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _retryCount = 0;
   int _currentProviderIndex = 0;
   static const int _maxRetries = 3;
+  static const int _nextEpisodeTriggerSeconds = 15;
+  static const int _nextEpisodeCountdownSeconds = 15;
   final FocusNode _focusNode = FocusNode();
   bool _showNextEpisodeButton = false;
   bool _nextEpisodeDismissed = false;
@@ -623,14 +626,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     final position = vpc.value.position;
     final duration = vpc.value.duration;
-    if (duration != null && duration.inSeconds > 0) {
-      final progress = position.inSeconds / duration.inSeconds;
-      if (progress >= 0.90 &&
-          !_showNextEpisodeButton &&
-          !_nextEpisodeDismissed &&
-          _hasNextEpisode()) {
-        _showNextEpisodePopup();
-      }
+    if (duration != null &&
+        duration.inSeconds > 0 &&
+        _isWithinNextEpisodeTrigger(position, duration) &&
+        !_showNextEpisodeButton &&
+        !_nextEpisodeDismissed &&
+        _hasNextEpisode()) {
+      _showNextEpisodePopup();
     }
 
     if (duration != null &&
@@ -638,6 +640,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         duration.inSeconds > 0) {
       _markAsCompleted();
     }
+  }
+
+  bool _isWithinNextEpisodeTrigger(Duration position, Duration duration) {
+    final remaining = duration - position;
+    return remaining <= const Duration(seconds: _nextEpisodeTriggerSeconds) &&
+        remaining >= Duration.zero;
+  }
+
+  bool _isWithinNextEpisodeTriggerSeconds(double currentTime, double duration) {
+    final remaining = duration - currentTime;
+    return remaining <= _nextEpisodeTriggerSeconds && remaining >= 0;
   }
 
   void _onSeekEvent(BetterPlayerEvent event) {
@@ -782,9 +795,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     unawaited(_syncAniListProgressIfNeeded());
     setState(() {
       _showNextEpisodeButton = true;
-      _nextEpisodeCountdown = 15;
+      _nextEpisodeCountdown = _nextEpisodeCountdownSeconds;
     });
-    _nextEpNotifier.value = _NextEpState(show: true, countdown: 15);
+    _nextEpNotifier.value = _NextEpState(
+      show: true,
+      countdown: _nextEpisodeCountdownSeconds,
+    );
     _showOverlayEntry();
     _nextEpisodeTimer?.cancel();
     _nextEpisodeTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -833,8 +849,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       case 'time':
         unawaited(_markAniListWatchingIfNeeded());
         _saveWebViewProgress(currentTime, duration);
-        final progress = duration > 0 ? currentTime / duration : 0.0;
-        if (progress >= 0.90 &&
+        if (duration > 0 &&
+            _isWithinNextEpisodeTriggerSeconds(currentTime, duration) &&
             !_showNextEpisodeButton &&
             !_nextEpisodeDismissed &&
             _hasNextEpisode()) {
@@ -1804,6 +1820,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (media?.mediaType != 'tv') {
       return _streamResult?.provider.toUpperCase() ?? '';
     }
+    final hideSpoilers = ref.read(hideSpoilersProvider);
+    if (hideSpoilers) {
+      return 'S${widget.season} E$_currentEpisode · Episode $_currentEpisode';
+    }
 
     String? episodeName;
     final seasonData = _currentSeasonData;
@@ -1978,6 +1998,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         episode: _currentEpisode,
         season: widget.season,
         seasonData: _currentSeasonData,
+        hideSpoilers: ref.read(hideSpoilersProvider),
         onPlay: () {
           _nextEpisodeTimer?.cancel();
           _playNextEpisode();
@@ -2283,12 +2304,18 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
     super.dispose();
   }
 
-  List<EpisodeData> _filterEpisodes(List<EpisodeData> episodes) {
+  List<EpisodeData> _filterEpisodes(
+    List<EpisodeData> episodes,
+    bool hideSpoilers,
+  ) {
     if (_searchQuery.isEmpty) return episodes;
     final query = _searchQuery.toLowerCase();
     return episodes.where((ep) {
-      final name = ep.episodeName?.toLowerCase() ?? '';
       final num = ep.episodeNumber.toString();
+      if (hideSpoilers) {
+        return num.contains(query);
+      }
+      final name = ep.episodeName?.toLowerCase() ?? '';
       final overview = ep.overview?.toLowerCase() ?? '';
       return name.contains(query) ||
           num.contains(query) ||
@@ -2298,6 +2325,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final hideSpoilers = ref.watch(hideSpoilersProvider);
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
       minChildSize: 0.5,
@@ -2318,7 +2346,10 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
           ),
           child: seasonDataAsync.when(
             data: (seasonData) {
-              final filtered = _filterEpisodes(seasonData.episodes);
+              final filtered = _filterEpisodes(
+                seasonData.episodes,
+                hideSpoilers,
+              );
               return Column(
                 children: [
                   // Handle
@@ -2451,6 +2482,10 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                         ? 'https://kuroiru.co${episode.stillPath}'
                                         : episode.stillPath!)
                                   : '';
+                              final episodeTitle = hideSpoilers
+                                  ? 'Episode ${episode.episodeNumber}'
+                                  : (episode.episodeName ??
+                                        'Episode ${episode.episodeNumber}');
 
                               return GestureDetector(
                                 onTap: () {
@@ -2497,29 +2532,40 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                               ? Stack(
                                                   fit: StackFit.expand,
                                                   children: [
-                                                    CachedNetworkImage(
-                                                      imageUrl: stillUrl,
-                                                      fit: BoxFit.cover,
-                                                      placeholder: (_, __) =>
-                                                          Container(
-                                                            color: Colors
-                                                                .grey[900],
-                                                          ),
-                                                      errorWidget:
-                                                          (
-                                                            _,
-                                                            __,
-                                                            ___,
-                                                          ) => Container(
-                                                            color: Colors
-                                                                .grey[900],
-                                                            child: const Icon(
-                                                              Icons.movie,
-                                                              color: Colors
-                                                                  .white24,
-                                                              size: 28,
+                                                    ImageFiltered(
+                                                      imageFilter: hideSpoilers
+                                                          ? ImageFilter.blur(
+                                                              sigmaX: 10,
+                                                              sigmaY: 10,
+                                                            )
+                                                          : ImageFilter.blur(
+                                                              sigmaX: 0,
+                                                              sigmaY: 0,
                                                             ),
-                                                          ),
+                                                      child: CachedNetworkImage(
+                                                        imageUrl: stillUrl,
+                                                        fit: BoxFit.cover,
+                                                        placeholder: (_, __) =>
+                                                            Container(
+                                                              color: Colors
+                                                                  .grey[900],
+                                                            ),
+                                                        errorWidget:
+                                                            (
+                                                              _,
+                                                              __,
+                                                              ___,
+                                                            ) => Container(
+                                                              color: Colors
+                                                                  .grey[900],
+                                                              child: const Icon(
+                                                                Icons.movie,
+                                                                color: Colors
+                                                                    .white24,
+                                                                size: 28,
+                                                              ),
+                                                            ),
+                                                      ),
                                                     ),
                                                     Center(
                                                       child: Container(
@@ -2604,7 +2650,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                     ),
                                                   Expanded(
                                                     child: Text(
-                                                      'E${episode.episodeNumber} · ${episode.episodeName ?? 'Episode ${episode.episodeNumber}'}',
+                                                      'E${episode.episodeNumber} · $episodeTitle',
                                                       style: TextStyle(
                                                         fontSize: 14,
                                                         fontWeight:
@@ -2630,7 +2676,8 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                     color: Colors.grey[500],
                                                   ),
                                                 ),
-                                              if (episode.overview != null &&
+                                              if (!hideSpoilers &&
+                                                  episode.overview != null &&
                                                   episode.overview!.isNotEmpty)
                                                 Padding(
                                                   padding:
@@ -2785,6 +2832,7 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
   final int episode;
   final int season;
   final SeasonData? seasonData;
+  final bool hideSpoilers;
   final VoidCallback onPlay;
   final VoidCallback onDismiss;
 
@@ -2793,6 +2841,7 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
     required this.episode,
     required this.season,
     required this.seasonData,
+    required this.hideSpoilers,
     required this.onPlay,
     required this.onDismiss,
   });
@@ -2811,6 +2860,9 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
               .where((e) => e.episodeNumber == nextEpNum)
               .firstOrNull;
         }
+        final nextEpisodeTitle = hideSpoilers
+            ? 'Episode $nextEpNum'
+            : (nextEpisode?.episodeName ?? 'Episode $nextEpNum');
 
         return Positioned(
           right: 16,
@@ -2855,14 +2907,19 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                             borderRadius: const BorderRadius.vertical(
                               top: Radius.circular(12),
                             ),
-                            child: CachedNetworkImage(
-                              imageUrl: imageUrl,
-                              width: 280,
-                              height: 120,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Container(
-                                height: 60,
-                                color: Colors.grey[900],
+                            child: ImageFiltered(
+                              imageFilter: hideSpoilers
+                                  ? ImageFilter.blur(sigmaX: 10, sigmaY: 10)
+                                  : ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                              child: CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                width: 280,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => Container(
+                                  height: 60,
+                                  color: Colors.grey[900],
+                                ),
                               ),
                             ),
                           );
@@ -2884,7 +2941,7 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            nextEpisode?.episodeName ?? 'Episode $nextEpNum',
+                            nextEpisodeTitle,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -2951,7 +3008,10 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: LinearProgressIndicator(
-                                value: (state.countdown ?? 0) / 15,
+                                value:
+                                    (state.countdown ?? 0) /
+                                    _PlayerScreenState
+                                        ._nextEpisodeCountdownSeconds,
                                 backgroundColor: Colors.white12,
                                 valueColor: const AlwaysStoppedAnimation<Color>(
                                   NamizoTheme.primary,

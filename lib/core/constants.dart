@@ -65,6 +65,7 @@ const String themeModeKey = 'theme_mode';
 const String easterEggHomeLogoKey = 'easter_egg_home_logo_enabled';
 const String easterEggUnlockedKey = 'easter_egg_unlocked';
 const String hideAdultContentKey = 'hide_adult_content';
+const String hideSpoilersKey = 'hide_spoilers';
 const String scheduleTrackedOnlyKey = 'schedule_tracked_only';
 const String scheduleTrackedHintDismissedKey =
     'schedule_tracked_hint_dismissed';

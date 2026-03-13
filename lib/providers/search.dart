@@ -74,6 +74,19 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
   final filteredResults = hideAdultContent
       ? results.results.where((item) => !item.adult).toList(growable: false)
       : results.results;
+  final artworkById = await aniList.getArtworkByMalIds(
+    filteredResults.map((item) => item.id),
+  );
+  final enrichedResults = filteredResults
+      .map((item) {
+        final artwork = artworkById[item.id];
+        if (artwork == null) return item;
+        return item.copyWith(
+          posterPath: artwork.posterPath ?? item.posterPath,
+          backdropPath: artwork.backdropPath ?? item.backdropPath,
+        );
+      })
+      .toList(growable: false);
 
   // Update metadata
   ref.read(searchMetadataProvider.notifier).state = (
@@ -83,12 +96,12 @@ final searchResultsProvider = FutureProvider<SearchResults>((ref) async {
 
   // Accumulate results for infinite scroll
   if (page == 1) {
-    ref.read(accumulatedSearchResultsProvider.notifier).state = filteredResults;
+    ref.read(accumulatedSearchResultsProvider.notifier).state = enrichedResults;
   } else {
     final accumulated = ref.read(accumulatedSearchResultsProvider);
     ref.read(accumulatedSearchResultsProvider.notifier).state = _dedupeById([
       ...accumulated,
-      ...filteredResults,
+      ...enrichedResults,
     ]);
   }
 

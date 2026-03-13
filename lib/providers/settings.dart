@@ -310,6 +310,29 @@ class HideAdultContentNotifier extends StateNotifier<bool> {
   }
 }
 
+final hideSpoilersProvider = StateNotifierProvider<HideSpoilersNotifier, bool>((
+  ref,
+) {
+  return HideSpoilersNotifier();
+});
+
+class HideSpoilersNotifier extends StateNotifier<bool> {
+  HideSpoilersNotifier() : super(UserConfig.defaultHideSpoilers) {
+    _loadSetting();
+  }
+
+  Future<void> _loadSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(hideSpoilersKey) ?? UserConfig.defaultHideSpoilers;
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    state = enabled;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(hideSpoilersKey, enabled);
+  }
+}
+
 final scheduleTrackedOnlyProvider =
     StateNotifierProvider<ScheduleTrackedOnlyNotifier, bool>((ref) {
       return ScheduleTrackedOnlyNotifier();

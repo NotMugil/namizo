@@ -202,6 +202,20 @@ query MediaByMalIdWithEntry($malId: Int) {
 }
 ''';
 
+  static const String _artworkByMalIdsQuery = r'''
+query ArtworkByMalIds($ids: [Int], $page: Int, $perPage: Int) {
+  Page(page: $page, perPage: $perPage) {
+    media(type: ANIME, idMal_in: $ids) {
+      idMal
+      coverImage {
+        large
+      }
+      bannerImage
+    }
+  }
+}
+''';
+
   static const String _mediaListEntryByMediaQuery = r'''
 query MediaListEntryByMedia($mediaId: Int) {
   MediaList(mediaId: $mediaId, type: ANIME) {
@@ -339,6 +353,8 @@ query RelatedAnimeByMalId($malId: Int) {
   final Map<int, List<String>> _genreLabelsByMalId = <int, List<String>>{};
   final Map<int, String?> _statusByMalId = <int, String?>{};
   final Map<String, _CachedSearchPage> _searchPageCache = {};
+  final Map<int, ({String? posterPath, String? backdropPath})?>
+  _artworkByMalIdCache = <int, ({String? posterPath, String? backdropPath})?>{};
 
   static const String _saveMediaListEntryMutation = r'''
 mutation SaveMediaListEntry($id: Int, $mediaId: Int, $status: MediaListStatus, $progress: Int, $customLists: [String]) {
@@ -608,6 +624,102 @@ mutation DeleteMediaListEntry($id: Int) {
       List<String>.from(_genreLabelsByMalId[malId] ?? const <String>[]);
 
   String? getCachedStatus(int malId) => _statusByMalId[malId];
+
+  Future<({String? posterPath, String? backdropPath})?> getArtworkByMalId(
+    int malId,
+  ) async {
+    if (malId <= 0) return null;
+    final map = await getArtworkByMalIds(<int>[malId]);
+    return map[malId];
+  }
+
+  Future<Map<int, ({String? posterPath, String? backdropPath})>>
+  getArtworkByMalIds(Iterable<int> malIds) async {
+    final normalized = malIds.where((id) => id > 0).toSet().toList()..sort();
+    if (normalized.isEmpty) {
+      return const <int, ({String? posterPath, String? backdropPath})>{};
+    }
+
+    final pending = normalized
+        .where((id) => !_artworkByMalIdCache.containsKey(id))
+        .toList(growable: false);
+
+    for (final chunk in _chunkIntList(pending, 50)) {
+      try {
+        final response = await _dio.post<dynamic>(
+          '',
+          data: {
+            'query': _artworkByMalIdsQuery,
+            'variables': {'ids': chunk, 'page': 1, 'perPage': chunk.length},
+          },
+        );
+
+        final data = response.data;
+        if (data is! Map) continue;
+
+        final typed = Map<String, dynamic>.from(data);
+        final errors = typed['errors'];
+        if (errors is List && errors.isNotEmpty) continue;
+
+        final payload = typed['data'];
+        if (payload is! Map) continue;
+
+        final pageMap = payload['Page'];
+        if (pageMap is! Map) continue;
+
+        final mediaList = pageMap['media'];
+        final foundIds = <int>{};
+        if (mediaList is List) {
+          for (final mediaRaw in mediaList.whereType<Map>()) {
+            final media = Map<String, dynamic>.from(mediaRaw);
+            final id = (media['idMal'] as num?)?.toInt();
+            if (id == null || id <= 0) continue;
+            foundIds.add(id);
+
+            final coverObj = media['coverImage'];
+            final coverMap = coverObj is Map
+                ? Map<String, dynamic>.from(coverObj)
+                : const <String, dynamic>{};
+            final posterPath = coverMap['large']?.toString();
+            final backdropPath = media['bannerImage']?.toString();
+
+            _artworkByMalIdCache[id] = (
+              posterPath: posterPath,
+              backdropPath: backdropPath,
+            );
+          }
+        }
+
+        for (final id in chunk) {
+          if (!_artworkByMalIdCache.containsKey(id) && !foundIds.contains(id)) {
+            _artworkByMalIdCache[id] = null;
+          }
+        }
+      } on DioException {
+        // Best-effort enrichment only.
+      }
+    }
+
+    final out = <int, ({String? posterPath, String? backdropPath})>{};
+    for (final id in normalized) {
+      final artwork = _artworkByMalIdCache[id];
+      if (artwork != null) out[id] = artwork;
+    }
+    return out;
+  }
+
+  Iterable<List<int>> _chunkIntList(List<int> source, int chunkSize) sync* {
+    if (chunkSize <= 0) {
+      yield source;
+      return;
+    }
+    for (var i = 0; i < source.length; i += chunkSize) {
+      final end = (i + chunkSize < source.length)
+          ? i + chunkSize
+          : source.length;
+      yield source.sublist(i, end);
+    }
+  }
 
   Future<SearchResults> _queryAnimePage({
     required int page,

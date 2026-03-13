@@ -34,7 +34,30 @@ final watchlistProvider = Provider<List<WatchlistItem>>((ref) {
 
   for (final row in aniListTracked) {
     final id = (row['id'] as num?)?.toInt();
-    if (id == null || id <= 0 || byId.containsKey(id)) continue;
+    if (id == null || id <= 0) continue;
+
+    if (byId.containsKey(id)) {
+      final existing = byId[id]!;
+      final aniPoster = row['poster_path']?.toString();
+      final aniBackdrop = row['backdrop_path']?.toString();
+
+      byId[id] = WatchlistItem(
+        id: existing.id,
+        title: existing.title,
+        posterPath: (aniPoster != null && aniPoster.isNotEmpty)
+            ? aniPoster
+            : existing.posterPath,
+        backdropPath: (aniBackdrop != null && aniBackdrop.isNotEmpty)
+            ? aniBackdrop
+            : existing.backdropPath,
+        mediaType: existing.mediaType,
+        addedAt: existing.addedAt,
+        voteAverage: existing.voteAverage,
+        releaseDate: existing.releaseDate,
+        overview: existing.overview,
+      );
+      continue;
+    }
 
     final title = (row['title'] ?? row['name'] ?? '').toString().trim();
     if (title.isEmpty) continue;

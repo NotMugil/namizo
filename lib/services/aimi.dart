@@ -2,12 +2,13 @@ import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:namizo/models/media/search_result.dart';
 import 'package:namizo/models/media/stream_result.dart';
 
-/// Anime streaming via aimi_lib providers (AnimePahe/AllAnime/Anizone).
+/// Anime streaming via aimi_lib providers (AnimePahe/AllAnime/Anizone/Anidap).
 class AimiAnimeService {
   static const List<_ProviderConfig> _providerOrder = [
     _ProviderConfig('AnimePahe', _ProviderKind.animePahe),
     _ProviderConfig('AllAnime', _ProviderKind.allAnime),
     _ProviderConfig('Anizone', _ProviderKind.anizone),
+    _ProviderConfig('Anidap', _ProviderKind.anidap),
   ];
 
   static int get providerCount => _providerOrder.length;
@@ -127,6 +128,8 @@ class AimiAnimeService {
         return aimi.AllAnime();
       case _ProviderKind.anizone:
         return aimi.Anizone();
+      case _ProviderKind.anidap:
+        return aimi.Anidap();
     }
   }
 
@@ -134,6 +137,7 @@ class AimiAnimeService {
     if (provider is aimi.AnimePahe) provider.close();
     if (provider is aimi.AllAnime) provider.close();
     if (provider is aimi.Anizone) provider.close();
+    if (provider is aimi.Anidap) provider.close();
   }
 
   List<String> _buildQueryCandidates(SearchResult media) {
@@ -255,7 +259,7 @@ class AimiAnimeService {
   }
 }
 
-enum _ProviderKind { animePahe, allAnime, anizone }
+enum _ProviderKind { animePahe, allAnime, anizone, anidap }
 
 class _ProviderConfig {
   final String name;

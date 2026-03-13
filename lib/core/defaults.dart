@@ -23,6 +23,7 @@ class UserConfig {
   static const String defaultAnimeSubDubPreference = 'sub';
   static const String defaultThemeMode = 'system';
   static const bool defaultAniListAutoSync = true;
+  static const bool defaultHideSpoilers = false;
   static const List<String> defaultHomeFeedOrder = [
     'yourList',
     'planning',

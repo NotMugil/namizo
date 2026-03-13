@@ -31,6 +31,7 @@ class SettingsScreen extends ConsumerWidget {
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
     final easterEggUnlocked = ref.watch(easterEggUnlockedProvider);
     final hideAdultContent = ref.watch(hideAdultContentProvider);
+    final hideSpoilers = ref.watch(hideSpoilersProvider);
     final scheduleTrackedOnly = ref.watch(scheduleTrackedOnlyProvider);
     final homeFeedOrder = ref.watch(homeFeedOrderProvider);
     final hasAniListAccount = aniListViewerAsync.valueOrNull != null;
@@ -203,6 +204,22 @@ class SettingsScreen extends ConsumerWidget {
                 value: hideAdultContent,
                 onChanged: (value) {
                   ref.read(hideAdultContentProvider.notifier).setEnabled(value);
+                },
+                activeThumbColor: NamizoTheme.primary,
+              ),
+            ),
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.eye,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Hide Spoilers',
+              subtitle: hideSpoilers ? 'Enabled' : 'Disabled',
+              trailing: Switch(
+                value: hideSpoilers,
+                onChanged: (value) {
+                  ref.read(hideSpoilersProvider.notifier).setEnabled(value);
                 },
                 activeThumbColor: NamizoTheme.primary,
               ),

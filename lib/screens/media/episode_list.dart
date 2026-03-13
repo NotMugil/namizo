@@ -8,6 +8,7 @@ import 'package:namizo/models/media/search_result.dart';
 import 'package:namizo/models/media/season_info.dart';
 import 'package:namizo/providers/dynamic_colors.dart';
 import 'package:namizo/providers/media.dart';
+import 'package:namizo/providers/settings.dart';
 import 'package:namizo/theme/theme.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -216,6 +217,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
 
   @override
   Widget build(BuildContext context) {
+    final hideSpoilers = ref.watch(hideSpoilersProvider);
     final seasonDataAsync = ref.watch(
       seasonDataWithFallbackProvider((
         showId: widget.media.id,
@@ -391,7 +393,8 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
               )
             else ...[
               ...visibleEpisodes.asMap().entries.map(
-                (entry) => _buildEpisodeCard(entry.key, entry.value),
+                (entry) =>
+                    _buildEpisodeCard(entry.key, entry.value, hideSpoilers),
               ),
               if (_hasMore)
                 const Padding(
@@ -421,7 +424,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
     );
   }
 
-  Widget _buildEpisodeCard(int index, EpisodeData episode) {
+  Widget _buildEpisodeCard(int index, EpisodeData episode, bool hideSpoilers) {
     final stillUrl = episode.stillPath != null
         ? (episode.stillPath!.startsWith('http://') ||
                   episode.stillPath!.startsWith('https://')
@@ -437,6 +440,9 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
     final isUnaired = _isUnaired(episode.airDate);
 
     final relDate = _relativeDate(episode.airDate);
+    final episodeTitle = hideSpoilers
+        ? 'Episode ${episode.episodeNumber}'
+        : (episode.episodeName ?? 'Episode ${episode.episodeNumber}');
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -502,15 +508,26 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: stillUrl.isNotEmpty
-                                  ? CachedNetworkImage(
-                                      imageUrl: stillUrl,
-                                      width: 140,
-                                      height: 90,
-                                      fit: BoxFit.cover,
-                                      placeholder: (context, url) =>
-                                          _thumbPlaceholder(),
-                                      errorWidget: (context, url, error) =>
-                                          _thumbError(),
+                                  ? ImageFiltered(
+                                      imageFilter: hideSpoilers
+                                          ? ImageFilter.blur(
+                                              sigmaX: 10,
+                                              sigmaY: 10,
+                                            )
+                                          : ImageFilter.blur(
+                                              sigmaX: 0,
+                                              sigmaY: 0,
+                                            ),
+                                      child: CachedNetworkImage(
+                                        imageUrl: stillUrl,
+                                        width: 140,
+                                        height: 90,
+                                        fit: BoxFit.cover,
+                                        placeholder: (context, url) =>
+                                            _thumbPlaceholder(),
+                                        errorWidget: (context, url, error) =>
+                                            _thumbError(),
+                                      ),
                                     )
                                   : _thumbError(),
                             ),
@@ -524,7 +541,7 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${episode.episodeNumber}. ${episode.episodeName ?? 'Episode ${episode.episodeNumber}'}',
+                            '${episode.episodeNumber}. $episodeTitle',
                             style: const TextStyle(
                               fontSize: 12,
                               color: NamizoTheme.textPrimary,
@@ -547,7 +564,9 @@ class _EpisodeListState extends ConsumerState<EpisodeList> {
                               ),
                             ),
                           ],
-                          if (!isUnaired) ...[
+                          if (!isUnaired &&
+                              !hideSpoilers &&
+                              episode.overview?.isNotEmpty == true) ...[
                             const SizedBox(height: 4),
                             Text(
                               episode.overview!,
