@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "crates/domain",
+    "crates/anilist",
+    "crates/tvdb",
+    "crates/providers",
+    "crates/streaming",
+    "crates/store",
+    "crates/app",
+    "crates/namizo-core"
+]
+
+resolver = "2"

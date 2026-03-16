@@ -1,0 +1,1 @@
+// Tauri invoke wrapper for anime
