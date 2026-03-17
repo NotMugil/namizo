@@ -10,3 +10,6 @@ providers = { path = "../providers" }
 streaming = { path = "../streaming" }
 store = { path = "../store" }
 tvdb = { path = "../tvdb" }
+
+futures = "0.3"
+tokio   = { version = "1", features = ["full"] }

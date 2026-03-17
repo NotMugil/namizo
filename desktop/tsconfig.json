@@ -14,7 +14,7 @@
     "paths": {
       "$styles/*": ["./src/styles/*"],
       "$components/*": ["./src/lib/components/*"],
-
+      "$lib/*": ["./src/lib/*"],
     },
   }
   // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias

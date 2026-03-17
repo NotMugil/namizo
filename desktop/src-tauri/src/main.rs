@@ -1,15 +1,23 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-use namizo_core::test;
 
-#[tauri::command]
-fn ping() -> String {
-    test()
-}
+mod commands;
+mod state;
+
+use namizo_core::AnimeService;
+use state::AppState;
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![ping])
+        .manage(AppState {
+            anime_service: AnimeService::new(),
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::anime::get_trending,
+            commands::anime::get_popular,
+            commands::anime::get_top_rated,
+            commands::anime::get_home_genres,
+            commands::anime::get_anime_details,
+        ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri");
+        .expect("error while running tauri application");
 }

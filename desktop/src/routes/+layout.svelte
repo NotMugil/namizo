@@ -22,7 +22,7 @@
   class="fixed inset-0 z-40 bg-background/40 transition-opacity duration-300
          {sidebar.open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
   onclick={() => sidebar.open = false}
-/>
+></div>
 
 <!-- sidebar -->
 <div

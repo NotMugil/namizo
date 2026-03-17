@@ -1,14 +1,14 @@
 <script lang="ts">
   import { page } from "$app/state";
-  import { House, Compass, Bookmark, Calendar, Gear } from "phosphor-svelte";
+  import { HouseIcon, CompassIcon, BookmarkIcon, CalendarIcon, GearIcon } from "phosphor-svelte";
   import { ROUTES } from "$lib/constants/routes";
   import { sidebar } from "$lib/state.svelte";
 
   const navLinks = [
-    { href: ROUTES.HOME,     label: "Home",     icon: House    },
-    { href: ROUTES.DISCOVER, label: "Discover", icon: Compass  },
-    { href: ROUTES.LIBRARY,  label: "Library",  icon: Bookmark },
-    { href: ROUTES.SCHEDULE, label: "Schedule", icon: Calendar },
+    { href: ROUTES.HOME,     label: "Home",     icon: HouseIcon    },
+    { href: ROUTES.DISCOVER, label: "Discover", icon: CompassIcon  },
+    { href: ROUTES.LIBRARY,  label: "Library",  icon: BookmarkIcon },
+    { href: ROUTES.SCHEDULE, label: "Schedule", icon: CalendarIcon },
   ];
 
   const settingsActive = $derived(page.url.pathname.startsWith(ROUTES.SETTINGS));
@@ -48,7 +48,7 @@
                : 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
       aria-current={settingsActive ? 'page' : undefined}
     >
-      <Gear size={20} weight={settingsActive ? "fill" : "regular"} />
+      <GearIcon size={20} weight={settingsActive ? "fill" : "regular"} />
       Settings
     </a>
   </div>
