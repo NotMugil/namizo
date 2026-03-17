@@ -1,0 +1,1 @@
+<!-- AnimeCarousel component -->

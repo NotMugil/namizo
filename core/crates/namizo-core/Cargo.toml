@@ -1,0 +1,15 @@
+[package]
+name = "namizo-core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+domain = { path = "../domain" }
+anilist = { path = "../anilist" }
+providers = { path = "../providers" }
+streaming = { path = "../streaming" }
+store = { path = "../store" }
+tvdb = { path = "../tvdb" }
+
+futures = "0.3"
+tokio   = { version = "1", features = ["full"] }
