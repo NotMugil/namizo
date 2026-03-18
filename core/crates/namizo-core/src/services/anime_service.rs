@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::future::join_all;
 use anilist::queries::{by_genre, details, popular, top_rated, trending};
 use anilist::AnilistClient;
-use domain::anime::{AnimeDetails, AnimeSummary};
+use domain::{AnimeDetails, AnimeSummary};
 
 pub struct AnimeService {
     client: Arc<AnilistClient>,
@@ -51,10 +51,10 @@ impl AnimeService {
             })
             .collect();
 
-        join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<HashMap<_, _>, _>>()
+            join_all(futures)
+                .await
+                .into_iter()
+                .collect::<Result<HashMap<String, Vec<AnimeSummary>>, String>>()
     }
 
     pub async fn details(&self, id: u32) -> Result<AnimeDetails, String> {

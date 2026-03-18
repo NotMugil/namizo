@@ -26,7 +26,7 @@ To submit a pull request (PR):
 2. Clone your fork locally:
 
    ```bash
-   git clone https://github.com/NotMugil/namizo.git
+   git clone https://github.com/<username>/namizo.git
    ```
 
 3. Create a branch for your changes:

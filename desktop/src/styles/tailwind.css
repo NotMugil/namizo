@@ -25,7 +25,6 @@
 }
 
 @theme {
-
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
 
@@ -233,4 +232,47 @@
   ::-webkit-scrollbar-corner {
     background: transparent;
   }
+}
+
+@layer components {
+    .chevron-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.9rem;
+        height: 1.9rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+        cursor: pointer;
+        transition: background-color 150ms, opacity 150ms;
+    }
+
+    .chevron-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .chevron-btn:not(:disabled):hover {
+        background-color: rgba(255,255,255,0.12);
+    }
+
+    .chip {
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(255,255,255,0.07);
+        padding: 0.22rem 0.6rem;
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+    }
+
+    .section-title {
+        margin: 0;
+        font-size: clamp(1.1rem, 2vw, 1.4rem);
+        font-weight: 600;
+        line-height: 1.2;
+    }
 }

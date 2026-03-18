@@ -1,6 +1,6 @@
 use reqwest::Client;
 use serde_json::{json, Value};
-use domain::anime::{AnimeDetails, AnimeSummary};
+use domain::{AnimeDetails, AnimeSummary};
 use crate::{error::AnilistError, graphql, mapping};
 
 const ANILIST_URL: &str = "https://graphql.anilist.co";
