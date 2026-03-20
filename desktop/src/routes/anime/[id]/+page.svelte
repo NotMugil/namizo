@@ -2,6 +2,10 @@
   import { page } from '$app/stores'
   import { getAnimeDetails } from '$lib/api/anime'
   import type { AnimeDetails } from '$lib/types/anime'
+  import { getTvdbEpisodes } from '$lib/api/tvdb'
+  import { getJikanEpisodes } from '$lib/api/jikan'
+  import type { TvdbEpisode } from '$lib/types/tvdb'
+  import type { JikanEpisode } from '$lib/types/jikan'
   import AnimeRow from '$lib/components/AnimeRow.svelte'
   import { PlayIcon, HeartIcon } from 'phosphor-svelte'
   import EpisodeList from '$lib/components/EpisodeList.svelte'
@@ -17,10 +21,96 @@
     loading = true
     error = null
     details = null
+    console.log('[TVDB][ui] loading anime details', { id })
     getAnimeDetails(id)
-      .then(d => { details = d })
-      .catch(e => { error = String(e) })
+      .then(d => {
+        console.log('[TVDB][ui] anime details loaded', {
+          id: d.id,
+          format: d.format,
+          id_mal: d.id_mal,
+          episodeCount: d.episodes?.length ?? 0,
+        })
+        details = d
+        enrichEpisodes(d)
+      })
+      .catch(e => {
+        console.error('[TVDB][ui] getAnimeDetails failed', e)
+        error = String(e)
+      })
       .finally(() => { loading = false })
+  }
+
+  async function enrichEpisodes(d: AnimeDetails) {
+    console.log('[TVDB][ui] enrichEpisodes start', {
+      anilistId: d.id,
+      format: d.format,
+      idMal: d.id_mal,
+    })
+
+    try {
+      const tvdbEps = await getTvdbEpisodes(d.id, d.format)
+      console.log('[TVDB][ui] tvdb response', {
+        anilistId: d.id,
+        episodes: tvdbEps.length,
+      })
+      if (tvdbEps.length && details) {
+        details = {
+          ...details,
+          episodes: details.episodes.map(ep => {
+            const match = tvdbEps.find(t => t.number === Number(ep.number))
+            if (!match) return ep
+            return {
+              ...ep,
+              title:     match.title     ?? ep.title,
+              thumbnail: match.thumbnail ?? ep.thumbnail,
+            }
+          })
+        }
+        console.log('[TVDB][ui] tvdb enrichment applied', {
+          anilistId: d.id,
+          episodes: tvdbEps.length,
+        })
+        return
+      }
+    } catch (e) {
+      console.error('[TVDB][ui] tvdb enrichment failed', {
+        anilistId: d.id,
+        format: d.format,
+        error: e,
+      })
+    }
+
+    if (!d.id_mal) {
+      console.log('[TVDB][ui] skipping jikan fallback: missing MAL id', {
+        anilistId: d.id,
+      })
+      return
+    }
+    try {
+      const jikanEps = await getJikanEpisodes(d.id_mal)
+      console.log('[TVDB][ui] jikan response', {
+        malId: d.id_mal,
+        episodes: jikanEps.length,
+      })
+      if (jikanEps.length && details) {
+        details = {
+          ...details,
+          episodes: details.episodes.map(ep => {
+            const match = jikanEps.find(j => j.mal_id === Number(ep.number))
+            if (!match) return ep
+            return {
+              ...ep,
+              title: match.title ?? ep.title,
+            }
+          })
+        }
+      }
+    } catch (e) {
+      console.error('[TVDB][ui] jikan fallback failed', {
+        malId: d.id_mal,
+        error: e,
+      })
+    }
   }
 
   function formatStatus(status: string | null): string {
