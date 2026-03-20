@@ -45,7 +45,7 @@
         <div class="grid grid-cols-5 gap-3 max-[760px]:grid-cols-2">
             {#each pagedEpisodes as episode}
                 <a
-                    href="/watch/{anime_id}/{episode.number}"
+                    href="/watch/{anime_id}?ep={episode.number}"
                     class="grid gap-1.5 rounded-xl p-1.5
                            no-underline text-inherit transition-colors min-w-0
                            hover:bg-white/7 hover:border-white/12"

@@ -65,7 +65,7 @@
                     <img
                         src={character.image ?? '/favicon.png'}
                         alt={character.name}
-                        class="w-20 aspect-square rounded-lg object-cover border border-white/8 shrink-0"
+                        class="w-20 aspect-square rounded-xl object-cover border border-white/8 shrink-0"
                         loading="lazy"
                     />
                     <div class="min-w-0">

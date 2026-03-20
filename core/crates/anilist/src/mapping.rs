@@ -11,22 +11,47 @@ pub fn to_summary_list(response: &Value) -> Result<Vec<AnimeSummary>, AnilistErr
 }
 
 pub fn to_details(response: &Value) -> Result<AnimeDetails, AnilistError> {
-    println!("FULL RESPONSE: {}", serde_json::to_string_pretty(response).unwrap_or_default());
     let m = &response["data"]["Media"];
     map_details(m).ok_or_else(|| AnilistError::Parse("failed to parse details".into()))
 }
 
-// ── private helpers ──────────────────────────────────────────────────────────
+fn resolve_title(m: &Value) -> String {
+    m["title"]["english"]
+        .as_str()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| m["title"]["romaji"].as_str().unwrap_or("Unknown"))
+        .to_string()
+}
+
+fn str_array(v: &Value) -> Vec<String> {
+    v.as_array()
+        .map(|arr| arr.iter().filter_map(|i| i.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default()
+}
+
+fn map_character(edge: &Value) -> Option<Character> {
+    let node = &edge["node"];
+    Some(Character {
+        id:    node["id"].as_u64()? as u32,
+        name:  node["name"]["full"].as_str()?.to_string(),
+        image: node["image"]["large"].as_str().map(|s| s.to_string()),
+        role:  edge["role"].as_str().unwrap_or("SUPPORTING").to_string(),
+    })
+}
+
+// private helpers
 
 fn to_summary(m: &Value) -> Option<AnimeSummary> {
     Some(AnimeSummary {
         id:            m["id"].as_u64()? as u32,
         title:         resolve_title(m),
         cover_image:   m["coverImage"]["large"].as_str()?.to_string(),
+        description:   m["description"].as_str().map(|s| s.to_string()),
         average_score: m["averageScore"].as_u64().map(|s| s as u8),
         genres:        str_array(&m["genres"]),
         format:        m["format"].as_str().map(|s| s.to_string()),
         episodes:      m["episodes"].as_u64().map(|e| e as u32),
+        banner_image: m["bannerImage"].as_str().map(|s| s.to_string()),
     })
 }
 
@@ -81,6 +106,7 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
 
     Some(AnimeDetails {
         id:            m["id"].as_u64()? as u32,
+        id_mal: m["idMal"].as_u64().map(|v| v as u32),
         title:         resolve_title(m),
         title_japanese: m["title"]["native"].as_str().map(|s| s.to_string()),
         cover_image:   m["coverImage"]["large"].as_str()?.to_string(),
@@ -99,29 +125,5 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
         relations,
         recommendations,
         episodes,
-    })
-}
-
-fn resolve_title(m: &Value) -> String {
-    m["title"]["english"]
-        .as_str()
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| m["title"]["romaji"].as_str().unwrap_or("Unknown"))
-        .to_string()
-}
-
-fn str_array(v: &Value) -> Vec<String> {
-    v.as_array()
-        .map(|arr| arr.iter().filter_map(|i| i.as_str().map(|s| s.to_string())).collect())
-        .unwrap_or_default()
-}
-
-fn map_character(edge: &Value) -> Option<Character> {
-    let node = &edge["node"];
-    Some(Character {
-        id:    node["id"].as_u64()? as u32,
-        name:  node["name"]["full"].as_str()?.to_string(),
-        image: node["image"]["large"].as_str().map(|s| s.to_string()),
-        role:  edge["role"].as_str().unwrap_or("SUPPORTING").to_string(),
     })
 }

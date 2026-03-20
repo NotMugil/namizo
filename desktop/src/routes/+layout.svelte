@@ -7,7 +7,7 @@
   let { children } = $props();
 </script>
 
-<div class="flex flex-col min-h-screen text-foreground z-30">
+<div class="flex flex-col min-h-screen bg-black text-foreground z-30">
   <Topbar onMenuClick={() => sidebar.open = !sidebar.open} />
   <main class="flex-1">
     {@render children()}

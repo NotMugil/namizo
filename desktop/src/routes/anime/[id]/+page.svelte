@@ -6,7 +6,6 @@
   import { PlayIcon, HeartIcon } from 'phosphor-svelte'
   import EpisodeList from '$lib/components/EpisodeList.svelte'
   import CharactersRow from '$lib/components/CharectersRow.svelte'
-  import ScrollArea from '$components/ui/scroll-area/ScrollArea.svelte'
 
   let details: AnimeDetails | null = null
   let loading = true
@@ -119,7 +118,7 @@
           <!-- Actions -->
           <div class="flex gap-2 items-center flex-wrap mt-1">
             <a
-              href="/watch/{details.id}/1"
+              href="/watch/{details.id}?ep=1"
               class="inline-flex items-center gap-1.5 rounded-[10px] border border-white/15
                      bg-white/10 text-white px-3.5 py-[0.42rem] text-[0.82rem] no-underline
                      transition-colors hover:bg-white/16"

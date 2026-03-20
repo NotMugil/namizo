@@ -4,6 +4,7 @@ use crate::anime::summary::AnimeSummary;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimeDetails {
     pub id: u32,
+    pub id_mal: Option<u32>,
     pub title: String,
     pub title_japanese: Option<String>,
     pub cover_image: String,

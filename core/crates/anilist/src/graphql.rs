@@ -5,10 +5,12 @@ pub const MEDIA_PAGE_QUERY: &str = r#"
           id
           title { romaji english }
           coverImage { large }
+          description
           averageScore
           genres
           format
           episodes
+          bannerImage
         }
       }
     }
@@ -18,10 +20,11 @@ pub const DETAILS_QUERY: &str = r#"
     query ($id: Int) {
       Media(id: $id, type: ANIME) {
         id
+        idMal
         title { romaji english native }
         coverImage { large }
         bannerImage
-        description(asHtml: false)
+        description
         genres
         averageScore
         status

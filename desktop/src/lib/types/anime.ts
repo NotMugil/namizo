@@ -2,14 +2,17 @@ export interface AnimeSummary {
     id: number
     title: string
     cover_image: string
+    description: string | null
     average_score: number | null
     genres: string[]
     format: string | null
     episodes: number | null
+    banner_image: string | null
 }
 
 export interface AnimeDetails {
     id: number
+    id_mal: number | null
     title: string
     title_japanese: string | null
     cover_image: string

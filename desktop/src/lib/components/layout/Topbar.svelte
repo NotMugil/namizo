@@ -26,7 +26,7 @@
 <header
   class={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between p-8 h-14 transition-all duration-300 ${
     scrolled
-      ? "bg-black/80 backdrop-blur-[20px] shadow-[0_12px_30px_rgba(0,0,0,0.42)]"
+      ? "bg-black/80 backdrop-blur-[10px] shadow-[0_12px_30px_rgba(0,0,0,0.42)]"
       : "bg-transparent"
   }`}
 >

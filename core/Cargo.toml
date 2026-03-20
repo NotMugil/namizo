@@ -6,7 +6,7 @@ members = [
     "crates/providers",
     "crates/streaming",
     "crates/store",
-    "crates/app",
+    "crates/jikan",
     "crates/namizo-core"
 ]
 
