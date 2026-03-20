@@ -265,7 +265,7 @@
         <section class="grid gap-3 min-w-0">
           <h2 class="section-title">Trailer</h2>
           <iframe
-            src="https://www.youtube.com/embed/{details.trailer_id}"
+            src="https://www.youtube-nocookie.com/embed/{details.trailer_id}"
             title="Trailer"
             class="w-full max-w-[560px] aspect-video rounded-xl border border-white/8"
             frameborder="0"

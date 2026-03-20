@@ -26,17 +26,14 @@ fn main() {
                 let tvdb_api_key = std::env::var("TVDB_API_KEY")
                     .unwrap_or_else(|_| "57a0987f38d45bs3acf0f84ffee71196".into());
 
-                let tvdb_service = TvdbService::new(
-                    &tvdb_api_key,
-                    &db_path,
-                    &app_data_dir,
-                    &bundled_mapping,
-                )
-                .await
-                .expect("failed to init tvdb service");
+                let tvdb_service =
+                    TvdbService::new(&tvdb_api_key, &db_path, &app_data_dir, &bundled_mapping)
+                        .await
+                        .expect("failed to init tvdb service");
 
                 app.manage(AppState {
-                    anime_service: AnimeService::new(),
+                    anime_service: AnimeService::new(&db_path)
+                        .expect("failed to init anime service"),
                     stream_service: StreamService::new(),
                     tvdb_service,
                 });

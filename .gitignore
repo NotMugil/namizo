@@ -69,6 +69,10 @@ desktop/dist/
 desktop/.svelte-kit/
 desktop/src-tauri/target/
 
+# Core library build artifacts and lock file
+core/target/
+core/Cargo.lock
+
 # Private API keys (if you create this file)
 lib/core/api_keys.dart
 mobile/lib/core/api_keys.dart

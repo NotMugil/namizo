@@ -8,8 +8,20 @@
     export let anime_id: number
 
     let episodePage = 1
+    let lastEpisodeSignature = ''
 
     $: totalPages = Math.ceil(episodes.length / EPISODES_PER_PAGE)
+    $: episodeSignature = episodes.map(ep => ep.number).join(',')
+    $: if (episodeSignature !== lastEpisodeSignature) {
+        episodePage = 1
+        lastEpisodeSignature = episodeSignature
+    }
+    $: if (episodeSignature !== '') {
+        episodePage = Math.min(Math.max(episodePage, 1), Math.max(totalPages, 1))
+    }
+    $: if (episodes.length === 0) {
+        episodePage = 1
+    }
 
     $: pagedEpisodes = episodes.slice(
         (episodePage - 1) * EPISODES_PER_PAGE,
@@ -43,7 +55,7 @@
         </div>
 
         <div class="grid grid-cols-5 gap-3 max-[760px]:grid-cols-2">
-            {#each pagedEpisodes as episode}
+            {#each pagedEpisodes as episode (episode.number)}
                 <a
                     href="/watch/{anime_id}?ep={episode.number}"
                     class="grid gap-1.5 rounded-xl p-1.5
