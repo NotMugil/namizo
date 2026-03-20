@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onDestroy } from "svelte";
 
   export let image: string;
   export let trailerId: string;
@@ -11,10 +11,18 @@
 
   let showVideo = false;
   let timers: ReturnType<typeof setTimeout>[] = [];
+  let embedUrl = "";
 
-  const embedUrl = `https://www.youtube-nocookie.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerId}&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&start=${startAt}`;
+  function clearTimers() {
+    timers.forEach(clearTimeout);
+    timers = [];
+  }
 
-  onMount(() => {
+  function scheduleReveal() {
+    clearTimers();
+    showVideo = false;
+    if (!trailerId) return;
+
     const t1 = setTimeout(() => {
       const t2 = setTimeout(() => {
         showVideo = true;
@@ -22,10 +30,18 @@
       timers.push(t2);
     }, loadDelay);
     timers.push(t1);
-  });
+  }
+
+  $: embedUrl = `https://www.youtube.com/embed/${trailerId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${trailerId}&modestbranding=1&rel=0&iv_load_policy=3&fs=0&disablekb=1&playsinline=1&start=${startAt}`;
+  $: {
+    trailerId;
+    loadDelay;
+    brandingDelay;
+    scheduleReveal();
+  }
 
   onDestroy(() => {
-    timers.forEach(clearTimeout);
+    clearTimers();
   });
 </script>
 

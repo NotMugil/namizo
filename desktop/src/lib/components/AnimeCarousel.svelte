@@ -4,7 +4,7 @@
     import { PlayIcon, InfoIcon, ArrowLeftIcon, ArrowRightIcon } from 'phosphor-svelte'
     import type { AnimeSummary } from '$lib/types/anime'
     import TrailerSurface from '$lib/components/shared/TrailerSurface.svelte'
-
+    import { BRANDING_DELAY } from '$lib/constants/ui'
 
     export let items: AnimeSummary[] = []
 
@@ -14,7 +14,6 @@
     let trailerMounted = false
     let showTrailer = false
     let trailerTimer: ReturnType<typeof setTimeout> | null = null
-    const BRANDING_DELAY = 2400
 
     $: item = items[current] ?? null
     $: totalItems = Math.min(items.length, 8) // cap at 8 for carousel
@@ -97,15 +96,17 @@
 
             <!-- iframe mounts early (buffering), but stays hidden until branding clears -->
             {#if trailerMounted && item.trailer_id}
-                <div class="absolute inset-0 z-0 transition-opacity duration-700
-                            {showTrailer ? 'opacity-100' : 'opacity-0'}">
-                    <TrailerSurface
-                        image={item.banner_image ?? item.cover_image ?? ''}
-                        trailerId={item.trailer_id}
-                        loadDelay={0}
-                        brandingDelay={0}
-                    />
-                </div>
+                {#key `${item.id}:${item.trailer_id}`}
+                    <div class="absolute inset-0 z-0 transition-opacity duration-700
+                                {showTrailer ? 'opacity-100' : 'opacity-0'}">
+                        <TrailerSurface
+                            image={item.banner_image ?? item.cover_image ?? ''}
+                            trailerId={item.trailer_id}
+                            loadDelay={0}
+                            brandingDelay={0}
+                        />
+                    </div>
+                {/key}
             {/if}
             <div
                 class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-black/90 via-black/40 to-transparent"
