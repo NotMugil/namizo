@@ -8,6 +8,7 @@ export interface AnimeSummary {
     format: string | null
     episodes: number | null
     banner_image: string | null
+    trailer_id: string | null
 }
 
 export interface AnimeDetails {

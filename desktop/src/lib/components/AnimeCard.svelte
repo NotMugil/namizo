@@ -1,13 +1,32 @@
 <script lang="ts">
     import type { AnimeSummary } from "$lib/types/anime";
+    import { goto } from '$app/navigation'
     import { PlayIcon, PencilSimpleIcon, HeartIcon } from "phosphor-svelte";
+    import TrailerSurface from "./shared/TrailerSurface.svelte";
     let favorited = false;
     export let anime: AnimeSummary;
+
+    let hoverActive = false
+    let hoverTimer: ReturnType<typeof setTimeout> | null = null
+
+    function onHoverStart() {
+        hoverTimer = setTimeout(() => { hoverActive = true }, 800)
+    }
+
+    function onHoverEnd() {
+        if (hoverTimer) clearTimeout(hoverTimer)
+        hoverActive = false
+    }
 </script>
 
-<a
-    href="/anime/{anime.id}"
+<div
     class="group relative flex flex-col w-[200px] shrink-0 no-underline text-inherit rounded-xl"
+    role="link"
+    tabindex="0"
+    onmouseenter={onHoverStart}
+    onmouseleave={onHoverEnd}
+    onclick={() => goto(`/anime/${anime.id}`)}
+    onkeydown={(e) => e.key === 'Enter' && goto(`/anime/${anime.id}`)}
 >
     <!-- Poster -->
     <div class="
@@ -56,12 +75,19 @@
         group-hover:translate-y-0
     ">
         <!-- 16:9 preview -->
-        <div class="w-full aspect-video rounded-md overflow-hidden shrink-0 border border-white/8 bg-black/20">
-            <img
-                src={anime.cover_image}
-                alt={anime.title}
-                class="w-full h-full object-cover"
-            />
+        <div class="relative w-full aspect-video rounded-md overflow-hidden shrink-0 border border-white/8 bg-black/20">
+            {#if anime.trailer_id && hoverActive}
+                <TrailerSurface
+                    image={ anime.banner_image ?? anime.cover_image ?? ""}
+                    trailerId={anime.trailer_id}
+                    />
+            {:else}
+                <img
+                    src={anime.banner_image ?? anime.cover_image}
+                    alt={anime.title}
+                    class="w-full h-full object-cover"
+                />
+            {/if}
         </div>
 
         <!-- Title + meta -->
@@ -75,16 +101,15 @@
             </p>
         </div>
 
-        <!-- This later should open episode 1 of the anime something like this /watch/[anime.id]/1  -->
-        <button
+        <a  href="/watch/{anime.id}?ep=1"
             class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md
             border border-white/20 bg-white/40 px-2.5 py-5 text-[0.81rem] font-nediun text-white
             transition-colors hover:bg-white/35"
-            onclick={(e) => e.preventDefault()}
+            onclick={(e) => e.stopPropagation()}
         >
             <PlayIcon size={13} weight="fill" />
             <span >Watch</span>
-        </button>
+        </a>
 
         <div class="flex items-center justify-center gap-2 mt-auto">
             <button
@@ -107,4 +132,4 @@
             </button>
         </div>
     </div>
-</a>
+</div>

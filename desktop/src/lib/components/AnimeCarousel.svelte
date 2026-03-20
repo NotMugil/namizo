@@ -3,15 +3,43 @@
     import { goto } from '$app/navigation'
     import { PlayIcon, InfoIcon, ArrowLeftIcon, ArrowRightIcon } from 'phosphor-svelte'
     import type { AnimeSummary } from '$lib/types/anime'
+    import TrailerSurface from '$lib/components/shared/TrailerSurface.svelte'
+
 
     export let items: AnimeSummary[] = []
 
     let current = 0
     let timer: ReturnType<typeof setInterval> | null = null
     let paused = false
+    let trailerMounted = false
+    let showTrailer = false
+    let trailerTimer: ReturnType<typeof setTimeout> | null = null
+    const BRANDING_DELAY = 2400
 
     $: item = items[current] ?? null
     $: totalItems = Math.min(items.length, 8) // cap at 8 for carousel
+
+    $: {
+        current
+        resetTrailer()
+        startTrailerTimer()
+    }
+
+    function resetTrailer() {
+        if (trailerTimer) clearTimeout(trailerTimer)
+        showTrailer = false
+        trailerMounted = false
+    }
+
+    function startTrailerTimer() {
+        const slideItem = items[current]
+        if (!slideItem?.trailer_id) return
+        trailerMounted = true
+
+        trailerTimer = setTimeout(() => {
+            showTrailer = true
+        }, BRANDING_DELAY)
+    }
 
     function next() {
         current = (current + 1) % totalItems
@@ -29,16 +57,17 @@
     function resetTimer() {
         if (timer) clearInterval(timer)
         if (!paused) {
-            timer = setInterval(next, 5000)
+            timer = setInterval(next, 15000)
         }
     }
 
     onMount(() => {
-        timer = setInterval(next, 5000)
+        timer = setInterval(next, 15000)
     })
 
     onDestroy(() => {
         if (timer) clearInterval(timer)
+        if (trailerTimer) clearTimeout(trailerTimer)
     })
 
     function formatScore(score: number | null): string {
@@ -52,6 +81,7 @@
         class="relative w-full overflow-hidden"
         style="height: clamp(400px, 60vh, 780px)"
         aria-label="Featured anime carousel"
+        role="region"
         onmouseenter={() => { paused = true; if (timer) clearInterval(timer) }}
         onmouseleave={() => { paused = false; resetTimer() }}
     >
@@ -60,13 +90,32 @@
             <img
                 src={item.banner_image ?? item.cover_image}
                 alt={item.title}
-                class="w-full h-full object-cover scale-110 brightness-50"
+                class="absolute inset-0 z-0 w-full h-full object-cover scale-110 brightness-50
+                       transition-opacity duration-700
+                       {showTrailer ? 'opacity-0' : 'opacity-100'}"
             />
-            <div class="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent"></div>
-            <div class="absolute inset-0 bg-gradient-to-t from-black via-background/20 to-transparent"></div>
+
+            <!-- iframe mounts early (buffering), but stays hidden until branding clears -->
+            {#if trailerMounted && item.trailer_id}
+                <div class="absolute inset-0 z-0 transition-opacity duration-700
+                            {showTrailer ? 'opacity-100' : 'opacity-0'}">
+                    <TrailerSurface
+                        image={item.banner_image ?? item.cover_image ?? ''}
+                        trailerId={item.trailer_id}
+                        loadDelay={0}
+                        brandingDelay={0}
+                    />
+                </div>
+            {/if}
+            <div
+                class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-black/90 via-black/40 to-transparent"
+            ></div>
+            <div
+                class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black via-background/20 to-transparent"
+            ></div>
         </div>
 
-        <div class="relative z-10 flex h-full items-end pb-8 px-8 gap-6">
+        <div class="relative z-20 flex h-full items-end pb-8 px-8 gap-6">
 
             <!-- Cover -->
             <img
@@ -130,13 +179,13 @@
             </div>
         </div>
 
-        <div class="absolute bottom-3 right-6 z-10 flex flex-col items-end gap-3">
+        <div class="absolute bottom-3 right-6 z-20 flex flex-col items-end gap-3">
             <div class="flex gap-1">
                 <button class="chevron-btn" onclick={prev} aria-label="Previous">
-                    <ArrowLeftIcon size={14} weight="bold" />
+                    <ArrowLeftIcon />
                 </button>
                 <button class="chevron-btn" onclick={next} aria-label="Next">
-                    <ArrowRightIcon size={14} weight="bold" />
+                    <ArrowRightIcon/>
                 </button>
             </div>
 

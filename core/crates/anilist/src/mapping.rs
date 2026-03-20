@@ -42,6 +42,12 @@ fn map_character(edge: &Value) -> Option<Character> {
 // private helpers
 
 fn to_summary(m: &Value) -> Option<AnimeSummary> {
+    let trailer_id = if m["trailer"]["site"].as_str() == Some("youtube") {
+        m["trailer"]["id"].as_str().map(|s| s.to_string())
+    } else {
+        None
+    };
+
     Some(AnimeSummary {
         id:            m["id"].as_u64()? as u32,
         title:         resolve_title(m),
@@ -52,6 +58,7 @@ fn to_summary(m: &Value) -> Option<AnimeSummary> {
         format:        m["format"].as_str().map(|s| s.to_string()),
         episodes:      m["episodes"].as_u64().map(|e| e as u32),
         banner_image: m["bannerImage"].as_str().map(|s| s.to_string()),
+        trailer_id,
     })
 }
 

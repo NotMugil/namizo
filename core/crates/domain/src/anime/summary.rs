@@ -11,4 +11,5 @@ pub struct AnimeSummary {
     pub format: Option<String>,
     pub episodes: Option<u32>,
     pub banner_image: Option<String>,
+    pub trailer_id: Option<String>,
 }

@@ -51,23 +51,26 @@
     />
 
     <button
-      class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-muted transition"
+      class="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted/30 hover:backdrop-blur-[10px] hover:ring hover:ring-white/10 transition"
     >
       <BellIcon size={20} weight="regular" />
     </button>
 
     <a
       href={ROUTES.SETTINGS}
-      class="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-muted transition"
+      class="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted/30 hover:backdrop-blur-[10px] hover:ring hover:ring-white/10 transition"
     >
       <GearIcon size={20} weight="regular" />
     </a>
 
-    <a href={ROUTES.PROFILE} class="rounded-full hover:ring-2 hover:ring-muted transition">
+    <a href={ROUTES.PROFILE} 
+      class="inline-flex h-8 w-8 items-center justify-center rounded-md  hover:bg-muted/30 hover:backdrop-blur-[10px] hover:ring hover:ring-white/80 transition"
+>
       <Avatar
-        src=""
+        src="https://s4.anilist.co/file/anilistcdn/user/avatar/large/b6893515-s6uKekNdsFgU.jpg"
         alt="User avatar"
         fallback="U"
+        class="w-full h-full rounded-md"
       />
     </a>
 

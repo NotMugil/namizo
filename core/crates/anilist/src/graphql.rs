@@ -11,6 +11,7 @@ pub const MEDIA_PAGE_QUERY: &str = r#"
           format
           episodes
           bannerImage
+          trailer { id site }
         }
       }
     }
