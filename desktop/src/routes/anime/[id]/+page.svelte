@@ -1,27 +1,31 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
   import { page } from '$app/stores'
   import { getAnimeDetails } from '$lib/api/anime'
   import type { AnimeDetails } from '$lib/types/anime'
+  import AnimeRow from '$lib/components/AnimeRow.svelte'
+  import { PlayIcon, HeartIcon } from 'phosphor-svelte'
+  import EpisodeList from '$lib/components/EpisodeList.svelte'
+  import CharactersRow from '$lib/components/CharectersRow.svelte'
 
   let details: AnimeDetails | null = null
   let loading = true
   let error: string | null = null
 
-  onMount(async () => {
-    try {
-      const id = Number($page.params.id)
-      details = await getAnimeDetails(id)
-    } catch (e) {
-      error = String(e)
-    } finally {
-      loading = false
-    }
-  })
+  $: id = Number($page.params.id)
+
+  $: if (id) {
+    loading = true
+    error = null
+    details = null
+    getAnimeDetails(id)
+      .then(d => { details = d })
+      .catch(e => { error = String(e) })
+      .finally(() => { loading = false })
+  }
 
   function formatStatus(status: string | null): string {
     if (!status) return ''
-    return status.charAt(0) + status.slice(1).toLowerCase().replace('_', ' ')
+    return status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, ' ')
   }
 
   function formatSeason(season: string | null, year: number | null): string {
@@ -38,136 +42,149 @@
   <p class="text-center py-12 text-red-500">{error}</p>
 
 {:else if details}
-  <div class="min-h-screen">
+  <div class="relative bg-black min-h-screen overflow-x-hidden">
 
-    <!-- Banner -->
-    {#if details.banner_image}
-      <div class="relative w-full h-[260px] overflow-hidden">
-        <img
-          src={details.banner_image}
-          alt=""
-          class="w-full h-full object-cover"
-        />
-        <div class="absolute inset-0 bg-gradient-to-b from-transparent to-background"></div>
-      </div>
-    {/if}
+    <!-- ── Hero ── -->
+    <div
+      class="relative min-h-[clamp(340px,52vh,580px)] bg-cover bg-top flex items-end"
+      style="background-image: linear-gradient(96deg, rgba(0,0,0,0.92), rgba(0,0,0,0.55)),
+             url('{details.banner_image ?? details.cover_image}')"
+    >
+      <!-- bottom fade -->
+      <div class="absolute inset-0 bottom-[-1px] bg-gradient-to-b from-transparent via-transparent to-black pointer-events-none"></div>
 
-    <div class="flex gap-8 p-6 -mt-20 relative">
+      <div class="relative z-10 grid grid-cols-[minmax(160px,220px)_1fr] gap-6 items-end w-full
+                  px-[clamp(1rem,2.5vw,2.5rem)] pt-[clamp(5rem,7vw,7rem)] pb-8 box-border">
 
-      <!-- Left -->
-      <aside class="w-[180px] shrink-0">
+        <!-- Poster -->
         <img
           src={details.cover_image}
           alt={details.title}
-          class="w-full aspect-[2/3] object-cover rounded-md"
+          class="w-full aspect-[2/3] object-cover rounded-xl border border-white/10
+                 shadow-[0_16px_34px_rgba(0,0,0,0.6)]"
+          loading="lazy"
         />
 
-        <div class="mt-4 flex flex-col gap-2">
-
-          {#if details.average_score}
-            <div>
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Score
-              </span>
-              <span class="text-sm font-medium">
-                {details.average_score / 10}
-              </span>
-            </div>
+        <!-- Info -->
+        <div class="grid gap-3 min-w-0">
+          <h1 class="m-0 text-[clamp(1.6rem,3vw,2.8rem)] font-bold leading-[1.1]">
+            {details.title}
+          </h1>
+          {#if details.title_japanese}
+            <p class="m-0 text-[1.2rem] text-white/50">
+              {details.title_japanese}
+            </p>
           {/if}
-
-          {#if details.format}
-            <div>
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Format
-              </span>
-              <span class="text-sm font-medium">{details.format}</span>
-            </div>
-          {/if}
-
-          {#if details.episodes}
-            <div>
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Episodes
-              </span>
-              <span class="text-sm font-medium">{details.episodes}</span>
-            </div>
-          {/if}
-
-          {#if details.status}
-            <div>
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Status
-              </span>
-              <span class="text-sm font-medium">
-                {formatStatus(details.status)}
-              </span>
-            </div>
-          {/if}
-
-          {#if details.season || details.season_year}
-            <div>
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Season
-              </span>
-              <span class="text-sm font-medium">
-                {formatSeason(details.season, details.season_year)}
-              </span>
-            </div>
-          {/if}
-
           {#if details.studios.length}
-            <div>
-              <span class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Studio
+            <span class="text-[0.7rem]">{details.studios[0]}</span>
+          {/if}
+          <!-- Chips -->
+          <div class="flex flex-wrap gap-1.5">
+            {#if details.format}
+              <span class="chip">{details.format}</span>
+            {/if}
+            {#if details.status}
+              <span class="chip">{formatStatus(details.status)}</span>
+            {/if}
+            {#if details.season || details.season_year}
+              <span class="chip">{formatSeason(details.season, details.season_year)}</span>
+            {/if}
+            {#if details.episode_count}
+              <span class="chip">{details.episode_count} EPS</span>
+            {/if}
+            {#if details.average_score}
+              <span class="chip">{(details.average_score / 10).toFixed(1)} ★</span>
+            {/if}
+          </div>
+
+          <!-- Genres -->
+          <div class="flex flex-wrap gap-1.5">
+            {#each details.genres as genre}
+              <span class="text-[11px] px-2.5 py-1 rounded-full border border-white/10 bg-white/5">
+                {genre}
               </span>
-              <span class="text-sm font-medium">
-                {details.studios[0]}
-              </span>
-            </div>
+            {/each}
+          </div>
+
+          <!-- Description -->
+          {#if details.description}
+            <p class="m-0 text-white/65 text-[0.85rem] leading-[1.5] max-w-[74ch]
+                      overflow-y-auto [max-height:calc(1.5em*4)]
+                      [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {@html details.description}
+            </p>
           {/if}
 
-        </div>
-      </aside>
-
-      <!-- Right -->
-      <div class="flex-1 pt-[90px]">
-
-        <h1 class="text-2xl font-bold mb-3">
-          {details.title}
-        </h1>
-
-        <!-- Genres -->
-        <div class="flex flex-wrap gap-2 mb-4">
-          {#each details.genres as genre}
-            <span class="text-xs px-3 py-1 rounded-full bg-muted text-foreground">
-              {genre}
-            </span>
-          {/each}
-        </div>
-
-        <!-- Description -->
-        {#if details.description}
-          <p class="text-sm leading-relaxed text-muted-foreground max-w-[680px]">
-            {details.description}
-          </p>
-        {/if}
-
-        <!-- Trailer -->
-        {#if details.trailer_id}
-          <div class="mt-6">
-            <h3 class="text-sm mb-2 opacity-70">Trailer</h3>
-
-            <iframe
-              src="https://www.youtube.com/embed/{details.trailer_id}"
-              title="Trailer"
-              class="w-full max-w-[560px] aspect-video rounded-md"
-              frameborder="0"
-              allowfullscreen
-            ></iframe>
+          <!-- Actions -->
+          <div class="flex gap-2 items-center flex-wrap mt-1">
+            <a
+              href="/watch/{details.id}?ep=1"
+              class="inline-flex items-center gap-1.5 rounded-[10px] border border-white/15
+                     bg-white/10 text-white px-3.5 py-[0.42rem] text-[0.82rem] no-underline
+                     transition-colors hover:bg-white/16"
+            >
+              <PlayIcon size={14} weight="fill" />
+              <span>Play</span>
+            </a>
+            <button
+              class="inline-flex items-center justify-center w-[2.1rem] h-[2.1rem] rounded-[10px]
+                     border border-white/15 bg-white/8 text-white transition-colors hover:bg-white/15"
+              aria-label="Favorite"
+            >
+              <HeartIcon size={15} weight="regular" />
+            </button>
           </div>
-        {/if}
+        </div>
 
       </div>
     </div>
+
+    <!-- ── Content ── -->
+    {#key details.id}
+    <div class="relative z-10 grid gap-8 px-[clamp(1rem,2.5vw,2.5rem)] pt-6 pb-12 overflow-hidden">
+
+      <EpisodeList episodes={details.episodes} cover_image={details.cover_image} anime_id={details.id}/>
+
+      <CharactersRow characters={details.characters} />
+
+
+      <!-- Relations -->
+      {#if details.relations.length}
+        <section class="min-w-0">
+          <AnimeRow
+            title="Relations"
+            items={details.relations}
+            titleClass="text-[clamp(1.1rem,2vw,1.4rem)] font-semibold"
+          />
+        </section>
+      {/if}
+
+      <!-- Recommendations -->
+      {#if details.recommendations.length}
+        <section class="min-w-0">
+          <AnimeRow
+            title="Recommended"
+            items={details.recommendations}
+            titleClass="text-[clamp(1.1rem,2vw,1.4rem)] font-semibold"
+          />
+        </section>
+      {/if}
+
+      <!-- Trailer -->
+      {#if details.trailer_id}
+        <section class="grid gap-3 min-w-0">
+          <h2 class="section-title">Trailer</h2>
+          <iframe
+            src="https://www.youtube.com/embed/{details.trailer_id}"
+            title="Trailer"
+            class="w-full max-w-[560px] aspect-video rounded-xl border border-white/8"
+            frameborder="0"
+            allowfullscreen
+          ></iframe>
+        </section>
+      {/if}
+    </div>
+    {/key}
+
   </div>
 {/if}

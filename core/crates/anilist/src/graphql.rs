@@ -5,10 +5,13 @@ pub const MEDIA_PAGE_QUERY: &str = r#"
           id
           title { romaji english }
           coverImage { large }
+          description
           averageScore
           genres
           format
           episodes
+          bannerImage
+          trailer { id site }
         }
       }
     }
@@ -18,10 +21,11 @@ pub const DETAILS_QUERY: &str = r#"
     query ($id: Int) {
       Media(id: $id, type: ANIME) {
         id
-        title { romaji english }
+        idMal
+        title { romaji english native }
         coverImage { large }
         bannerImage
-        description(asHtml: false)
+        description
         genres
         averageScore
         status
@@ -33,6 +37,47 @@ pub const DETAILS_QUERY: &str = r#"
           nodes { name }
         }
         trailer { id site }
+
+        characters(sort: [ROLE, RELEVANCE], perPage: 20) {
+          edges {
+            role
+            node {
+              id
+              name { full }
+              image { large }
+            }
+          }
+        }
+
+        relations {
+          edges {
+            relationType
+            node {
+              id
+              type
+              title { romaji english }
+              coverImage { large }
+              averageScore
+              genres
+              format
+              episodes
+            }
+          }
+        }
+
+        recommendations(perPage: 10, sort: [RATING_DESC]) {
+          nodes {
+            mediaRecommendation {
+              id
+              title { romaji english }
+              coverImage { large }
+              averageScore
+              genres
+              format
+              episodes
+            }
+          }
+        }
       }
     }
 "#;

@@ -7,14 +7,11 @@
   let { children } = $props();
 </script>
 
-<div class="flex flex-col h-screen bg-background text-foreground">
-
+<div class="flex flex-col min-h-screen bg-black text-foreground z-30">
   <Topbar onMenuClick={() => sidebar.open = !sidebar.open} />
-
-  <main class="flex-1 overflow-auto p-4">
+  <main class="flex-1">
     {@render children()}
   </main>
-
 </div>
 
 <!-- backdrop -->

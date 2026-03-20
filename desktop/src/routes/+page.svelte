@@ -1,7 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte'
-    import { getTrending, getPopular, getTopRated, getHomeGenres, HOME_GENRES } from '$lib/api/anime'
+    import { getTrending, getPopular, getTopRated, getHomeGenres, getAnimeDetails, HOME_GENRES } from '$lib/api/anime'
     import type { AnimeSummary } from '$lib/types/anime'
+    import AnimeCarousel from '$lib/components/AnimeCarousel.svelte'
     import AnimeRow from '$lib/components/AnimeRow.svelte'
 
     let trending:  AnimeSummary[] = []
@@ -30,35 +31,21 @@
 </script>
 
 {#if loading}
-    <p class="state">Loading...</p>
+    <p class="px-6 pt-20 text-center opacity-50">Loading...</p>
 {:else if error}
-    <p class="state error">{error}</p>
+    <p class="px-6 pt-20 text-center text-red-400">{error}</p>
 {:else}
-    <main>
-        <AnimeRow title="Trending Now"     items={trending} />
-        <AnimeRow title="All Time Popular" items={popular} />
-        <AnimeRow title="Top Rated"        items={topRated} />
+<AnimeCarousel items={trending.slice(0, 8)} />
+    <main class="px-6 pt-12 pb-8 space-y-8">
+
+        <AnimeRow titleClass="text-lg font-semibold" title="Trending Now"     items={trending} />
+        <AnimeRow titleClass="text-lg font-semibold" title="All Time Popular" items={popular} />
+        <AnimeRow titleClass="text-lg font-semibold" title="Top Rated"        items={topRated} />
 
         {#each HOME_GENRES as genre}
             {#if genreRows[genre]?.length}
-                <AnimeRow title={genre} items={genreRows[genre]} />
+                <AnimeRow titleClass="text-lg font-semibold" title={genre} items={genreRows[genre]} />
             {/if}
         {/each}
     </main>
 {/if}
-
-<style>
-    main {
-        padding: 24px;
-    }
-
-    .state {
-        text-align: center;
-        padding: 48px;
-        opacity: 0.5;
-    }
-
-    .error {
-        color: red;
-    }
-</style>
