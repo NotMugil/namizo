@@ -5,7 +5,7 @@ mod state;
 
 use std::path::PathBuf;
 
-use namizo_core::{AnimeService, StreamService, TvdbService};
+use namizo_core::{AnimeService, PlaybackService, StreamService, TvdbService};
 use state::AppState;
 use tauri::Manager;
 
@@ -30,11 +30,15 @@ fn main() {
                     TvdbService::new(&tvdb_api_key, &db_path, &app_data_dir, &bundled_mapping)
                         .await
                         .expect("failed to init tvdb service");
+                let playback_service = PlaybackService::new()
+                    .await
+                    .expect("failed to init playback service");
 
                 app.manage(AppState {
                     anime_service: AnimeService::new(&db_path)
                         .expect("failed to init anime service"),
                     stream_service: StreamService::new(),
+                    playback_service,
                     tvdb_service,
                 });
             });
@@ -50,7 +54,11 @@ fn main() {
             commands::stream::stream_search,
             commands::stream::stream_episodes,
             commands::stream::stream_sources,
+            commands::playback::playback_start,
+            commands::playback::playback_stop,
+            commands::logging::frontend_log,
             commands::jikan::get_jikan_episodes,
+            commands::jikan::get_jikan_episodes_page,
             commands::tvdb::get_tvdb_episodes,
         ])
         .run(tauri::generate_context!())

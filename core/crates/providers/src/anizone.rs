@@ -1,11 +1,11 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{Client, Url};
 use scraper::{Html, Selector};
 
-use domain::{StreamingEpisode, StreamSource, StreamableAnime};
 use crate::traits::{SearchQuery, SourceOptions, StreamProvider};
+use domain::{StreamSource, StreamableAnime, StreamingEpisode};
 
 #[derive(Clone)]
 pub struct Anizone {
@@ -90,8 +90,16 @@ impl StreamProvider for Anizone {
             let Some(title_el) = item.select(&title_selector).next() else {
                 continue;
             };
-            let href = title_el.value().attr("href").unwrap_or_default().to_string();
-            let title = title_el.value().attr("title").unwrap_or_default().to_string();
+            let href = title_el
+                .value()
+                .attr("href")
+                .unwrap_or_default()
+                .to_string();
+            let title = title_el
+                .value()
+                .attr("title")
+                .unwrap_or_default()
+                .to_string();
             let info = item
                 .select(&info_selector)
                 .next()
@@ -106,6 +114,10 @@ impl StreamProvider for Anizone {
                 id: href,
                 title,
                 available_episodes: available,
+                season: None,
+                year: None,
+                media_type: None,
+                status: None,
             });
         }
         Ok(out)

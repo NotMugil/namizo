@@ -4,6 +4,7 @@
     import type { AnimeSummary } from '$lib/types/anime'
     import AnimeCarousel from '$lib/components/AnimeCarousel.svelte'
     import AnimeRow from '$lib/components/AnimeRow.svelte'
+    import LoadingScreen from '$lib/components/shared/LoadingScreen.svelte'
 
     let trending:  AnimeSummary[] = []
     let popular:   AnimeSummary[] = []
@@ -31,7 +32,7 @@
 </script>
 
 {#if loading}
-    <p class="px-6 pt-20 text-center opacity-50">Loading...</p>
+    <LoadingScreen label="Loading home feed..." fullscreen={false} className="min-h-[70vh]" />
 {:else if error}
     <p class="px-6 pt-20 text-center text-red-400">{error}</p>
 {:else}

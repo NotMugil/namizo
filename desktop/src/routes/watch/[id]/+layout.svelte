@@ -15,15 +15,17 @@
 </div>
 
 <!-- backdrop -->
-<div
+<button
+  type="button"
+  aria-label="Close sidebar"
   class="fixed inset-0 z-40 bg-background/40 transition-opacity duration-300
          {sidebar.open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
   onclick={() => sidebar.open = false}
-></div>
+></button>
 
 <!-- sidebar -->
 <div
-  class="sticky top-0 left-0 h-full w-64 z-50 bg-background border-r border-border shadow-xl
+  class="fixed top-0 left-0 h-full w-64 z-50 bg-background border-r border-border shadow-xl
          transition-transform duration-300
          {sidebar.open ? 'translate-x-0' : '-translate-x-full'}"
 >

@@ -2,6 +2,10 @@ export interface StreamableAnime {
     id: string
     title: string
     available_episodes: number | null
+    season?: string | null
+    year?: number | null
+    media_type?: string | null
+    status?: string | null
 }
 
 export interface StreamingEpisode {

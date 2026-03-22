@@ -1,13 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{Client, Url};
 use scraper::{Html, Selector};
 use serde_json::Value;
 
-use domain::{StreamingEpisode, StreamSource, StreamableAnime};
 use crate::traits::{SearchQuery, SourceOptions, StreamProvider};
 use crate::utils::{packer::unpack, string_utils::generate_random_string};
+use domain::{StreamSource, StreamableAnime, StreamingEpisode};
 
 #[derive(Clone)]
 pub struct AnimePahe {
@@ -136,11 +136,34 @@ impl StreamProvider for AnimePahe {
         ])?;
         let data = self.get_json(url).await?;
 
-        if data.get("total").and_then(Value::as_i64).unwrap_or_default() == 0 {
+        if data
+            .get("total")
+            .and_then(Value::as_i64)
+            .unwrap_or_default()
+            == 0
+        {
             return Ok(vec![]);
         }
 
-        let list = data.get("data").and_then(Value::as_array).cloned().unwrap_or_default();
+        let list = data
+            .get("data")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let as_text = |value: Option<&Value>| -> Option<String> {
+            match value {
+                Some(Value::String(raw)) => {
+                    let trimmed = raw.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                }
+                Some(Value::Number(raw)) => Some(raw.to_string()),
+                _ => None,
+            }
+        };
         Ok(list
             .into_iter()
             .map(|e| StreamableAnime {
@@ -155,6 +178,18 @@ impl StreamProvider for AnimePahe {
                     .unwrap_or("Unknown")
                     .to_string(),
                 available_episodes: e.get("episodes").and_then(Value::as_i64).map(|v| v as i32),
+                season: as_text(e.get("season")),
+                year: e
+                    .get("year")
+                    .and_then(Value::as_i64)
+                    .or_else(|| {
+                        e.get("year")
+                            .and_then(Value::as_str)
+                            .and_then(|raw| raw.parse::<i64>().ok())
+                    })
+                    .map(|v| v as i32),
+                media_type: as_text(e.get("type")),
+                status: as_text(e.get("status")),
             })
             .collect())
     }
@@ -175,7 +210,11 @@ impl StreamProvider for AnimePahe {
             let data = self.get_json(url).await?;
             last_page = data.get("last_page").and_then(Value::as_i64).unwrap_or(1) as i32;
 
-            let list = data.get("data").and_then(Value::as_array).cloned().unwrap_or_default();
+            let list = data
+                .get("data")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
             for item in list {
                 episodes.push(StreamingEpisode {
                     anime_id: anime.id.clone(),
@@ -183,7 +222,10 @@ impl StreamProvider for AnimePahe {
                         .get("episode")
                         .map(|v| v.to_string().trim_matches('"').to_string())
                         .unwrap_or_else(|| "0".to_string()),
-                    source_id: item.get("session").and_then(Value::as_str).map(str::to_string),
+                    source_id: item
+                        .get("session")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
                 });
             }
 

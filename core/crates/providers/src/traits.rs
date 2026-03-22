@@ -1,8 +1,8 @@
-use std::borrow::Cow;
 use anyhow::Result;
 use async_trait::async_trait;
-use serde::{Serialize, Deserialize};
-use domain::{StreamingEpisode, StreamSource, StreamableAnime};
+use domain::{StreamSource, StreamableAnime, StreamingEpisode};
+use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceOptions {
@@ -23,13 +23,17 @@ impl<'a> SearchQuery<'a> {
 
 impl<'a> From<&'a str> for SearchQuery<'a> {
     fn from(value: &'a str) -> Self {
-        Self { value: Cow::Borrowed(value) }
+        Self {
+            value: Cow::Borrowed(value),
+        }
     }
 }
 
 impl From<String> for SearchQuery<'_> {
     fn from(value: String) -> Self {
-        Self { value: Cow::Owned(value) }
+        Self {
+            value: Cow::Owned(value),
+        }
     }
 }
 

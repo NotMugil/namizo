@@ -106,7 +106,7 @@ impl TvdbClient {
             source_episodes.len()
         );
 
-        let mut episodes: Vec<TvdbEpisode> = Vec::with_capacity(source_episodes.len());
+        let mut raw_episodes: Vec<RawTvdbEpisode> = Vec::with_capacity(source_episodes.len());
         for episode in source_episodes {
             let Some(mut mapped) = map_episode(&episode) else {
                 continue;
@@ -133,8 +133,9 @@ impl TvdbClient {
                 }
             }
 
-            episodes.push(mapped);
+            raw_episodes.push(mapped);
         }
+        let episodes = normalize_tvdb_episode_numbers(raw_episodes, season_tvdb);
         println!(
             "[TVDB][client] mapped_episodes_count tvdb_id={} count={}",
             tvdb_id,
@@ -301,8 +302,25 @@ fn filter_episodes_by_season(
     filtered
 }
 
-fn map_episode(ep: &Value) -> Option<TvdbEpisode> {
-    let number = ep["number"].as_u64()? as u32;
+fn map_episode(ep: &Value) -> Option<RawTvdbEpisode> {
+    let number_in_season = ep["number"].as_u64()? as u32;
+    if number_in_season == 0 {
+        return None;
+    }
+
+    let season_number = ep["seasonNumber"].as_u64().map(|value| value as u32);
+    if season_number == Some(0) {
+        // TVDB season 0 entries are specials/extras and should not be mixed into main episodes.
+        return None;
+    }
+
+    let absolute_number = ep["numberAbsolute"]
+        .as_u64()
+        .or_else(|| ep["absoluteNumber"].as_u64())
+        .or_else(|| ep["absNumber"].as_u64())
+        .map(|value| value as u32)
+        .filter(|value| *value > 0);
+
     let title = ep["name"]
         .as_str()
         .filter(|s| !s.is_empty())
@@ -314,7 +332,102 @@ fn map_episode(ep: &Value) -> Option<TvdbEpisode> {
             if s.starts_with("http") { s.to_string() }
             else { format!("https://artworks.thetvdb.com{}", s) }
         });
-    Some(TvdbEpisode { number, title, thumbnail })
+    Some(RawTvdbEpisode {
+        number_in_season,
+        season_number,
+        absolute_number,
+        title,
+        thumbnail,
+    })
+}
+
+fn normalize_tvdb_episode_numbers(
+    mut source: Vec<RawTvdbEpisode>,
+    season_tvdb: Option<u32>,
+) -> Vec<TvdbEpisode> {
+    if source.is_empty() {
+        return Vec::new();
+    }
+
+    source.sort_by(|a, b| {
+        let season_a = a.season_number.unwrap_or(1);
+        let season_b = b.season_number.unwrap_or(1);
+        season_a
+            .cmp(&season_b)
+            .then_with(|| a.number_in_season.cmp(&b.number_in_season))
+    });
+
+    if season_tvdb.is_some() {
+        return source
+            .into_iter()
+            .enumerate()
+            .map(|(index, ep)| TvdbEpisode {
+                number: (index as u32) + 1,
+                title: ep.title,
+                thumbnail: ep.thumbnail,
+            })
+            .collect();
+    }
+
+    let can_use_absolute_numbers = source
+        .iter()
+        .all(|ep| ep.absolute_number.is_some())
+        && source
+            .windows(2)
+            .all(|pair| pair[0].absolute_number < pair[1].absolute_number);
+
+    if can_use_absolute_numbers {
+        return source
+            .into_iter()
+            .filter_map(|ep| {
+                Some(TvdbEpisode {
+                    number: ep.absolute_number?,
+                    title: ep.title,
+                    thumbnail: ep.thumbnail,
+                })
+            })
+            .collect();
+    }
+
+    let first_known_season = source.iter().find_map(|ep| ep.season_number);
+    let has_multiple_seasons = first_known_season
+        .map(|first| {
+            source
+                .iter()
+                .filter_map(|ep| ep.season_number)
+                .any(|season| season != first)
+        })
+        .unwrap_or(false);
+
+    if has_multiple_seasons {
+        return source
+            .into_iter()
+            .enumerate()
+            .map(|(index, ep)| TvdbEpisode {
+                number: (index as u32) + 1,
+                title: ep.title,
+                thumbnail: ep.thumbnail,
+            })
+            .collect();
+    }
+
+    source
+        .into_iter()
+        .map(|ep| TvdbEpisode {
+            number: ep.number_in_season,
+            title: ep.title,
+            thumbnail: ep.thumbnail,
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone)]
+struct RawTvdbEpisode {
+    number_in_season: u32,
+    season_number: Option<u32>,
+    absolute_number: Option<u32>,
+    title: Option<String>,
+    thumbnail: Option<String>,
 }
 
 fn needs_english_override(title: Option<&str>) -> bool {

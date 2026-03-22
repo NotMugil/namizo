@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use regex::Regex;
 use reqwest::{Client, Url};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
-use domain::{StreamingEpisode, StreamSource, StreamableAnime};
 use crate::traits::{SearchQuery, SourceOptions, StreamProvider};
 use crate::utils::decryptor::decrypt;
+use domain::{StreamSource, StreamableAnime, StreamingEpisode};
 
 #[derive(Clone)]
 pub struct AllAnime {
@@ -103,7 +103,11 @@ impl AllAnime {
         self.parse_links(&body, source_name).await
     }
 
-    async fn parse_links(&self, response_body: &str, _source_name: &str) -> Result<Vec<StreamSource>> {
+    async fn parse_links(
+        &self,
+        response_body: &str,
+        _source_name: &str,
+    ) -> Result<Vec<StreamSource>> {
         let mut sources: Vec<StreamSource> = Vec::new();
 
         let referer_match = Regex::new(r#""Referer":"([^"]*)""#)?
@@ -318,6 +322,10 @@ impl StreamProvider for AllAnime {
                     .unwrap_or("Unknown")
                     .to_string(),
                 available_episodes,
+                season: None,
+                year: None,
+                media_type: None,
+                status: None,
             });
         }
         Ok(results)

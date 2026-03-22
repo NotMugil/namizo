@@ -1,22 +1,22 @@
 use std::{
     collections::{HashMap, HashSet},
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
 };
 
-use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
-use anyhow::{anyhow, Result};
+use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::Aead};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, TimeZone, Utc};
 use regex::Regex;
 use reqwest::{Client, Url};
 use serde_json::Value;
 
-use domain::{StreamingEpisode, StreamSource, StreamableAnime};
 use crate::traits::{SearchQuery, SourceOptions, StreamProvider};
+use domain::{StreamSource, StreamableAnime, StreamingEpisode};
 
 pub type NowUtcFn = Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>;
 pub type TokenDecoderFn = Arc<dyn Fn(&str) -> Result<String> + Send + Sync>;
@@ -40,8 +40,9 @@ impl Default for Anidap {
 impl Anidap {
     const DEFAULT_HOST: &'static str = "yuki";
     const DEFAULT_MODE: &'static str = "sub";
-    const FALLBACK_HOSTS: [&'static str; 8] =
-        ["nuri", "koto", "pahe", "ozzy", "dih", "mizu", "kami", "yuki"];
+    const FALLBACK_HOSTS: [&'static str; 8] = [
+        "nuri", "koto", "pahe", "ozzy", "dih", "mizu", "kami", "yuki",
+    ];
 
     pub fn new() -> Self {
         let now_utc: NowUtcFn = Arc::new(Utc::now);
@@ -155,7 +156,12 @@ impl Anidap {
         false
     }
 
-    fn build_source(url: String, quality: Option<String>, kind: Option<String>, referer: String) -> StreamSource {
+    fn build_source(
+        url: String,
+        quality: Option<String>,
+        kind: Option<String>,
+        referer: String,
+    ) -> StreamSource {
         StreamSource {
             url,
             quality: quality.unwrap_or_else(|| "auto".to_string()),
@@ -193,7 +199,12 @@ impl Anidap {
         Ok(serde_json::from_str(&body)?)
     }
 
-    async fn get(&self, uri: Url, headers: Option<Vec<(&str, String)>>, require_ok: bool) -> Result<String> {
+    async fn get(
+        &self,
+        uri: Url,
+        headers: Option<Vec<(&str, String)>>,
+        require_ok: bool,
+    ) -> Result<String> {
         let mut req = self.client.get(uri);
         for (k, v) in Self::base_headers() {
             req = req.header(k, v);
@@ -204,9 +215,15 @@ impl Anidap {
             }
         }
 
-        let resp = req.timeout(std::time::Duration::from_secs(30)).send().await?;
+        let resp = req
+            .timeout(std::time::Duration::from_secs(30))
+            .send()
+            .await?;
         if require_ok && !resp.status().is_success() {
-            return Err(anyhow!("Request failed with status {}", resp.status().as_u16()));
+            return Err(anyhow!(
+                "Request failed with status {}",
+                resp.status().as_u16()
+            ));
         }
         Ok(resp.text().await?)
     }
@@ -286,7 +303,9 @@ impl Anidap {
                 Self::build_source(
                     final_url.clone(),
                     candidate.quality,
-                    candidate.kind.or_else(|| Some(Self::infer_type(&final_url))),
+                    candidate
+                        .kind
+                        .or_else(|| Some(Self::infer_type(&final_url))),
                     referer.to_string(),
                 )
             })
@@ -315,7 +334,9 @@ impl Anidap {
                             obj.get("quality")
                                 .and_then(Value::as_str)
                                 .map(str::to_string)
-                                .or_else(|| obj.get("label").and_then(Value::as_str).map(str::to_string)),
+                                .or_else(|| {
+                                    obj.get("label").and_then(Value::as_str).map(str::to_string)
+                                }),
                             obj.get("type").and_then(Value::as_str).map(str::to_string),
                         );
                     }
@@ -327,7 +348,9 @@ impl Anidap {
                 None,
             );
             add(
-                map.get("source").and_then(Value::as_str).map(str::to_string),
+                map.get("source")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
                 None,
                 None,
             );
@@ -339,7 +362,9 @@ impl Anidap {
                         obj.get("quality")
                             .and_then(Value::as_str)
                             .map(str::to_string)
-                            .or_else(|| obj.get("label").and_then(Value::as_str).map(str::to_string)),
+                            .or_else(|| {
+                                obj.get("label").and_then(Value::as_str).map(str::to_string)
+                            }),
                         obj.get("type").and_then(Value::as_str).map(str::to_string),
                     );
                 } else if let Some(s) = item.as_str() {
@@ -457,9 +482,7 @@ impl StreamProvider for Anidap {
             self.base_url.trim_end_matches('/'),
             urlencoding::encode(query.as_str())
         );
-        let data = self
-            .get_json(url, Some(vec![("Referer", referer)]))
-            .await?;
+        let data = self.get_json(url, Some(vec![("Referer", referer)])).await?;
 
         let results = data
             .get("data")
@@ -484,6 +507,10 @@ impl StreamProvider for Anidap {
                     },
                     available_episodes: Self::to_i32(item.get("currentEpisodeCount"))
                         .or_else(|| Self::to_i32(item.get("totalEpisodes"))),
+                    season: None,
+                    year: None,
+                    media_type: None,
+                    status: None,
                 }
             })
             .collect())
@@ -498,11 +525,13 @@ impl StreamProvider for Anidap {
         ))?;
         uri.query_pairs_mut().append_pair("refresh", "false");
         let referer = self.watch_referer(&anime.id, "1", Self::DEFAULT_HOST, Self::DEFAULT_MODE)?;
-        let data = self
-            .get_json(uri, Some(vec![("Referer", referer)]))
-            .await?;
+        let data = self.get_json(uri, Some(vec![("Referer", referer)])).await?;
 
-        let list = data.get("data").and_then(Value::as_array).cloned().unwrap_or_default();
+        let list = data
+            .get("data")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
         let mut episodes: Vec<StreamingEpisode> = list
             .into_iter()
             .map(|item| StreamingEpisode {
@@ -590,14 +619,15 @@ struct AnidapDecoder {
 impl AnidapDecoder {
     const PERIOD_MS: i64 = ((6 * 6 * 6) + 47) * 60 * 1000;
     const BE: [u8; 32] = [
-        13, 27, 7, 19, 31, 11, 23, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
-        101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
+        13, 27, 7, 19, 31, 11, 23, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101,
+        103, 107, 109, 113, 127, 131, 137, 139, 149, 151,
     ];
 
     fn new() -> Self {
         let mut vt = [0u8; 32];
         for (t, slot) in vt.iter_mut().enumerate() {
-            let value = ((t as i64 * 17 + 53) ^ (t as i64 * 23 + 79) ^ (t as i64 * 31 + 124)) & 0xff;
+            let value =
+                ((t as i64 * 17 + 53) ^ (t as i64 * 23 + 79) ^ (t as i64 * 31 + 124)) & 0xff;
             *slot = value as u8;
         }
         Self {
@@ -627,9 +657,8 @@ impl AnidapDecoder {
                 Err(_) => continue,
             };
             let unxored = self.xor(&decrypted, &keys.xor_key);
-            return String::from_utf8(unxored).unwrap_or_else(|e| {
-                String::from_utf8_lossy(e.as_bytes()).to_string()
-            });
+            return String::from_utf8(unxored)
+                .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).to_string());
         }
 
         latin1_decode(&payload)
@@ -664,11 +693,9 @@ impl AnidapDecoder {
         let mut t = [0u8; 128];
         for i in 0..128usize {
             let u = Self::BE[i % Self::BE.len()];
-            t[i] = u8v(
-                self.xt(i) as i64
-                    ^ u8v(bucket + i as i64 * u as i64) as i64
-                    ^ u8v((i as u8 ^ u) as i64) as i64,
-            );
+            t[i] = u8v(self.xt(i) as i64
+                ^ u8v(bucket + i as i64 * u as i64) as i64
+                ^ u8v((i as u8 ^ u) as i64) as i64);
         }
 
         let mut n = [0u8; 64];
@@ -692,10 +719,8 @@ impl AnidapDecoder {
         for i in 0..16usize {
             let u = r[i];
             let m = r[i + 16];
-            let d = u8v(
-                ((((u as u16) << 3) | ((u as u16) >> 5))
-                    ^ (((m as u16) << 5) | ((m as u16) >> 3))) as i64,
-            );
+            let d = u8v(((((u as u16) << 3) | ((u as u16) >> 5))
+                ^ (((m as u16) << 5) | ((m as u16) >> 3))) as i64);
             a[i] = u8v((d ^ u8v(bucket >> (i * 2))) as i64);
         }
 
@@ -753,11 +778,9 @@ impl AnidapDecoder {
     }
 
     fn xt(&self, index: usize) -> u8 {
-        u8v(
-            self.vt[index % self.vt.len()] as i64
-                ^ self.vt[(index * 7 + 11) % self.vt.len()] as i64
-                ^ self.vt[(index * 13 + 17) % self.vt.len()] as i64,
-        )
+        u8v(self.vt[index % self.vt.len()] as i64
+            ^ self.vt[(index * 7 + 11) % self.vt.len()] as i64
+            ^ self.vt[(index * 13 + 17) % self.vt.len()] as i64)
     }
 
     fn decode_base64_url(&self, value: &str) -> Result<Vec<u8>> {

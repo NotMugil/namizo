@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = "0.8"
+base64 = "0.22"
+domain = { path = "../domain" }
+rand = "0.8"
+regex = "1"
+reqwest = { version = "0.12", features = ["rustls-tls", "stream"] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+url = "2"
