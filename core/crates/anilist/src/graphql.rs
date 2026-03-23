@@ -40,7 +40,12 @@ pub const MEDIA_PAGE_QUERY: &str = r#"
           genres
           format
           episodes
+          status
           bannerImage
+          nextAiringEpisode {
+            episode
+            airingAt
+          }
           trailer { id site }
         }
       }
@@ -58,6 +63,7 @@ pub const DETAILS_QUERY: &str = r#"
         description
         genres
         averageScore
+        popularity
         status
         season
         seasonYear
@@ -107,6 +113,16 @@ pub const DETAILS_QUERY: &str = r#"
               episodes
             }
           }
+        }
+      }
+    }
+"#;
+
+pub const FACETS_QUERY: &str = r#"
+    query ($page: Int, $perPage: Int) {
+      Page(page: $page, perPage: $perPage) {
+        media(type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+          genres
         }
       }
     }

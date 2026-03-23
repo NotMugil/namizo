@@ -9,6 +9,9 @@ export interface AnimeSummary {
     episodes: number | null
     banner_image: string | null
     trailer_id: string | null
+    status?: string | null
+    next_airing_episode?: number | null
+    next_airing_at?: number | null
 }
 
 export interface DiscoverFilters {
@@ -41,6 +44,7 @@ export interface AnimeDetails {
     description: string | null
     genres: string[]
     average_score: number | null
+    popularity: number | null
     status: string | null
     season: string | null
     season_year: number | null

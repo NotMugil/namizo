@@ -1,4 +1,3 @@
 #[tauri::command]
-pub fn frontend_log(level: String, message: String) {
-    eprintln!("[frontend:{}] {}", level, message);
+pub fn frontend_log(_level: String, _message: String) {
 }

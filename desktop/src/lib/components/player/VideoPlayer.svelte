@@ -317,10 +317,6 @@
             hlsInstance = new Hls(HLS_PLAYER_CONFIG);
             hlsInstance.on(Hls.Events.ERROR, (_, data) => {
                 if (nonce !== attachNonce) return;
-                console.error(
-                    `[player] hls_error fatal=${String(data.fatal)} type=${data.type ?? "unknown"} details=${data.details ?? "unknown"}`,
-                    data,
-                );
                 if (!data.fatal) {
                     const detail = (data.details ?? "").toLowerCase();
                     dispatch("hls_info", {

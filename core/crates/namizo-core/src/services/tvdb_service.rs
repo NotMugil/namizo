@@ -1,11 +1,14 @@
+use chrono::Utc;
+use serde_json::Value;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use serde_json::Value;
 use store::{Database, EpisodeCache};
-use tvdb::{TvdbClient, TvdbEpisode, TvdbError};
 use tvdb::mapping::load_mapping;
+use tvdb::{TvdbClient, TvdbEpisode, TvdbError};
 
-const TVDB_CACHE_KEY_OFFSET_V2: u32 = 1_000_000_000;
+const TVDB_EPISODE_CACHE_KEY_OFFSET: u32 = 1_000_000_000;
+const TVDB_BACKGROUND_CACHE_KEY_OFFSET: u32 = 1_300_000_000;
+const TVDB_BACKGROUND_MISS_TTL_SECONDS: i64 = 6 * 60 * 60;
 
 pub struct TvdbService {
     client: TvdbClient,
@@ -24,12 +27,6 @@ impl TvdbService {
 
         // load + auto-update mapping at startup
         let mapping = load_mapping(app_data_dir, bundled_mapping_path, &client.client).await?;
-        println!(
-            "[TVDB][service] initialized mapping_entries={} db_path={}",
-            mapping.len(),
-            db_path.display()
-        );
-
         let db = Database::open(db_path)?;
         db.migrate()?;
 
@@ -45,42 +42,21 @@ impl TvdbService {
         anilist_id: u32,
         format: Option<&str>,
     ) -> Result<Vec<TvdbEpisode>, String> {
-        let cache_key = anilist_id.saturating_add(TVDB_CACHE_KEY_OFFSET_V2);
-        println!(
-            "[TVDB][service] request anilist_id={} format={:?}",
-            anilist_id,
-            format
-        );
-
+        let cache_key = anilist_id.saturating_add(TVDB_EPISODE_CACHE_KEY_OFFSET);
         // check cache first
         {
             let db = self.db.lock().unwrap();
             let cache = EpisodeCache::new(&db);
             if let Ok(Some(cached)) = cache.get::<Vec<TvdbEpisode>>(cache_key) {
-                println!(
-                    "[TVDB][service] cache_hit anilist_id={} cache_key={} episodes={}",
-                    anilist_id,
-                    cache_key,
-                    cached.len()
-                );
                 if !has_non_english_titles(&cached) {
                     return Ok(cached);
                 }
-                println!(
-                    "[TVDB][service] cache_refresh_required anilist_id={} cache_key={} reason=non_english_titles",
-                    anilist_id,
-                    cache_key
-                );
             }
-            println!(
-                "[TVDB][service] cache_miss anilist_id={} cache_key={}",
-                anilist_id,
-                cache_key
-            );
         }
 
         // fetch from TVDB using in-memory mapping
-        let episodes = self.client
+        let episodes = self
+            .client
             .get_episodes(anilist_id, format, &self.mapping)
             .await
             .map_err(|e| match e {
@@ -88,26 +64,69 @@ impl TvdbService {
                 TvdbError::MappingNotFound(id) => format!("no_mapping:{}", id),
                 other => other.to_string(),
             })?;
-        println!(
-            "[TVDB][service] fetched anilist_id={} episodes={}",
-            anilist_id,
-            episodes.len()
-        );
-
         // save to cache
         {
             let db = self.db.lock().unwrap();
             let cache = EpisodeCache::new(&db);
             let _ = cache.set(cache_key, &episodes);
-            println!(
-                "[TVDB][service] cache_set anilist_id={} cache_key={} episodes={}",
-                anilist_id,
-                cache_key,
-                episodes.len()
-            );
         }
 
         Ok(episodes)
+    }
+
+    pub async fn get_background(
+        &self,
+        anilist_id: u32,
+        format: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        let cache_key = anilist_id.saturating_add(TVDB_BACKGROUND_CACHE_KEY_OFFSET);
+        let now = Utc::now().timestamp();
+
+        {
+            let db = self.db.lock().unwrap();
+            let cache = EpisodeCache::new(&db);
+            if let Ok(Some(cached)) = cache.get::<Value>(cache_key) {
+                if let Some(url) = cached["url"].as_str().map(|value| value.to_string()) {
+                    return Ok(Some(url));
+                }
+
+                if cached["missing_until"].as_i64().unwrap_or(0) > now {
+                    return Ok(None);
+                }
+            }
+        }
+
+        let background = match self
+            .client
+            .get_background(anilist_id, format, &self.mapping)
+            .await
+        {
+            Ok(url) => url,
+            Err(TvdbError::Skipped(_) | TvdbError::MappingNotFound(_) | TvdbError::NotFound(_)) => {
+                None
+            }
+            Err(_) => None,
+        };
+
+        let cache_payload = if let Some(url) = &background {
+            serde_json::json!({
+                "url": url,
+                "missing_until": Value::Null
+            })
+        } else {
+            serde_json::json!({
+                "url": Value::Null,
+                "missing_until": now + TVDB_BACKGROUND_MISS_TTL_SECONDS
+            })
+        };
+
+        {
+            let db = self.db.lock().unwrap();
+            let cache = EpisodeCache::new(&db);
+            let _ = cache.set(cache_key, &cache_payload);
+        }
+
+        Ok(background)
     }
 }
 

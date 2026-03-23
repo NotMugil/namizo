@@ -1,10 +1,24 @@
+<script lang="ts" context="module">
+    const carouselBackgroundCache = new Map<string, string | null>()
+    const carouselBackgroundRequests = new Map<string, Promise<string | null>>()
+</script>
+
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte'
     import { goto } from '$app/navigation'
-    import { PlayIcon, InfoIcon, ArrowLeftIcon, ArrowRightIcon } from 'phosphor-svelte'
+    import { PlayIcon, InfoIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon } from 'phosphor-svelte'
     import type { AnimeSummary } from '$lib/types/anime'
     import TrailerSurface from '$lib/components/shared/TrailerSurface.svelte'
+    import LibraryEntryEditor from '$lib/components/library/LibraryEntryEditor.svelte'
+    import type { LibraryEntry } from '$lib/types/library'
+    import {
+        cacheLibraryEntry,
+        draftLibraryFromSummary,
+        getLibraryStatus,
+        resolveLibraryEntryWithState,
+    } from '$lib/utils/library'
     import { BRANDING_DELAY } from '$lib/constants/ui'
+    import { getTvdbBackground } from '$lib/api/tvdb'
 
     export let items: AnimeSummary[] = []
 
@@ -14,14 +28,31 @@
     let trailerMounted = false
     let showTrailer = false
     let trailerTimer: ReturnType<typeof setTimeout> | null = null
+    let editorOpen = false
+    let selectedEntry: LibraryEntry | null = null
+    let tvdbBackgroundImage: string | null = null
+    let backgroundRequestVersion = 0
+    let currentItemInCollection = false
+    let collectionStatusRequestVersion = 0
 
     $: item = items[current] ?? null
     $: totalItems = Math.min(items.length, 8) // cap at 8 for carousel
+    $: activeBackgroundImage = tvdbBackgroundImage ?? item?.banner_image ?? item?.cover_image ?? ''
 
     $: {
         current
         resetTrailer()
         startTrailerTimer()
+    }
+
+    $: if (item) {
+        tvdbBackgroundImage = null
+        void resolveBackgroundImage(item)
+        void resolveCollectionStatus(item.id)
+    }
+
+    $: if (items.length > 0) {
+        preloadCarouselBackgrounds(items.slice(0, totalItems))
     }
 
     function resetTrailer() {
@@ -73,12 +104,88 @@
         if (!score) return ''
         return (score / 10).toFixed(1)
     }
+
+    function backgroundKey(slide: AnimeSummary): string {
+        return `${slide.id}|${(slide.format ?? '').trim().toUpperCase()}`
+    }
+
+    function preloadCarouselBackgrounds(slides: AnimeSummary[]) {
+        for (const slide of slides) {
+            void fetchBackgroundCached(slide)
+        }
+    }
+
+    function fetchBackgroundCached(slide: AnimeSummary): Promise<string | null> {
+        const key = backgroundKey(slide)
+        const cached = carouselBackgroundCache.get(key)
+        if (cached !== undefined) {
+            return Promise.resolve(cached)
+        }
+
+        const inFlight = carouselBackgroundRequests.get(key)
+        if (inFlight) {
+            return inFlight
+        }
+
+        const request = getTvdbBackground(slide.id, slide.format ?? null)
+            .then((value) => value ?? null)
+            .catch(() => null)
+            .then((value) => {
+                carouselBackgroundCache.set(key, value)
+                carouselBackgroundRequests.delete(key)
+                return value
+            })
+
+        carouselBackgroundRequests.set(key, request)
+        return request
+    }
+
+    async function resolveBackgroundImage(slide: AnimeSummary) {
+        const requestVersion = ++backgroundRequestVersion
+        const resolved = await fetchBackgroundCached(slide)
+        if (requestVersion === backgroundRequestVersion && item?.id === slide.id) {
+            tvdbBackgroundImage = resolved
+        }
+    }
+
+    async function openCollectionEditor() {
+        if (!item) return
+        const fallback = draftLibraryFromSummary(item)
+        try {
+            const resolved = await resolveLibraryEntryWithState(fallback)
+            selectedEntry = resolved.entry
+            currentItemInCollection = resolved.exists
+        } catch {
+            selectedEntry = fallback
+            currentItemInCollection = false
+        }
+        editorOpen = true
+    }
+
+    function onEditorSaved(event: CustomEvent<LibraryEntry>) {
+        selectedEntry = event.detail
+        currentItemInCollection = true
+        cacheLibraryEntry(event.detail)
+        editorOpen = false
+    }
+
+    async function resolveCollectionStatus(anilistId: number) {
+        const requestVersion = ++collectionStatusRequestVersion
+        try {
+            const status = await getLibraryStatus(anilistId)
+            if (requestVersion !== collectionStatusRequestVersion || item?.id !== anilistId) return
+            currentItemInCollection = Boolean(status)
+        } catch {
+            if (requestVersion !== collectionStatusRequestVersion || item?.id !== anilistId) return
+            currentItemInCollection = false
+        }
+    }
 </script>
 
 {#if item}
     <div
         class="relative w-full overflow-hidden"
-        style="height: clamp(400px, 60vh, 780px)"
+        style="height: clamp(460px, 68vh, 860px)"
         aria-label="Featured anime carousel"
         role="region"
         onmouseenter={() => { paused = true; if (timer) clearInterval(timer) }}
@@ -87,7 +194,7 @@
         <!-- Background image -->
         <div class="absolute inset-0">
             <img
-                src={item.banner_image ?? item.cover_image}
+                src={activeBackgroundImage}
                 alt={item.title}
                 class="absolute inset-0 z-0 w-full h-full object-cover scale-110 brightness-50
                        transition-opacity duration-700
@@ -100,7 +207,7 @@
                     <div class="absolute inset-0 z-0 transition-opacity duration-700
                                 {showTrailer ? 'opacity-100' : 'opacity-0'}">
                         <TrailerSurface
-                            image={item.banner_image ?? item.cover_image ?? ''}
+                            image={activeBackgroundImage}
                             trailerId={item.trailer_id}
                             loadDelay={0}
                             brandingDelay={0}
@@ -176,6 +283,17 @@
                         <InfoIcon size={14} weight="bold" />
                         Details
                     </a>
+                    <button
+                        type="button"
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
+                               border border-white/20 bg-white/10 text-white
+                               text-[0.82rem] font-medium
+                               transition-colors hover:bg-white/15"
+                        onclick={openCollectionEditor}
+                    >
+                        <PlusIcon size={14} weight="bold" />
+                        {currentItemInCollection ? 'Edit Entry' : 'Add to Collection'}
+                    </button>
                 </div>
             </div>
         </div>
@@ -203,3 +321,5 @@
         </div>
     </div>
 {/if}
+
+<LibraryEntryEditor bind:open={editorOpen} entry={selectedEntry} on:saved={onEditorSaved} />

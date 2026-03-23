@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::anime::summary::AnimeSummary;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimeDetails {
@@ -12,13 +12,14 @@ pub struct AnimeDetails {
     pub description: Option<String>,
     pub genres: Vec<String>,
     pub average_score: Option<u8>,
-    pub status: Option<String>,      // "RELEASING", "FINISHED", "NOT_YET_RELEASED"
-    pub season: Option<String>,      // "SPRING", "SUMMER", "FALL", "WINTER"
+    pub popularity: Option<u32>,
+    pub status: Option<String>, // "RELEASING", "FINISHED", "NOT_YET_RELEASED"
+    pub season: Option<String>, // "SPRING", "SUMMER", "FALL", "WINTER"
     pub season_year: Option<u32>,
-    pub format: Option<String>,      // "TV", "MOVIE", "OVA", "ONA"
+    pub format: Option<String>, // "TV", "MOVIE", "OVA", "ONA"
     pub episode_count: Option<u32>,
     pub studios: Vec<String>,
-    pub trailer_id: Option<String>,  // YouTube video ID only, site filtered in mapping
+    pub trailer_id: Option<String>, // YouTube video ID only, site filtered in mapping
     pub characters: Vec<Character>,
     pub relations: Vec<AnimeSummary>,
     pub recommendations: Vec<AnimeSummary>,
@@ -30,7 +31,7 @@ pub struct Character {
     pub id: u32,
     pub name: String,
     pub image: Option<String>,
-    pub role: String,        // "MAIN", "SUPPORTING"
+    pub role: String, // "MAIN", "SUPPORTING"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

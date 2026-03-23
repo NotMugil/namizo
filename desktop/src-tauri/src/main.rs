@@ -5,7 +5,7 @@ mod state;
 
 use std::path::PathBuf;
 
-use namizo_core::{AnimeService, PlaybackService, StreamService, TvdbService};
+use namizo_core::{AnimeService, LibraryService, PlaybackService, StreamService, TvdbService};
 use state::AppState;
 use tauri::Manager;
 
@@ -37,6 +37,8 @@ fn main() {
                 app.manage(AppState {
                     anime_service: AnimeService::new(&db_path)
                         .expect("failed to init anime service"),
+                    library_service: LibraryService::new(&db_path)
+                        .expect("failed to init library service"),
                     stream_service: StreamService::new(),
                     playback_service,
                     tvdb_service,
@@ -53,6 +55,12 @@ fn main() {
             commands::anime::get_anime_details,
             commands::anime::search_anime,
             commands::anime::discover_anime,
+            commands::library::library_fetch,
+            commands::library::library_save,
+            commands::library::library_remove,
+            commands::library::library_progress,
+            commands::library::library_resume,
+            commands::library::library_facets,
             commands::stream::stream_search,
             commands::stream::stream_episodes,
             commands::stream::stream_sources,
@@ -62,6 +70,7 @@ fn main() {
             commands::jikan::get_jikan_episodes,
             commands::jikan::get_jikan_episodes_page,
             commands::tvdb::get_tvdb_episodes,
+            commands::tvdb::get_tvdb_background,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

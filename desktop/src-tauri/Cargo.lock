@@ -2532,6 +2532,7 @@ name = "namizo-core"
 version = "0.1.0"
 dependencies = [
  "anilist",
+ "chrono",
  "domain",
  "futures",
  "jikan",
@@ -4289,6 +4290,7 @@ name = "store"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "domain",
  "rusqlite",
  "serde",
  "serde_json",

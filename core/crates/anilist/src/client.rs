@@ -32,6 +32,43 @@ impl AnilistClient {
         mapping::to_details(&response)
     }
 
+    pub async fn fetch_genres(&self) -> Result<Vec<String>, AnilistError> {
+        let response = self
+            .post(graphql::FACETS_QUERY, json!({ "page": 1, "perPage": 50 }))
+            .await?;
+        if let Some(errors) = response["errors"].as_array() {
+            if !errors.is_empty() {
+                let messages = errors
+                    .iter()
+                    .filter_map(|entry| entry["message"].as_str())
+                    .map(str::trim)
+                    .filter(|message| !message.is_empty())
+                    .collect::<Vec<_>>();
+                let message = if messages.is_empty() {
+                    "AniList GraphQL request failed.".to_string()
+                } else {
+                    messages.join(" | ")
+                };
+                return Err(AnilistError::Parse(message));
+            }
+        }
+
+        let media_items = response["data"]["Page"]["media"]
+            .as_array()
+            .ok_or_else(|| AnilistError::Parse("missing facets media array".to_string()))?;
+
+        let genres = media_items
+            .iter()
+            .flat_map(|media| media["genres"].as_array().into_iter().flatten())
+            .filter_map(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>();
+
+        Ok(genres)
+    }
+
     // ── private ──────────────────────────────────────────────────────────────
 
     async fn post(&self, query: &str, variables: Value) -> Result<Value, AnilistError> {

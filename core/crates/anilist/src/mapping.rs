@@ -1,6 +1,6 @@
-use serde_json::Value;
-use domain::{AnimeDetails, AnimeSummary, Character, DiscoverPage, Episode};
 use crate::error::AnilistError;
+use domain::{AnimeDetails, AnimeSummary, Character, DiscoverPage, Episode};
+use serde_json::Value;
 
 pub fn to_summary_list(response: &Value) -> Result<Vec<AnimeSummary>, AnilistError> {
     if let Some(error) = response_error_message(response) {
@@ -74,17 +74,21 @@ fn resolve_title(m: &Value) -> String {
 
 fn str_array(v: &Value) -> Vec<String> {
     v.as_array()
-        .map(|arr| arr.iter().filter_map(|i| i.as_str().map(|s| s.to_string())).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|i| i.as_str().map(|s| s.to_string()))
+                .collect()
+        })
         .unwrap_or_default()
 }
 
 fn map_character(edge: &Value) -> Option<Character> {
     let node = &edge["node"];
     Some(Character {
-        id:    node["id"].as_u64()? as u32,
-        name:  node["name"]["full"].as_str()?.to_string(),
+        id: node["id"].as_u64()? as u32,
+        name: node["name"]["full"].as_str()?.to_string(),
         image: node["image"]["large"].as_str().map(|s| s.to_string()),
-        role:  edge["role"].as_str().unwrap_or("SUPPORTING").to_string(),
+        role: edge["role"].as_str().unwrap_or("SUPPORTING").to_string(),
     })
 }
 
@@ -98,16 +102,19 @@ fn to_summary(m: &Value) -> Option<AnimeSummary> {
     };
 
     Some(AnimeSummary {
-        id:            m["id"].as_u64()? as u32,
-        title:         resolve_title(m),
-        cover_image:   m["coverImage"]["large"].as_str()?.to_string(),
-        description:   m["description"].as_str().map(|s| s.to_string()),
+        id: m["id"].as_u64()? as u32,
+        title: resolve_title(m),
+        cover_image: m["coverImage"]["large"].as_str()?.to_string(),
+        description: m["description"].as_str().map(|s| s.to_string()),
         average_score: m["averageScore"].as_u64().map(|s| s as u8),
-        genres:        str_array(&m["genres"]),
-        format:        m["format"].as_str().map(|s| s.to_string()),
-        episodes:      m["episodes"].as_u64().map(|e| e as u32),
+        genres: str_array(&m["genres"]),
+        format: m["format"].as_str().map(|s| s.to_string()),
+        episodes: m["episodes"].as_u64().map(|e| e as u32),
         banner_image: m["bannerImage"].as_str().map(|s| s.to_string()),
         trailer_id,
+        status: m["status"].as_str().map(|s| s.to_string()),
+        next_airing_episode: m["nextAiringEpisode"]["episode"].as_u64().map(|v| v as u32),
+        next_airing_at: m["nextAiringEpisode"]["airingAt"].as_i64(),
     })
 }
 
@@ -121,13 +128,14 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
     let studios = m["studios"]["nodes"]
         .as_array()
         .map(|nodes| {
-            nodes.iter()
+            nodes
+                .iter()
                 .filter_map(|n| n["name"].as_str().map(|s| s.to_string()))
                 .collect()
         })
         .unwrap_or_default();
 
-        let characters = m["characters"]["edges"]
+    let characters = m["characters"]["edges"]
         .as_array()
         .map(|edges| edges.iter().filter_map(map_character).collect())
         .unwrap_or_default();
@@ -135,11 +143,14 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
     let relations = m["relations"]["edges"]
         .as_array()
         .map(|edges| {
-            edges.iter()
+            edges
+                .iter()
                 .filter_map(|e| {
                     // skip manga/novel relations
                     let kind = e["node"]["type"].as_str().unwrap_or("");
-                    if kind != "ANIME" { return None; }
+                    if kind != "ANIME" {
+                        return None;
+                    }
                     to_summary(&e["node"])
                 })
                 .collect()
@@ -149,31 +160,37 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
     let recommendations = m["recommendations"]["nodes"]
         .as_array()
         .map(|nodes| {
-            nodes.iter()
+            nodes
+                .iter()
                 .filter_map(|n| to_summary(&n["mediaRecommendation"]))
                 .collect()
         })
         .unwrap_or_default();
-    
+
     let episodes: Vec<Episode> = (1..=m["episodes"].as_u64().unwrap_or(0) as u32)
-        .map(|n| Episode { number: n, title: None, thumbnail: None, description: None })
+        .map(|n| Episode {
+            number: n,
+            title: None,
+            thumbnail: None,
+            description: None,
+        })
         .collect();
 
-
     Some(AnimeDetails {
-        id:            m["id"].as_u64()? as u32,
+        id: m["id"].as_u64()? as u32,
         id_mal: m["idMal"].as_u64().map(|v| v as u32),
-        title:         resolve_title(m),
+        title: resolve_title(m),
         title_japanese: m["title"]["native"].as_str().map(|s| s.to_string()),
-        cover_image:   m["coverImage"]["large"].as_str()?.to_string(),
-        banner_image:  m["bannerImage"].as_str().map(|s| s.to_string()),
-        description:   m["description"].as_str().map(|s| s.to_string()),
-        genres:        str_array(&m["genres"]),
+        cover_image: m["coverImage"]["large"].as_str()?.to_string(),
+        banner_image: m["bannerImage"].as_str().map(|s| s.to_string()),
+        description: m["description"].as_str().map(|s| s.to_string()),
+        genres: str_array(&m["genres"]),
         average_score: m["averageScore"].as_u64().map(|s| s as u8),
-        status:        m["status"].as_str().map(|s| s.to_string()),
-        season:        m["season"].as_str().map(|s| s.to_string()),
-        season_year:   m["seasonYear"].as_u64().map(|y| y as u32),
-        format:        m["format"].as_str().map(|s| s.to_string()),
+        popularity: m["popularity"].as_u64().map(|p| p as u32),
+        status: m["status"].as_str().map(|s| s.to_string()),
+        season: m["season"].as_str().map(|s| s.to_string()),
+        season_year: m["seasonYear"].as_u64().map(|y| y as u32),
+        format: m["format"].as_str().map(|s| s.to_string()),
         episode_count: m["episodes"].as_u64().map(|e| e as u32),
         studios,
         trailer_id,

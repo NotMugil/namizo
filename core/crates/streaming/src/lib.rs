@@ -83,9 +83,7 @@ impl PlaybackService {
             .with_state(state.clone());
 
         tokio::spawn(async move {
-            if let Err(error) = axum::serve(listener, router).await {
-                eprintln!("[playback] proxy server stopped: {error}");
-            }
+            let _ = axum::serve(listener, router).await;
         });
 
         Ok(Self {
@@ -98,10 +96,6 @@ impl PlaybackService {
         self.cleanup_expired_sessions().await;
         let headers = source.headers.unwrap_or_default();
         let session_id = random_session_id();
-        eprintln!(
-            "[playback_start] session_id={} kind={} source_url={} headers={:?}",
-            session_id, source.kind, source.url, headers
-        );
         self.proxy_state.sessions.write().await.insert(
             session_id.clone(),
             PlaybackSession {
@@ -122,10 +116,8 @@ impl PlaybackService {
 
     pub async fn stop(&self, session_id: Option<&str>) {
         if let Some(id) = session_id {
-            eprintln!("[playback_stop] session_id={id}");
             self.proxy_state.sessions.write().await.remove(id);
         } else {
-            eprintln!("[playback_stop] cleanup_expired_sessions");
             self.cleanup_expired_sessions().await;
         }
     }
@@ -168,17 +160,12 @@ async fn proxy_request(
     };
 
     let Some(session) = session else {
-        eprintln!("[playback_proxy] session_id={} not found", session_id);
         return simple_response(StatusCode::NOT_FOUND, "Playback session not found");
     };
 
     let target_url = match resolve_target_url(&session, rest.as_deref()) {
         Ok(url) => url,
-        Err(error) => {
-            eprintln!(
-                "[playback_proxy] session_id={} invalid target rest={:?}: {}",
-                session_id, rest, error
-            );
+        Err(_) => {
             return simple_response(StatusCode::BAD_REQUEST, "Invalid playback target");
         }
     };
@@ -189,17 +176,16 @@ async fn proxy_request(
     for (key, value) in &session.headers {
         request = request.header(key, value);
     }
-    if !hls_session && !playlist_like_url && let Some(value) = incoming_headers.get(RANGE) {
+    if !hls_session
+        && !playlist_like_url
+        && let Some(value) = incoming_headers.get(RANGE)
+    {
         request = request.header(RANGE, value);
     }
 
     let upstream = match request.send().await {
         Ok(response) => response,
-        Err(error) => {
-            eprintln!(
-                "[playback_proxy] session_id={} upstream request failed target={}: {}",
-                session_id, target_url, error
-            );
+        Err(_) => {
             return simple_response(StatusCode::BAD_GATEWAY, "Failed to load stream source");
         }
     };
@@ -210,11 +196,7 @@ async fn proxy_request(
     if looks_like_playlist_target(&target_url, &upstream_headers) {
         let bytes = match upstream.bytes().await {
             Ok(value) => value,
-            Err(error) => {
-                eprintln!(
-                    "[playback_proxy] session_id={} upstream body read failed target={}: {}",
-                    session_id, target_url, error
-                );
+            Err(_) => {
                 return simple_response(
                     StatusCode::BAD_GATEWAY,
                     "Failed to read stream source response",
@@ -223,10 +205,6 @@ async fn proxy_request(
         };
 
         if !looks_like_playlist_body(&bytes) {
-            eprintln!(
-                "[playback_proxy] session_id={} suspected playlist but body is not m3u8 target={}",
-                session_id, target_url
-            );
             return build_response(
                 status,
                 Body::from(bytes),
@@ -241,14 +219,6 @@ async fn proxy_request(
 
         let body = String::from_utf8_lossy(&bytes);
         let rewritten = rewrite_playlist(&body, &target_url, &session_id);
-        eprintln!(
-            "[playback_proxy] session_id={} playlist target={} status={} bytes_in={} bytes_out={}",
-            session_id,
-            target_url,
-            status.as_u16(),
-            bytes.len(),
-            rewritten.len()
-        );
         return build_response(
             StatusCode::OK,
             Body::from(rewritten.clone()),
@@ -262,23 +232,8 @@ async fn proxy_request(
         .get(CONTENT_LENGTH)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
-
-    eprintln!(
-        "[playback_proxy] session_id={} media target={} status={} content_length={:?}",
-        session_id,
-        target_url,
-        status.as_u16(),
-        content_length
-    );
-
     let body = Body::from_stream(upstream.bytes_stream());
-    build_response(
-        status,
-        body,
-        &upstream_headers,
-        false,
-        content_length,
-    )
+    build_response(status, body, &upstream_headers, false, content_length)
 }
 
 fn resolve_target_url(

@@ -8,22 +8,12 @@ pub async fn stream_search(
     query: String,
     state: State<'_, AppState>,
 ) -> Result<Vec<StreamableAnime>, String> {
-    eprintln!(
-        "[tauri:stream_search] provider={} query={:?}",
-        provider, query
-    );
-    match state.stream_service.search(&provider, &query).await {
+match state.stream_service.search(&provider, &query).await {
         Ok(results) => {
-            eprintln!(
-                "[tauri:stream_search] provider={} results={}",
-                provider,
-                results.len()
-            );
-            Ok(results)
+Ok(results)
         }
         Err(error) => {
-            eprintln!("[tauri:stream_search] provider={} error={}", provider, error);
-            Err(error)
+Err(error)
         }
     }
 }
@@ -34,26 +24,12 @@ pub async fn stream_episodes(
     anime: StreamableAnime,
     state: State<'_, AppState>,
 ) -> Result<Vec<StreamingEpisode>, String> {
-    eprintln!(
-        "[tauri:stream_episodes] provider={} anime_id={} title={:?}",
-        provider, anime.id, anime.title
-    );
-    match state.stream_service.episodes(&provider, &anime).await {
+match state.stream_service.episodes(&provider, &anime).await {
         Ok(episodes) => {
-            eprintln!(
-                "[tauri:stream_episodes] provider={} anime_id={} episodes={}",
-                provider,
-                anime.id,
-                episodes.len()
-            );
-            Ok(episodes)
+Ok(episodes)
         }
         Err(error) => {
-            eprintln!(
-                "[tauri:stream_episodes] provider={} anime_id={} error={}",
-                provider, anime.id, error
-            );
-            Err(error)
+Err(error)
         }
     }
 }
@@ -65,27 +41,12 @@ pub async fn stream_sources(
     options: Option<SourceOptions>,
     state: State<'_, AppState>,
 ) -> Result<Vec<StreamSource>, String> {
-    eprintln!(
-        "[tauri:stream_sources] provider={} anime_id={} episode={} source_id={:?} options={:?}",
-        provider, episode.anime_id, episode.number, episode.source_id, options
-    );
-    match state.stream_service.sources(&provider, &episode, options).await {
+match state.stream_service.sources(&provider, &episode, options).await {
         Ok(sources) => {
-            eprintln!(
-                "[tauri:stream_sources] provider={} anime_id={} episode={} sources={}",
-                provider,
-                episode.anime_id,
-                episode.number,
-                sources.len()
-            );
-            Ok(sources)
+Ok(sources)
         }
         Err(error) => {
-            eprintln!(
-                "[tauri:stream_sources] provider={} anime_id={} episode={} error={}",
-                provider, episode.anime_id, episode.number, error
-            );
-            Err(error)
+Err(error)
         }
     }
 }

@@ -1,6 +1,6 @@
-use tauri::State;
-use namizo_core::TvdbEpisode;
 use crate::state::AppState;
+use namizo_core::TvdbEpisode;
+use tauri::State;
 
 #[tauri::command]
 pub async fn get_tvdb_episodes(
@@ -8,27 +8,20 @@ pub async fn get_tvdb_episodes(
     format: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<TvdbEpisode>, String> {
-    println!(
-        "[TVDB][command] get_tvdb_episodes anilist_id={} format={:?}",
-        anilist_id, format
-    );
-
-    let result = state.tvdb_service
+    state
+        .tvdb_service
         .get_episodes(anilist_id, format.as_deref())
-        .await;
+        .await
+}
 
-    match &result {
-        Ok(episodes) => println!(
-            "[TVDB][command] success anilist_id={} episodes={}",
-            anilist_id,
-            episodes.len()
-        ),
-        Err(err) => eprintln!(
-            "[TVDB][command] failure anilist_id={} err={}",
-            anilist_id,
-            err
-        ),
-    }
-
-    result
+#[tauri::command]
+pub async fn get_tvdb_background(
+    anilist_id: u32,
+    format: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    state
+        .tvdb_service
+        .get_background(anilist_id, format.as_deref())
+        .await
 }

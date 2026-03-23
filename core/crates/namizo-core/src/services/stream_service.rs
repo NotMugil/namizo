@@ -34,30 +34,16 @@ impl StreamService {
         provider_name: &str,
         query: &str,
     ) -> Result<Vec<StreamableAnime>, String> {
-        eprintln!(
-            "[stream_search] provider={} query={:?}",
-            provider_name, query
-        );
-
-        let provider = self.provider(provider_name);
+let provider = self.provider(provider_name);
         match provider
             .search(query.into())
             .await
         {
             Ok(results) => {
-                eprintln!(
-                    "[stream_search] provider={} results={}",
-                    provider_name,
-                    results.len()
-                );
-                Ok(results)
+Ok(results)
             }
             Err(error) => {
-                eprintln!(
-                    "[stream_search] provider={} error={}",
-                    provider_name, error
-                );
-                Err(error.to_string())
+Err(error.to_string())
             }
         }
     }
@@ -67,31 +53,16 @@ impl StreamService {
         provider_name: &str,
         anime: &StreamableAnime,
     ) -> Result<Vec<StreamingEpisode>, String> {
-        eprintln!(
-            "[stream_episodes] provider={} anime_id={} title={:?}",
-            provider_name, anime.id, anime.title
-        );
-
-        let provider = self.provider(provider_name);
+let provider = self.provider(provider_name);
         match provider
             .get_episodes(anime)
             .await
         {
             Ok(episodes) => {
-                eprintln!(
-                    "[stream_episodes] provider={} anime_id={} episodes={}",
-                    provider_name,
-                    anime.id,
-                    episodes.len()
-                );
-                Ok(episodes)
+Ok(episodes)
             }
             Err(error) => {
-                eprintln!(
-                    "[stream_episodes] provider={} anime_id={} error={}",
-                    provider_name, anime.id, error
-                );
-                Err(error.to_string())
+Err(error.to_string())
             }
         }
     }
@@ -102,32 +73,16 @@ impl StreamService {
         episode: &StreamingEpisode,
         options: Option<SourceOptions>,
     ) -> Result<Vec<StreamSource>, String> {
-        eprintln!(
-            "[stream_sources] provider={} anime_id={} episode={} source_id={:?} options={:?}",
-            provider_name, episode.anime_id, episode.number, episode.source_id, options
-        );
-
-        let provider = self.provider(provider_name);
+let provider = self.provider(provider_name);
         match provider
             .get_sources(episode, options.as_ref())
             .await
         {
             Ok(sources) => {
-                eprintln!(
-                    "[stream_sources] provider={} anime_id={} episode={} sources={}",
-                    provider_name,
-                    episode.anime_id,
-                    episode.number,
-                    sources.len()
-                );
-                Ok(sources)
+Ok(sources)
             }
             Err(error) => {
-                eprintln!(
-                    "[stream_sources] provider={} anime_id={} episode={} error={}",
-                    provider_name, episode.anime_id, episode.number, error
-                );
-                Err(error.to_string())
+Err(error.to_string())
             }
         }
     }

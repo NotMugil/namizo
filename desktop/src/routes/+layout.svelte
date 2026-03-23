@@ -3,6 +3,7 @@
   import Topbar from "$components/layout/Topbar.svelte";
   import Sidebar from "$components/layout/Sidebar.svelte";
   import { sidebar } from "$lib/state.svelte";
+  import { Toaster } from "svelte-sonner";
 
   let { children } = $props();
 </script>
@@ -31,3 +32,5 @@
 >
   <Sidebar />
 </div>
+
+<Toaster theme="dark" richColors position="bottom-right" />

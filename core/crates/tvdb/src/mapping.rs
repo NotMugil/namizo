@@ -20,23 +20,13 @@ pub async fn load_mapping(
     client: &Client,
 ) -> Result<Vec<Value>, TvdbError> {
     let cached_path = app_data_dir.join("anime-list-full.json");
-    println!(
-        "[TVDB][mapping] load start cached_path={} bundled_path={}",
-        cached_path.display(),
-        bundled_path.display()
-    );
-
     // try to update if stale or missing
     let should_update = should_update(&cached_path);
-    println!("[TVDB][mapping] should_update={}", should_update);
     if should_update {
         match download_mapping(client, &cached_path).await {
-            Ok(_) => {
-                println!("[TVDB][mapping] mapping downloaded to {}", cached_path.display());
-            }
-            Err(err) => {
+            Ok(_) => {}
+            Err(_) => {
                 // download failed - will fall back to cached or bundled
-                eprintln!("[TVDB][mapping] download failed err={}", err);
             }
         }
     }
@@ -47,11 +37,8 @@ pub async fn load_mapping(
     } else {
         bundled_path.to_path_buf()
     };
-    println!("[TVDB][mapping] using path={}", path.display());
-
     let data = std::fs::read_to_string(&path)?;
     let entries: Vec<Value> = serde_json::from_str(&data)?;
-    println!("[TVDB][mapping] loaded entries={}", entries.len());
     Ok(entries)
 }
 
@@ -95,21 +82,8 @@ pub fn lookup_tvdb_match(
     }
 
     if let Some((m, _)) = best_match {
-        println!(
-            "[TVDB][mapping] lookup anilist_id={} format={:?} -> tvdb_id={} season_tvdb={:?}",
-            anilist_id,
-            format,
-            m.tvdb_id,
-            m.season_tvdb
-        );
         return Ok(m);
     }
-
-    eprintln!(
-        "[TVDB][mapping] lookup failed anilist_id={} format={:?}",
-        anilist_id,
-        format
-    );
     Err(TvdbError::MappingNotFound(anilist_id))
 }
 

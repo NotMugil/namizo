@@ -7,4 +7,7 @@ pub enum StoreError {
 
     #[error("Serialization error: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("Invalid data: {0}")]
+    InvalidData(String),
 }

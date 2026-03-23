@@ -147,11 +147,6 @@ impl AnimeService {
                 if is_valid_cached_details(&cached) {
                     return Ok(cached);
                 }
-
-                eprintln!(
-                    "[ANIME][service] invalid_fresh_cache id={} reason=episodes_shape_mismatch; evicting",
-                    id
-                );
                 self.evict_details_cache(id);
                 None
             }
@@ -159,10 +154,6 @@ impl AnimeService {
                 if is_valid_cached_details(&cached) {
                     Some(cached)
                 } else {
-                    eprintln!(
-                        "[ANIME][service] invalid_stale_cache id={} reason=episodes_shape_mismatch; evicting",
-                        id
-                    );
                     self.evict_details_cache(id);
                     None
                 }
@@ -178,12 +169,7 @@ impl AnimeService {
                     cache.set(id, &fresh)
                 };
 
-                if let Err(error) = save_result {
-                    eprintln!(
-                        "[ANIME][service] failed to persist anime details cache id={} err={}",
-                        id, error
-                    );
-                }
+                let _ = save_result;
 
                 Ok(fresh)
             }
@@ -238,12 +224,7 @@ impl AnimeService {
     fn evict_details_cache(&self, id: u32) {
         let db = self.db.lock().unwrap();
         let cache = AnimeDetailsCache::new(&db);
-        if let Err(error) = cache.delete(id) {
-            eprintln!(
-                "[ANIME][service] failed_to_evict_details_cache id={} err={}",
-                id, error
-            );
-        }
+        let _ = cache.delete(id);
     }
 }
 
