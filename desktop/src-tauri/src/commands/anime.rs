@@ -1,7 +1,7 @@
+use crate::state::AppState;
+use namizo_core::{AnimeDetails, AnimeSummary, DiscoverFilters, DiscoverPage};
 use std::collections::HashMap;
 use tauri::State;
-use namizo_core::{AnimeDetails, AnimeSummary};
-use crate::state::AppState;
 
 #[tauri::command]
 pub async fn get_trending(state: State<'_, AppState>) -> Result<Vec<AnimeSummary>, String> {
@@ -9,8 +9,11 @@ pub async fn get_trending(state: State<'_, AppState>) -> Result<Vec<AnimeSummary
 }
 
 #[tauri::command]
-pub async fn get_popular(state: State<'_, AppState>) -> Result<Vec<AnimeSummary>, String> {
-    state.anime_service.popular(20).await
+pub async fn get_popular(
+    per_page: Option<u8>,
+    state: State<'_, AppState>,
+) -> Result<Vec<AnimeSummary>, String> {
+    state.anime_service.popular(per_page.unwrap_or(20)).await
 }
 
 #[tauri::command]
@@ -32,4 +35,26 @@ pub async fn get_anime_details(
     state: State<'_, AppState>,
 ) -> Result<AnimeDetails, String> {
     state.anime_service.details(id).await
+}
+
+#[tauri::command]
+pub async fn search_anime(
+    query: String,
+    per_page: Option<u8>,
+    state: State<'_, AppState>,
+) -> Result<Vec<AnimeSummary>, String> {
+    state.anime_service.search(&query, per_page.unwrap_or(30)).await
+}
+
+#[tauri::command]
+pub async fn discover_anime(
+    filters: Option<DiscoverFilters>,
+    page: Option<u32>,
+    per_page: Option<u8>,
+    state: State<'_, AppState>,
+) -> Result<DiscoverPage, String> {
+    state
+        .anime_service
+        .discover(filters.unwrap_or_default(), page.unwrap_or(1), per_page.unwrap_or(24))
+        .await
 }

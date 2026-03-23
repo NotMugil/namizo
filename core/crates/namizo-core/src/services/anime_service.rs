@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use anilist::AnilistClient;
-use anilist::queries::{by_genre, details, popular, top_rated, trending};
-use domain::{AnimeDetails, AnimeSummary};
+use anilist::queries::{by_genre, details, discover, popular, search, top_rated, trending};
+use domain::{AnimeDetails, AnimeSummary, DiscoverFilters, DiscoverPage};
 use futures::future::join_all;
 use store::{AnimeDetailsCache, CacheState, Database, StoreError};
 
@@ -69,6 +69,28 @@ impl AnimeService {
                 .map_err(|e| e.to_string())
         })
         .await
+    }
+
+    pub async fn search(&self, query: &str, per_page: u8) -> Result<Vec<AnimeSummary>, String> {
+        let normalized = query.trim();
+        if normalized.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        search::fetch_search(&self.client, normalized, per_page)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn discover(
+        &self,
+        filters: DiscoverFilters,
+        page: u32,
+        per_page: u8,
+    ) -> Result<DiscoverPage, String> {
+        discover::fetch_discover(&self.client, &filters, page, per_page)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     pub async fn genres_batch(

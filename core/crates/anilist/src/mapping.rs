@@ -1,8 +1,12 @@
 use serde_json::Value;
-use domain::{AnimeDetails, AnimeSummary, Character, Episode};
+use domain::{AnimeDetails, AnimeSummary, Character, DiscoverPage, Episode};
 use crate::error::AnilistError;
 
 pub fn to_summary_list(response: &Value) -> Result<Vec<AnimeSummary>, AnilistError> {
+    if let Some(error) = response_error_message(response) {
+        return Err(AnilistError::Parse(error));
+    }
+
     let media_list = response["data"]["Page"]["media"]
         .as_array()
         .ok_or_else(|| AnilistError::Parse("missing media array".into()))?;
@@ -11,8 +15,53 @@ pub fn to_summary_list(response: &Value) -> Result<Vec<AnimeSummary>, AnilistErr
 }
 
 pub fn to_details(response: &Value) -> Result<AnimeDetails, AnilistError> {
+    if let Some(error) = response_error_message(response) {
+        return Err(AnilistError::Parse(error));
+    }
+
     let m = &response["data"]["Media"];
     map_details(m).ok_or_else(|| AnilistError::Parse("failed to parse details".into()))
+}
+
+pub fn to_discover_page(response: &Value) -> Result<DiscoverPage, AnilistError> {
+    if let Some(error) = response_error_message(response) {
+        return Err(AnilistError::Parse(error));
+    }
+
+    let page = &response["data"]["Page"];
+    let media_list = page["media"]
+        .as_array()
+        .ok_or_else(|| AnilistError::Parse("missing media array".into()))?;
+    let page_info = &page["pageInfo"];
+
+    Ok(DiscoverPage {
+        items: media_list.iter().filter_map(to_summary).collect(),
+        current_page: page_info["currentPage"].as_u64().unwrap_or(1) as u32,
+        has_next_page: page_info["hasNextPage"].as_bool().unwrap_or(false),
+        total: page_info["total"].as_u64().map(|v| v as u32),
+        last_page: page_info["lastPage"].as_u64().map(|v| v as u32),
+        per_page: page_info["perPage"].as_u64().map(|v| v as u32),
+    })
+}
+
+fn response_error_message(response: &Value) -> Option<String> {
+    let errors = response["errors"].as_array()?;
+    if errors.is_empty() {
+        return None;
+    }
+
+    let messages = errors
+        .iter()
+        .filter_map(|entry| entry["message"].as_str())
+        .map(|message| message.trim())
+        .filter(|message| !message.is_empty())
+        .collect::<Vec<_>>();
+
+    if messages.is_empty() {
+        Some("AniList GraphQL request failed.".to_string())
+    } else {
+        Some(messages.join(" | "))
+    }
 }
 
 fn resolve_title(m: &Value) -> String {

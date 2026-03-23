@@ -1,12 +1,7 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import type { Episode } from "$lib/types/anime";
     import { ArrowLeftIcon, ArrowRightIcon } from "phosphor-svelte";
-    import { EPISODES_PER_PAGE } from "$lib/constants/ui";
-
-    const dispatch = createEventDispatcher<{
-        loadMore: { requiredCount: number };
-    }>();
 
     export let episodes: Episode[];
     export let cover_image: string;
@@ -14,18 +9,58 @@
     export let totalEpisodes: number | null = null;
     export let canLoadMore: boolean = false;
     export let loadingMore: boolean = false;
+    export let onLoadMore: ((requiredCount: number) => void) | null = null;
 
     let episodePage = 1;
+    let perPage = 10;
     let lastAnimeId = anime_id;
     let lastRequestedRequiredCount = 0;
+    let isReady = false;
 
-    $: effectiveTotalEpisodes = Math.max(
-        episodes.length,
-        Number.isFinite(totalEpisodes ?? null) ? (totalEpisodes as number) : 0,
-    );
-    $: totalPages = Math.max(
+    function getColumns(width: number): number {
+        return width < 760 ? 2 : 5;
+    }
+
+    function syncPerPage(width: number) {
+        const columns = getColumns(width);
+        perPage = columns * 2;
+    }
+
+    function handleResize() {
+        syncPerPage(window.innerWidth);
+    }
+
+    onMount(() => {
+        syncPerPage(window.innerWidth);
+        window.addEventListener("resize", handleResize, { passive: true });
+        isReady = true;
+    });
+
+    onDestroy(() => {
+        window.removeEventListener("resize", handleResize);
+    });
+
+    $: hasKnownTotalEpisodes =
+        Number.isFinite(totalEpisodes ?? null) && Number(totalEpisodes) > 0;
+    $: knownTotalEpisodeCount = hasKnownTotalEpisodes
+        ? Number(totalEpisodes)
+        : null;
+    $: loadedEpisodeCount = episodes.length;
+    // Keep page denominator based on known total when available.
+    $: effectiveTotalEpisodes = hasKnownTotalEpisodes
+        ? (knownTotalEpisodeCount as number)
+        : loadedEpisodeCount;
+    // For unknown totals, keep one virtual page ahead to allow progressive loading.
+    $: virtualTotalEpisodes = hasKnownTotalEpisodes
+        ? effectiveTotalEpisodes
+        : canLoadMore
+            ? loadedEpisodeCount + perPage
+            : loadedEpisodeCount;
+
+    $: totalPages = Math.max(1, Math.ceil(Math.max(1, virtualTotalEpisodes) / perPage));
+    $: displayTotalPages = Math.max(
         1,
-        Math.ceil(effectiveTotalEpisodes / EPISODES_PER_PAGE),
+        Math.ceil(Math.max(1, effectiveTotalEpisodes) / perPage),
     );
 
     $: if (anime_id !== lastAnimeId) {
@@ -34,22 +69,12 @@
         lastRequestedRequiredCount = 0;
     }
 
-    $: if (episodes.length > 0) {
-        episodePage = Math.min(
-            Math.max(episodePage, 1),
-            Math.max(totalPages, 1),
-        );
+    $: if (isReady) {
+        episodePage = Math.min(Math.max(episodePage, 1), totalPages);
     }
 
-    $: if (episodes.length === 0) {
-        episodePage = 1;
-    }
-
-    $: pageStart = (episodePage - 1) * EPISODES_PER_PAGE;
-    $: pageEndExclusive = Math.min(
-        pageStart + EPISODES_PER_PAGE,
-        effectiveTotalEpisodes,
-    );
+    $: pageStart = (episodePage - 1) * perPage;
+    $: pageEndExclusive = Math.min(pageStart + perPage, virtualTotalEpisodes);
     $: pageSize = Math.max(0, pageEndExclusive - pageStart);
     $: pagedEntries = Array.from({ length: pageSize }, (_, offset) => {
         const index = pageStart + offset;
@@ -60,10 +85,15 @@
         };
     });
 
-    $: requiredCountForPage = pageEndExclusive;
+    $: prefetchBuffer = canLoadMore ? perPage : 0;
+    $: requiredCountForPage = hasKnownTotalEpisodes
+        ? Math.min(pageEndExclusive + prefetchBuffer, effectiveTotalEpisodes)
+        : pageEndExclusive + prefetchBuffer;
+
     $: if (episodes.length >= lastRequestedRequiredCount) {
         lastRequestedRequiredCount = 0;
     }
+
     $: if (
         requiredCountForPage > episodes.length &&
         canLoadMore &&
@@ -71,7 +101,15 @@
         requiredCountForPage !== lastRequestedRequiredCount
     ) {
         lastRequestedRequiredCount = requiredCountForPage;
-        dispatch("loadMore", { requiredCount: requiredCountForPage });
+        if (onLoadMore) {
+            onLoadMore(requiredCountForPage);
+        }
+    }
+
+    function onPrevPage() {
+        if (episodePage > 1) {
+            episodePage -= 1;
+        }
     }
 
     function onNextPage() {
@@ -80,9 +118,11 @@
             return;
         }
         if (canLoadMore && !loadingMore) {
-            const fallbackRequiredCount = episodes.length + EPISODES_PER_PAGE;
+            const fallbackRequiredCount = episodes.length + perPage;
             lastRequestedRequiredCount = fallbackRequiredCount;
-            dispatch("loadMore", { requiredCount: fallbackRequiredCount });
+            if (onLoadMore) {
+                onLoadMore(fallbackRequiredCount);
+            }
         }
     }
 </script>
@@ -93,19 +133,18 @@
             <h2 class="section-title">Episodes</h2>
             <div class="flex items-center gap-2">
                 <span class="text-[12px] text-white/40">
-                    Page {episodePage} / {totalPages}
+                    Page {episodePage} / {displayTotalPages}
                 </span>
                 <button
                     class="chevron-btn"
                     disabled={episodePage <= 1}
-                    onclick={() => episodePage--}
+                    onclick={onPrevPage}
                 >
                     <ArrowLeftIcon size={14} weight="bold" />
                 </button>
                 <button
                     class="chevron-btn"
-                    disabled={(episodePage >= totalPages && !canLoadMore) ||
-                        loadingMore}
+                    disabled={(episodePage >= totalPages && !canLoadMore) || loadingMore}
                     onclick={onNextPage}
                 >
                     <ArrowRightIcon size={14} weight="bold" />
@@ -170,7 +209,7 @@
         </div>
 
         {#if loadingMore}
-            <p class="text-[12px] text-white/45">Loading more episodes...</p>
+            <p class="font-mono text-[12px] text-white/45">Loading more episodes...</p>
         {/if}
     </section>
 {/if}

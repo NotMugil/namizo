@@ -1,15 +1,14 @@
 <script lang="ts">
-    import { createEventDispatcher } from "svelte";
     import { MagnifyingGlassIcon, FunnelSimpleIcon } from "phosphor-svelte";
-    import * as Select from "$lib/components/ui/select";
-
-    const dispatch = createEventDispatcher();
+    import SelectPicker from "$lib/components/ui/select/SelectPicker.svelte";
 
     export let episodeNumbers: number[] = [];
     export let fillerNumbers: Set<number> = new Set();
     export let recapNumbers: Set<number> = new Set();
     export let selectedNumber: number = 1;
     export let loading: boolean = false;
+    export let onSelect: ((episodeNumber: number) => void) | undefined =
+        undefined;
 
     let search = "";
     let range = "0-100";
@@ -59,8 +58,8 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col gap-2">
-    <div class="flex flex-wrap items-center gap-1.5">
-        <div class="relative min-w-[170px] flex-1">
+    <div class="flex flex-nowrap items-center gap-1.5">
+        <div class="relative min-w-0 flex-1">
             <MagnifyingGlassIcon
                 size={12}
                 weight="bold"
@@ -75,28 +74,16 @@
             />
         </div>
 
-        <Select.Root
-            type="single"
-            value={range}
-            onValueChange={(value) => {
-                range = value;
-            }}
+        <SelectPicker
+            items={rangeOptions}
+            bind:value={range}
+            triggerClass="h-8 min-w-[94px] shrink-0 rounded-[8px] px-2 text-[0.72rem] text-white/80"
+            contentClass="min-w-[124px]"
         >
-            <Select.Trigger
-                class="h-8 min-w-[96px] rounded-[8px] border border-white/12 bg-white/6 px-2
-                       text-[0.72rem] text-white/80"
-            >
-                <div class="flex items-center gap-1.5">
-                    <FunnelSimpleIcon size={12} weight="bold" />
-                    <span>{range}</span>
-                </div>
-            </Select.Trigger>
-            <Select.Content>
-                {#each rangeOptions as option}
-                    <Select.Item value={option.value} label={option.label} />
-                {/each}
-            </Select.Content>
-        </Select.Root>
+            {#snippet prefix()}
+                <FunnelSimpleIcon size={12} weight="bold" class="text-white/65" />
+            {/snippet}
+        </SelectPicker>
     </div>
 
     <div class="flex-1 min-h-0">
@@ -139,7 +126,7 @@
                               : isRecap
                                 ? 'bg-blue-500/12 text-blue-300/80 hover:bg-blue-500/20'
                                 : 'bg-white/6 text-white/70 hover:bg-white/12'}"
-                        onclick={() => dispatch("select", number)}
+                        onclick={() => onSelect?.(number)}
                     >
                         {number}
                     </button>

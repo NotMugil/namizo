@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap");
 @import "tailwindcss";
 
 @font-face {
@@ -54,6 +55,7 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
 
   --font-sans: "Satoshi", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 /* ── Dark mode (default) ──────────────────────────────────────────────── */

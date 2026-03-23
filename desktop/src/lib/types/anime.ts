@@ -11,6 +11,26 @@ export interface AnimeSummary {
     trailer_id: string | null
 }
 
+export interface DiscoverFilters {
+    search?: string | null
+    genres?: string[]
+    formats?: string[]
+    status?: string | null
+    season?: string | null
+    season_year?: number | null
+    sort?: string[]
+    is_adult?: boolean | null
+}
+
+export interface DiscoverPage {
+    items: AnimeSummary[]
+    current_page: number
+    has_next_page: boolean
+    total: number | null
+    last_page: number | null
+    per_page: number | null
+}
+
 export interface AnimeDetails {
     id: number
     id_mal: number | null

@@ -1,7 +1,37 @@
 pub const MEDIA_PAGE_QUERY: &str = r#"
-    query ($page: Int, $perPage: Int, $sort: [MediaSort], $genre: String) {
+    query (
+      $page: Int
+      $perPage: Int
+      $sort: [MediaSort]
+      $genre: String
+      $genreIn: [String]
+      $formatIn: [MediaFormat]
+      $status: MediaStatus
+      $season: MediaSeason
+      $seasonYear: Int
+      $search: String
+      $isAdult: Boolean
+    ) {
       Page(page: $page, perPage: $perPage) {
-        media(type: ANIME, sort: $sort, genre: $genre) {
+        pageInfo {
+          currentPage
+          hasNextPage
+          total
+          lastPage
+          perPage
+        }
+        media(
+          type: ANIME
+          sort: $sort
+          genre: $genre
+          genre_in: $genreIn
+          format_in: $formatIn
+          status: $status
+          season: $season
+          seasonYear: $seasonYear
+          search: $search
+          isAdult: $isAdult
+        ) {
           id
           title { romaji english }
           coverImage { large }

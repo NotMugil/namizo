@@ -51,6 +51,8 @@ fn main() {
             commands::anime::get_top_rated,
             commands::anime::get_home_genres,
             commands::anime::get_anime_details,
+            commands::anime::search_anime,
+            commands::anime::discover_anime,
             commands::stream::stream_search,
             commands::stream::stream_episodes,
             commands::stream::stream_sources,

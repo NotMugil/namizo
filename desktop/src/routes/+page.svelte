@@ -37,7 +37,7 @@
     <p class="px-6 pt-20 text-center text-red-400">{error}</p>
 {:else}
 <AnimeCarousel items={trending.slice(0, 8)} />
-    <main class="px-6 pt-12 pb-8 space-y-8">
+    <main class="px-6 pt-8 pb-8 space-y-8">
 
         <AnimeRow titleClass="text-lg font-semibold" title="Trending Now"     items={trending} />
         <AnimeRow titleClass="text-lg font-semibold" title="All Time Popular" items={popular} />

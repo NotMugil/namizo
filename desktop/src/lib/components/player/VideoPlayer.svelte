@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, onDestroy, onMount } from "svelte";
+    import { onDestroy, onMount } from "svelte";
     import Hls from "hls.js";
     import {
         ArrowsOutIcon,
@@ -19,6 +19,7 @@
     } from "phosphor-svelte";
     import type { StreamSource, StreamingEpisode } from "$lib/types/stream";
     import { findAdjacentEpisode } from "$lib/utils/watch/episodes";
+    import SelectPicker from "$lib/components/ui/select/SelectPicker.svelte";
     import {
         FRAG_PARSING_RECOVER_THRESHOLD,
         FRAG_PARSING_WINDOW_MS,
@@ -36,7 +37,11 @@
         pathIsHls,
     } from "$lib/utils/player";
 
-    const dispatch = createEventDispatcher();
+    type PlayerEventDetail = {
+        type?: string;
+        message?: string;
+        detail?: unknown;
+    };
 
     export let sources: StreamSource[] = [];
     export let selectedSource: StreamSource | null = null;
@@ -56,6 +61,100 @@
     export let loading: boolean = false;
     export let statusMessage: string = "";
     export let mediaError: string = "";
+    export let onSourceChange: ((source: StreamSource) => void) | undefined =
+        undefined;
+    export let onProviderChange: ((provider: string) => void) | undefined =
+        undefined;
+    export let onToggleAutoPlay: (() => void) | undefined = undefined;
+    export let onToggleAutoNext: (() => void) | undefined = undefined;
+    export let onToggleFocus: (() => void) | undefined = undefined;
+    export let onToggleTheatre: (() => void) | undefined = undefined;
+    export let onEpisodeSelect: ((episodeNumber: number) => void) | undefined =
+        undefined;
+    export let onPlay: (() => void) | undefined = undefined;
+    export let onReady: (() => void) | undefined = undefined;
+    export let onEnded: (() => void) | undefined = undefined;
+    export let onStartupError:
+        | ((event: PlayerEventDetail) => void)
+        | undefined = undefined;
+    export let onFatalHls: ((event: PlayerEventDetail) => void) | undefined =
+        undefined;
+    export let onMediaError:
+        | ((event: PlayerEventDetail) => void)
+        | undefined = undefined;
+    export let onHlsInfo: ((event: PlayerEventDetail) => void) | undefined =
+        undefined;
+
+    function dispatch(name: "sourceChange", detail: StreamSource): void;
+    function dispatch(name: "providerChange", detail: string): void;
+    function dispatch(
+        name: "episodeSelect",
+        detail: number | null | undefined,
+    ): void;
+    function dispatch(
+        name: "startup_error" | "fatal_hls" | "media_error" | "hls_info",
+        detail: PlayerEventDetail,
+    ): void;
+    function dispatch(
+        name:
+            | "play"
+            | "ready"
+            | "ended"
+            | "toggleAutoPlay"
+            | "toggleAutoNext"
+            | "toggleFocus"
+            | "toggleTheatre",
+    ): void;
+    function dispatch(name: string, detail?: unknown) {
+        switch (name) {
+            case "sourceChange":
+                onSourceChange?.(detail as StreamSource);
+                return;
+            case "providerChange":
+                onProviderChange?.(detail as string);
+                return;
+            case "episodeSelect":
+                if (typeof detail === "number" && Number.isFinite(detail)) {
+                    onEpisodeSelect?.(detail);
+                }
+                return;
+            case "startup_error":
+                onStartupError?.(detail as PlayerEventDetail);
+                return;
+            case "fatal_hls":
+                onFatalHls?.(detail as PlayerEventDetail);
+                return;
+            case "media_error":
+                onMediaError?.(detail as PlayerEventDetail);
+                return;
+            case "hls_info":
+                onHlsInfo?.(detail as PlayerEventDetail);
+                return;
+            case "play":
+                onPlay?.();
+                return;
+            case "ready":
+                onReady?.();
+                return;
+            case "ended":
+                onEnded?.();
+                return;
+            case "toggleAutoPlay":
+                onToggleAutoPlay?.();
+                return;
+            case "toggleAutoNext":
+                onToggleAutoNext?.();
+                return;
+            case "toggleFocus":
+                onToggleFocus?.();
+                return;
+            case "toggleTheatre":
+                onToggleTheatre?.();
+                return;
+            default:
+                return;
+        }
+    }
 
     let videoEl: HTMLVideoElement | null = null;
     let playerShellEl: HTMLDivElement | null = null;
@@ -390,8 +489,7 @@
         await safeAutoplay(nonce, "native-src");
     }
 
-    function onProviderChange(event: Event) {
-        const value = (event.currentTarget as HTMLSelectElement).value;
+    function handleProviderChange(value: string) {
         dispatch("providerChange", value);
     }
 
@@ -938,15 +1036,16 @@
 
             {#if providerOptions.length}
                 <div class="shrink-0">
-                    <select
-                        class="h-8 w-[176px] rounded-[10px] border border-white/12 bg-[rgba(20,22,28,0.82)] px-3 text-[0.8rem] font-medium text-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[14px] outline-none transition-colors focus:border-white/25"
+                    <SelectPicker
+                        items={providerOptions.map((option) => ({
+                            value: option.value,
+                            label: option.label,
+                        }))}
                         value={provider}
-                        on:change={onProviderChange}
-                    >
-                        {#each providerOptions as option}
-                            <option value={option.value}>{option.label}</option>
-                        {/each}
-                    </select>
+                        onChange={handleProviderChange}
+                        triggerClass="h-8 w-[176px] rounded-[10px] px-3 text-[0.8rem] font-medium text-white/88"
+                        contentClass="min-w-[176px]"
+                    />
                 </div>
             {/if}
         </div>
@@ -987,12 +1086,12 @@
                         <div
                             class="h-6 w-6 animate-spin rounded-full border-2 border-white/30 border-t-white"
                         ></div>
-                        <p class="text-sm text-white/70">
+                        <p class="font-mono text-sm text-white/70">
                             {statusMessage || "Loading episode..."}
                         </p>
                     </div>
                 {:else}
-                    <p class="text-sm text-white/70">
+                    <p class="font-mono text-sm text-white/70">
                         Select an episode to start playback.
                     </p>
                 {/if}
@@ -1305,8 +1404,6 @@
 
     {#if mediaError}
         <p class="truncate px-0.5 text-xs text-red-400">{mediaError}</p>
-    {:else if statusMessage}
-        <p class="px-0.5 text-xs text-white/50">{statusMessage}</p>
     {/if}
 </div>
 

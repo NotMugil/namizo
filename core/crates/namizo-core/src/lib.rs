@@ -1,7 +1,8 @@
 pub mod services;
 
 pub use domain::{
-    AnimeDetails, AnimeSummary, EpisodeUpdate, StreamSource, StreamableAnime, StreamingEpisode,
+    AnimeDetails, AnimeSummary, DiscoverFilters, DiscoverPage, EpisodeUpdate, StreamSource,
+    StreamableAnime, StreamingEpisode,
 };
 pub use jikan::{JikanClient, JikanEpisode, JikanEpisodesPage};
 pub use providers::SourceOptions;

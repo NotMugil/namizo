@@ -5,7 +5,7 @@
   export let fullscreen: boolean = true
   export let className: string = ''
   export let spinnerClassName: string = 'h-9 w-9'
-  export let labelClassName: string = 'text-sm text-white/65'
+  export let labelClassName: string = 'font-mono text-sm text-white/65'
 </script>
 
 <div

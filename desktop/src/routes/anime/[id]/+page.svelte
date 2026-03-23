@@ -227,11 +227,11 @@
     return chunk.length > 0 || remainder.length > 0
   }
 
-  async function onEpisodeListLoadMore(event?: CustomEvent<{ requiredCount: number }>) {
+  async function onEpisodeListLoadMore(requiredCountArg: number = 0) {
     if (!details?.id_mal || !jikanHasMore || jikanPaging) return
     jikanPaging = true
     const requestVersion = loadVersion
-    const requiredCount = Math.max(0, event?.detail?.requiredCount ?? 0)
+    const requiredCount = Math.max(0, requiredCountArg)
     const currentCount = details.episodes.length
     const targetCount = Math.max(requiredCount, currentCount + 1)
 
@@ -305,6 +305,7 @@
 
       if (tvdbEps.length && details) {
         const hadEpisodeBase = details.episodes.length > 0
+        const allowTvdbAppend = !hasAnilistEpisodeBase || seededFromJikan
         const tvdbNumbers = new Set(tvdbEps.map(ep => ep.number))
         const matchedBeforeApply = hadEpisodeBase
           ? details.episodes.reduce(
@@ -317,13 +318,17 @@
           details,
           tvdbEps,
           'tvdb',
-          !hadEpisodeBase
+          !hadEpisodeBase || allowTvdbAppend
         )
-        tvdbApplied = hadEpisodeBase ? matchedBeforeApply > 0 : details.episodes.length > 0
+        fallbackEpisodeCount = Math.max(fallbackEpisodeCount ?? 0, tvdbEps.length)
+        tvdbApplied = hadEpisodeBase
+          ? matchedBeforeApply > 0 || allowTvdbAppend
+          : details.episodes.length > 0
         console.log('[TVDB][ui] tvdb enrichment applied', {
           anilistId: d.id,
           episodes: tvdbEps.length,
           matchedBaseEpisodes: matchedBeforeApply,
+          appendMissing: !hadEpisodeBase || allowTvdbAppend,
           applied: tvdbApplied,
         })
       }
@@ -521,7 +526,7 @@
         totalEpisodes={resolvedEpisodeCount}
         canLoadMore={jikanHasMore}
         loadingMore={jikanPaging}
-        on:loadMore={onEpisodeListLoadMore}
+        onLoadMore={onEpisodeListLoadMore}
       />
 
       <CharactersRow characters={details.characters} />

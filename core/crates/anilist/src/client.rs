@@ -1,6 +1,6 @@
 use reqwest::Client;
 use serde_json::{json, Value};
-use domain::{AnimeDetails, AnimeSummary};
+use domain::{AnimeDetails, AnimeSummary, DiscoverPage};
 use crate::{error::AnilistError, graphql, mapping};
 
 const ANILIST_URL: &str = "https://graphql.anilist.co";
@@ -17,6 +17,14 @@ impl AnilistClient {
     pub async fn fetch_media_page(&self, variables: Value) -> Result<Vec<AnimeSummary>, AnilistError> {
         let response = self.post(graphql::MEDIA_PAGE_QUERY, variables).await?;
         mapping::to_summary_list(&response)
+    }
+
+    pub async fn fetch_media_page_with_info(
+        &self,
+        variables: Value,
+    ) -> Result<DiscoverPage, AnilistError> {
+        let response = self.post(graphql::MEDIA_PAGE_QUERY, variables).await?;
+        mapping::to_discover_page(&response)
     }
 
     pub async fn fetch_details(&self, id: u32) -> Result<AnimeDetails, AnilistError> {

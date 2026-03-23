@@ -454,8 +454,8 @@
         }
     }
 
-    function onPlayerStartupError(event: CustomEvent<{ message?: string }>) {
-        const reason = event.detail?.message ?? 'Playback startup failed.'
+    function onPlayerStartupError(event?: { message?: string }) {
+        const reason = event?.message ?? 'Playback startup failed.'
         mediaError = buildPlaybackFailureMessage('startup_error', reason)
         statusMessage = ''
         addDebugLine(
@@ -463,8 +463,8 @@
         )
     }
 
-    function onPlayerFatalHls(event: CustomEvent<{ message?: string }>) {
-        const reason = event.detail?.message ?? 'Fatal HLS playback error.'
+    function onPlayerFatalHls(event?: { message?: string }) {
+        const reason = event?.message ?? 'Fatal HLS playback error.'
         const normalizedReason = reason.toLowerCase()
         if (playbackProgressSeen && normalizedReason.includes('bufferaddcodecerror')) {
             addDebugLine(
@@ -479,8 +479,8 @@
         )
     }
 
-    function onPlayerMediaError(event: CustomEvent<{ message?: string }>) {
-        const reason = event.detail?.message ?? 'Media playback error.'
+    function onPlayerMediaError(event?: { message?: string }) {
+        const reason = event?.message ?? 'Media playback error.'
         mediaError = buildPlaybackFailureMessage('media_error', reason)
         statusMessage = ''
         addDebugLine(
@@ -488,8 +488,8 @@
         )
     }
 
-    function onHlsInfo(event: CustomEvent<{ message?: string }>) {
-        const message = event.detail?.message ?? 'hls event'
+    function onHlsInfo(event?: { message?: string }) {
+        const message = event?.message ?? 'hls event'
         const normalizedMessage = message.toLowerCase()
         if (normalizedMessage.includes('frag_loaded')) {
             playbackProgressSeen = true
@@ -702,19 +702,19 @@
                     loading={bootstrapping || sourcesLoading}
                     {statusMessage}
                     {mediaError}
-                    on:sourceChange={e => onSourceChange(e.detail)}
-                    on:providerChange={e => switchProvider(e.detail as ProviderKind)}
-                    on:toggleAutoPlay={() => autoPlay = !autoPlay}
-                    on:toggleAutoNext={() => autoNext = !autoNext}
-                    on:toggleFocus={() => focusMode = !focusMode}
-                    on:toggleTheatre={() => theatreMode = !theatreMode}
-                    on:episodeSelect={e => playEpisode(e.detail)}
-                    on:play={onPlayerPlay}
-                    on:ready={onPlayerReady}
-                    on:startup_error={onPlayerStartupError}
-                    on:fatal_hls={onPlayerFatalHls}
-                    on:media_error={onPlayerMediaError}
-                    on:hls_info={onHlsInfo}
+                    onSourceChange={onSourceChange}
+                    onProviderChange={(value) => switchProvider(value as ProviderKind)}
+                    onToggleAutoPlay={() => autoPlay = !autoPlay}
+                    onToggleAutoNext={() => autoNext = !autoNext}
+                    onToggleFocus={() => focusMode = !focusMode}
+                    onToggleTheatre={() => theatreMode = !theatreMode}
+                    onEpisodeSelect={playEpisode}
+                    onPlay={onPlayerPlay}
+                    onReady={onPlayerReady}
+                    onStartupError={onPlayerStartupError}
+                    onFatalHls={onPlayerFatalHls}
+                    onMediaError={onPlayerMediaError}
+                    onHlsInfo={onHlsInfo}
                 />
                 </section>
 
@@ -729,7 +729,7 @@
                         {recapNumbers}
                         {selectedNumber}
                         loading={bootstrapping && episodeNumbers.length === 0}
-                        on:select={e => playEpisode(e.detail)}
+                        onSelect={playEpisode}
                     />
                 </aside>
 
