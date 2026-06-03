@@ -54,23 +54,23 @@
             use:bindRail
             class="grid gap-2 overflow-x-auto overflow-y-hidden
                    [scrollbar-width:none] [&::-webkit-scrollbar]:hidden
-                   [grid-template-rows:repeat(2,auto)] [grid-auto-flow:column]
-                   [grid-auto-columns:minmax(280px,320px)]
+                   grid-rows-[repeat(2,auto)] grid-flow-col
+                   auto-cols-[minmax(180px,220px)] sm:auto-cols-[minmax(260px,310px)]
                    scroll-smooth snap-x snap-mandatory"
         >
             {#each characters as character}
-                <article class="grid gap-2 rounded-[10px] p-2 min-w-0
-                                [grid-template-columns:90px_minmax(0,1fr)] items-center
+                <article class="grid gap-1.5 sm:gap-2 rounded-[10px] p-1.5 sm:p-2 min-w-0
+                                grid-cols-[56px_minmax(0,1fr)] sm:grid-cols-[80px_minmax(0,1fr)] items-center
                                 snap-start">
                     <img
                         src={character.image ?? '/favicon.png'}
                         alt={character.name}
-                        class="w-20 aspect-square rounded-xl object-cover border border-white/8 shrink-0"
+                        class="w-14 sm:w-20 aspect-square rounded-lg sm:rounded-xl object-cover border border-white/8 shrink-0"
                         loading="lazy"
                     />
                     <div class="min-w-0">
-                        <h3 class="m-0 text-[0.86rem] font-medium truncate">{character.name}</h3>
-                        <p class="m-0 text-[0.72rem] text-white/45 uppercase tracking-[0.04em]">
+                        <h3 class="m-0 text-[0.78rem] sm:text-[0.86rem] font-medium truncate">{character.name}</h3>
+                        <p class="m-0 text-[0.65rem] sm:text-[0.72rem] text-white/45 uppercase tracking-[0.04em]">
                             {character.role}
                         </p>
                     </div>

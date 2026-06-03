@@ -7,6 +7,7 @@ import 'package:namizo/core/cache.dart';
 import 'package:namizo/models/cache/cache_entry.dart';
 import 'package:namizo/models/user/new_episode.dart';
 import 'package:namizo/models/user/watchlist_item.dart';
+import 'package:namizo/extensions/extension_host.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
 import 'package:namizo/providers/update.dart';
@@ -26,6 +27,8 @@ void main() async {
 
   final cacheService = CacheService();
   await cacheService.init();
+
+  await ExtensionHost.instance.initialize();
 
   await EpisodeCheckService.init();
 

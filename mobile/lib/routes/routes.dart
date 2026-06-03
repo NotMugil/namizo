@@ -5,6 +5,7 @@ import 'package:namizo/screens/search/search.dart';
 import 'package:namizo/screens/media/media.dart';
 import 'package:namizo/screens/player/player.dart';
 import 'package:namizo/screens/settings/settings.dart';
+import 'package:namizo/screens/settings/extensions_page.dart';
 import 'package:namizo/screens/profile/anilist_login.dart';
 import 'package:namizo/screens/profile/profile.dart';
 import 'package:namizo/screens/schedule/new_episodes.dart';
@@ -68,6 +69,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/extensions',
+      builder: (context, state) {
+        final tab = state.uri.queryParameters['tab'];
+        final initialTabIndex = tab == 'installed' ? 1 : 0;
+        return ExtensionsPage(initialTabIndex: initialTabIndex);
+      },
     ),
     GoRoute(
       path: '/anilist-login',

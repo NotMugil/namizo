@@ -10,6 +10,9 @@ use state::AppState;
 use tauri::Manager;
 
 fn main() {
+    // Load from desktop/.env (one level above src-tauri/)
+    let env_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.env");
+    dotenvy::from_path(env_path).ok();
     tauri::Builder::default()
         .setup(|app| {
             tauri::async_runtime::block_on(async {

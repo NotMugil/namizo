@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:namizo/models/media/search_result.dart';
+import 'package:namizo/extensions/installed_extension.dart';
+import 'package:namizo/providers/extensions.dart';
 import 'package:namizo/providers/search.dart';
 import 'package:namizo/screens/search/search_result_card.dart';
 import 'package:namizo/theme/theme.dart';
+import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -19,6 +22,8 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
+  static const String _extensionQueryPrefix = 'ext:';
+
   static const Map<String, String> _feedQueries = <String, String>{
     'popular': 'popular anime',
     'trending': 'trending anime',
@@ -33,6 +38,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   final ScrollController _scrollController = ScrollController();
   Timer? _searchDebounce;
 
+  _SearchMode _searchMode = _SearchMode.anime;
   String _typeFilter = 'all';
   double? _minScoreFilter;
   int? _minYearFilter;
@@ -64,12 +70,86 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final query = ref.watch(searchQueryProvider);
+    final searchMode =
+        query.trim().toLowerCase().startsWith(_extensionQueryPrefix)
+        ? _SearchMode.extensions
+        : _searchMode;
     final sortBy = ref.watch(searchSortProvider);
+    final hasQuery = query.trim().isNotEmpty;
+
+    if (searchMode == _SearchMode.extensions) {
+      final installedExtensions = ref.watch(installedExtensionsProvider);
+      final filteredExtensions = _filterInstalledExtensions(
+        installedExtensions,
+        query,
+      );
+
+      return Scaffold(
+        backgroundColor: NamizoTheme.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+                child: _buildSearchBar(context, sortBy, true),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    Text(
+                      hasQuery
+                          ? '${filteredExtensions.length} extensions'
+                          : 'Installed extensions',
+                      style: const TextStyle(
+                        color: NamizoTheme.textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () =>
+                          context.push('/extensions?tab=installed'),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.sliders,
+                        size: 16,
+                      ),
+                      label: const Text('Manage'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: filteredExtensions.isEmpty
+                    ? const _NoExtensionResults()
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 240,
+                              childAspectRatio: 1.02,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                        itemCount: filteredExtensions.length,
+                        itemBuilder: (context, index) {
+                          final extension = filteredExtensions[index];
+                          return _ExtensionSearchCard(extension: extension);
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final metadata = ref.watch(searchMetadataProvider);
     final searchAsync = ref.watch(searchResultsProvider);
-    final allResults = searchAsync.valueOrNull?.results ?? const <SearchResult>[];
+    final allResults =
+        searchAsync.valueOrNull?.results ?? const <SearchResult>[];
     final filteredResults = _applyFilters(allResults);
-    final hasQuery = query.trim().isNotEmpty;
     final isLoadingFirstPage = searchAsync.isLoading && allResults.isEmpty;
     final isLoadingMore = searchAsync.isLoading && allResults.isNotEmpty;
 
@@ -80,11 +160,30 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-              child: _buildSearchBar(context, sortBy),
+              child: _buildSearchBar(context, sortBy, false),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  _searchModeChip(
+                    label: 'Anime',
+                    selected: _searchMode == _SearchMode.anime,
+                    onTap: () => _switchSearchMode(_SearchMode.anime),
+                  ),
+                  const SizedBox(width: 8),
+                  _searchModeChip(
+                    label: 'Extensions',
+                    selected: _searchMode == _SearchMode.extensions,
+                    onTap: () => _switchSearchMode(_SearchMode.extensions),
+                  ),
+                ],
+              ),
             ),
             Builder(
               builder: (context) {
-                final hasActiveFilters = _typeFilter != 'all' ||
+                final hasActiveFilters =
+                    _typeFilter != 'all' ||
                     _minScoreFilter != null ||
                     _minYearFilter != null;
                 return SizedBox(
@@ -195,13 +294,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     child: GridView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 200,
-                        childAspectRatio: 0.7,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
-                      itemCount: filteredResults.length + (isLoadingMore ? 1 : 0),
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 200,
+                            childAspectRatio: 0.7,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                      itemCount:
+                          filteredResults.length + (isLoadingMore ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (index >= filteredResults.length) {
                           return Container(
@@ -237,7 +338,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildSearchBar(BuildContext context, String sortBy) {
+  Widget _buildSearchBar(
+    BuildContext context,
+    String sortBy,
+    bool isExtensionsMode,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -281,60 +386,52 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ),
         const SizedBox(width: 10),
-        PopupMenuButton<String>(
-          tooltip: 'Sort',
-          onSelected: _setSort,
-          color: const Color(0xFF1A1A1A),
-          itemBuilder: (context) => const [
-            PopupMenuItem<String>(
-              value: 'relevance',
-              child: Text('Relevance'),
-            ),
-            PopupMenuItem<String>(
-              value: 'popularity',
-              child: Text('Popularity'),
-            ),
-            PopupMenuItem<String>(
-              value: 'rating',
-              child: Text('Rating'),
-            ),
-            PopupMenuItem<String>(
-              value: 'year',
-              child: Text('Newest'),
-            ),
-            PopupMenuItem<String>(
-              value: 'title',
-              child: Text('Title A-Z'),
-            ),
-          ],
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const PhosphorIcon(
-                  PhosphorIconsRegular.sortAscending,
-                  color: NamizoTheme.textSecondary,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _sortLabel(sortBy),
-                  style: const TextStyle(
-                    color: NamizoTheme.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+        if (!isExtensionsMode)
+          PopupMenuButton<String>(
+            tooltip: 'Sort',
+            onSelected: _setSort,
+            color: const Color(0xFF1A1A1A),
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(
+                value: 'relevance',
+                child: Text('Relevance'),
+              ),
+              PopupMenuItem<String>(
+                value: 'popularity',
+                child: Text('Popularity'),
+              ),
+              PopupMenuItem<String>(value: 'rating', child: Text('Rating')),
+              PopupMenuItem<String>(value: 'year', child: Text('Newest')),
+              PopupMenuItem<String>(value: 'title', child: Text('Title A-Z')),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const PhosphorIcon(
+                    PhosphorIconsRegular.sortAscending,
+                    color: NamizoTheme.textSecondary,
+                    size: 18,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    _sortLabel(sortBy),
+                    style: const TextStyle(
+                      color: NamizoTheme.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -360,6 +457,33 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         color: isActive ? NamizoTheme.textPrimary : NamizoTheme.textSecondary,
         fontSize: 12,
         fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+      ),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+    );
+  }
+
+  Widget _searchModeChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return ActionChip(
+      label: Text(label),
+      onPressed: onTap,
+      shape: const StadiumBorder(),
+      side: BorderSide(
+        color: selected
+            ? NamizoTheme.primary.withValues(alpha: 0.42)
+            : Colors.white.withValues(alpha: 0.14),
+      ),
+      backgroundColor: selected
+          ? NamizoTheme.primary.withValues(alpha: 0.2)
+          : const Color(0xFF1A1A1A),
+      labelStyle: TextStyle(
+        color: selected ? NamizoTheme.textPrimary : NamizoTheme.textSecondary,
+        fontSize: 12,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
       ),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
@@ -514,7 +638,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ),
                         const SizedBox(width: 8),
                         ElevatedButton(
-                          onPressed: () => Navigator.of(context).pop(temp.round()),
+                          onPressed: () =>
+                              Navigator.of(context).pop(temp.round()),
                           child: const Text('Apply'),
                         ),
                       ],
@@ -673,7 +798,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   void _runSearch(String rawQuery) {
-    final query = rawQuery.trim();
+    final parsed = _parseQuery(rawQuery);
+    final query = parsed.query;
+    final shouldShowExtensions =
+        parsed.mode == _SearchMode.extensions ||
+        _searchMode == _SearchMode.extensions;
+
+    if (parsed.mode == _SearchMode.extensions &&
+        _searchMode != _SearchMode.extensions) {
+      setState(() => _searchMode = _SearchMode.extensions);
+    } else if (parsed.mode == _SearchMode.anime &&
+        _searchMode == _SearchMode.extensions) {
+      setState(() => _searchMode = _SearchMode.anime);
+    }
+
     ref.read(searchPageProvider.notifier).state = 1;
     ref.read(accumulatedSearchResultsProvider.notifier).state = [];
     ref.read(searchMetadataProvider.notifier).state = (
@@ -681,6 +819,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       totalResults: 0,
     );
     ref.read(searchQueryProvider.notifier).state = query;
+    if (shouldShowExtensions) {
+      if (mounted) setState(() {});
+      return;
+    }
     ref.invalidate(searchResultsProvider);
   }
 
@@ -689,28 +831,217 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 
   List<SearchResult> _applyFilters(List<SearchResult> input) {
-    return input.where((item) {
-      if (_typeFilter != 'all' &&
-          item.mediaType.trim().toLowerCase() != _typeFilter) {
-        return false;
-      }
+    return input
+        .where((item) {
+          if (_typeFilter != 'all' &&
+              item.mediaType.trim().toLowerCase() != _typeFilter) {
+            return false;
+          }
 
-      final score = item.voteAverage ?? 0;
-      if (_minScoreFilter != null && score < _minScoreFilter!) return false;
+          final score = item.voteAverage ?? 0;
+          if (_minScoreFilter != null && score < _minScoreFilter!) return false;
 
-      final year = _extractYear(item);
-      if (_minYearFilter != null && (year == null || year < _minYearFilter!)) {
-        return false;
-      }
+          final year = _extractYear(item);
+          if (_minYearFilter != null &&
+              (year == null || year < _minYearFilter!)) {
+            return false;
+          }
 
-      return true;
-    }).toList(growable: false);
+          return true;
+        })
+        .toList(growable: false);
   }
 
   int? _extractYear(SearchResult item) {
     final raw = item.releaseDate ?? item.firstAirDate;
     if (raw == null || raw.length < 4) return null;
     return int.tryParse(raw.substring(0, 4));
+  }
+
+  void _switchSearchMode(_SearchMode mode) {
+    if (_searchMode == mode) return;
+    setState(() => _searchMode = mode);
+    _runSearch(_searchController.text);
+  }
+
+  ({_SearchMode mode, String query}) _parseQuery(String rawQuery) {
+    final trimmed = rawQuery.trim();
+    if (trimmed.toLowerCase().startsWith(_extensionQueryPrefix)) {
+      final query = trimmed.substring(_extensionQueryPrefix.length).trim();
+      return (mode: _SearchMode.extensions, query: query);
+    }
+    return (mode: _SearchMode.anime, query: trimmed);
+  }
+
+  List<InstalledExtension> _filterInstalledExtensions(
+    List<InstalledExtension> extensions,
+    String query,
+  ) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return extensions;
+
+    return extensions
+        .where((extension) {
+          final manifest = extension.manifest;
+          final haystack = [
+            manifest.name,
+            manifest.author,
+            manifest.description,
+            manifest.version,
+            manifest.entrypoint,
+            manifest.homepageUrl?.toString() ?? '',
+            manifest.updateUrl?.toString() ?? '',
+            manifest.capabilities.map((item) => item.name).join(' '),
+            manifest.permissions.join(' '),
+          ].join(' ').toLowerCase();
+          return haystack.contains(normalized);
+        })
+        .toList(growable: false);
+  }
+}
+
+enum _SearchMode { anime, extensions }
+
+class _ExtensionSearchCard extends StatelessWidget {
+  const _ExtensionSearchCard({required this.extension});
+
+  final InstalledExtension extension;
+
+  @override
+  Widget build(BuildContext context) {
+    final manifest = extension.manifest;
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => context.push('/extensions?tab=installed'),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _ExtensionLogo(logoUrl: manifest.logoUrl),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          manifest.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          manifest.author,
+                          style: const TextStyle(
+                            color: Colors.white60,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                manifest.description.isEmpty
+                    ? 'No description provided.'
+                    : manifest.description,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+              const Spacer(),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _MiniBadge(
+                    label: extension.enabled ? 'Enabled' : 'Disabled',
+                    tone: extension.enabled
+                        ? _BadgeTone.success
+                        : _BadgeTone.muted,
+                  ),
+                  _MiniBadge(
+                    label: _trustLabel(extension.trustState),
+                    tone: _trustTone(extension.trustState),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ExtensionLogo extends StatelessWidget {
+  const _ExtensionLogo({required this.logoUrl});
+
+  final Uri? logoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return CircleAvatar(
+      radius: 18,
+      backgroundColor: NamizoTheme.primary.withValues(alpha: 0.18),
+      backgroundImage: logoUrl == null
+          ? null
+          : NetworkImage(logoUrl.toString()),
+      child: logoUrl == null
+          ? const Icon(Icons.extension, color: Colors.white, size: 18)
+          : null,
+    );
+  }
+}
+
+class _NoExtensionResults extends StatelessWidget {
+  const _NoExtensionResults();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.extension_off,
+            color: NamizoTheme.textSecondary,
+            size: 38,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No installed extensions matched',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: NamizoTheme.textPrimary),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Try a different query or install an extension from the Extensions page.',
+            style: TextStyle(color: NamizoTheme.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -768,16 +1099,14 @@ class _NoSearchResults extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'No titles found',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: NamizoTheme.textPrimary,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: NamizoTheme.textPrimary),
           ),
           const SizedBox(height: 6),
           const Text(
             'Try another keyword or clear some filters.',
-            style: TextStyle(
-              color: NamizoTheme.textSecondary,
-            ),
+            style: TextStyle(color: NamizoTheme.textSecondary),
           ),
         ],
       ),
@@ -811,5 +1140,68 @@ class _SearchError extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+enum _BadgeTone { muted, success, warning, danger }
+
+class _MiniBadge extends StatelessWidget {
+  const _MiniBadge({required this.label, this.tone = _BadgeTone.muted});
+
+  final String label;
+  final _BadgeTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final (background, foreground) = switch (tone) {
+      _BadgeTone.success => (
+        NamizoTheme.primary.withValues(alpha: 0.16),
+        NamizoTheme.primary,
+      ),
+      _BadgeTone.warning => (const Color(0xFF3B2F12), const Color(0xFFF5C451)),
+      _BadgeTone.danger => (const Color(0xFF3B1717), const Color(0xFFFF7B7B)),
+      _BadgeTone.muted => (
+        Colors.white.withValues(alpha: 0.08),
+        Colors.white70,
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: foreground,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+String _trustLabel(ExtensionTrustState state) {
+  switch (state) {
+    case ExtensionTrustState.trusted:
+      return 'Trusted';
+    case ExtensionTrustState.blocked:
+      return 'Blocked';
+    case ExtensionTrustState.unverified:
+      return 'Unverified';
+  }
+}
+
+_BadgeTone _trustTone(ExtensionTrustState state) {
+  switch (state) {
+    case ExtensionTrustState.trusted:
+      return _BadgeTone.success;
+    case ExtensionTrustState.blocked:
+      return _BadgeTone.danger;
+    case ExtensionTrustState.unverified:
+      return _BadgeTone.warning;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/providers/home.dart';
+import 'package:namizo/providers/extension_manager.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
 import 'package:namizo/providers/update.dart';
@@ -141,6 +142,23 @@ class SettingsScreen extends ConsumerWidget {
             ),
 
             _buildSectionHeader('Appearance'),
+            _buildSettingsTile(
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.puzzlePiece,
+                color: Colors.white,
+                size: 24,
+              ),
+              title: 'Extensions',
+              subtitle: 'Add a manifest URL and manage installed extensions',
+              trailing: const PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                color: Colors.white70,
+                size: 18,
+              ),
+              onTap: () {
+                context.push('/extensions');
+              },
+            ),
             _buildSettingsTile(
               icon: const PhosphorIcon(
                 PhosphorIconsRegular.listNumbers,

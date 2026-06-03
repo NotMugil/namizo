@@ -25,4 +25,5 @@ serde_json = "1"
 dirs = "5"
 
 namizo-core = { path = "../../core/crates/namizo-core" }
+dotenvy = "0.15"
 

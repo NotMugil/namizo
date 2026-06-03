@@ -193,10 +193,19 @@
     >
         <!-- Background image -->
         <div class="absolute inset-0">
+            <!-- Mobile: portrait cover art (landscape banners crop poorly at narrow widths) -->
+            <img
+                src={item.cover_image}
+                alt={item.title}
+                class="sm:hidden absolute inset-0 z-0 w-full h-full object-cover object-top brightness-40
+                       transition-opacity duration-700
+                       {showTrailer ? 'opacity-0' : 'opacity-100'}"
+            />
+            <!-- sm+: TVDB / AniList landscape banner -->
             <img
                 src={activeBackgroundImage}
                 alt={item.title}
-                class="absolute inset-0 z-0 w-full h-full object-cover scale-110 brightness-50
+                class="hidden sm:block absolute inset-0 z-0 w-full h-full object-cover scale-110 brightness-50
                        transition-opacity duration-700
                        {showTrailer ? 'opacity-0' : 'opacity-100'}"
             />
@@ -266,33 +275,34 @@
                 <div class="flex gap-2 mt-1">
                     <a
                         href="/watch/{item.id}?ep=1"
-                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
+                        class="inline-flex items-center gap-1.5 h-9 px-3 sm:px-4 rounded-lg
                                bg-white text-black text-[0.82rem] font-semibold
                                no-underline transition-opacity hover:opacity-90"
                     >
                         <PlayIcon size={14} weight="fill" />
-                        Watch Now
+                        <span class="sm:hidden">Watch</span>
+                        <span class="hidden sm:inline">Watch Now</span>
                     </a>
                     <a
                         href="/anime/{item.id}"
-                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
+                        class="inline-flex items-center gap-1.5 h-9 px-3 sm:px-4 rounded-lg
                                border border-white/20 bg-white/10 text-white
                                text-[0.82rem] font-medium no-underline
                                transition-colors hover:bg-white/15"
                     >
                         <InfoIcon size={14} weight="bold" />
-                        Details
+                        <span class="hidden sm:inline">Details</span>
                     </a>
                     <button
                         type="button"
-                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
+                        class="inline-flex items-center gap-1.5 h-9 px-3 sm:px-4 rounded-lg
                                border border-white/20 bg-white/10 text-white
                                text-[0.82rem] font-medium
                                transition-colors hover:bg-white/15"
                         onclick={openCollectionEditor}
                     >
                         <PlusIcon size={14} weight="bold" />
-                        {currentItemInCollection ? 'Edit Entry' : 'Add to Collection'}
+                        <span class="hidden sm:inline">{currentItemInCollection ? 'Edit Entry' : 'Add to Collection'}</span>
                     </button>
                 </div>
             </div>

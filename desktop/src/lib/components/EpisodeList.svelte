@@ -23,7 +23,9 @@
 
     function syncPerPage(width: number) {
         const columns = getColumns(width);
-        perPage = columns * 2;
+        // Mobile: 2 cols × 5 rows = 10; Desktop: 5 cols × 2 rows = 10
+        const rows = columns < 3 ? 5 : 2;
+        perPage = columns * rows;
     }
 
     function handleResize() {
