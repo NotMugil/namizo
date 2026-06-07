@@ -1,20 +1,12 @@
-# Others
-TODO.md
-
 # Miscellaneous
 *.class
 *.log
 *.pyc
 *.swp
-.tmp/
 .DS_Store
-.atom/
-.build/
-.buildlog/
 .history
-.svn/
-.swiftpm/
-migrate_working_dir/
+.tmp/
+.claude/
 
 # IntelliJ related
 *.iml
@@ -22,60 +14,22 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/mobile/build/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-/mobile/android/app/debug
-/mobile/android/app/profile
-/mobile/android/app/release
-
-# Firebase configuration files (contains project-specific settings)
-# Note: firebase_options.dart is safe to commit (public API keys)
-# but google-services.json should be kept private
-**/google-services.json
-**/GoogleService-Info.plist
-
 # Environment files and secrets
 .env
 .env.*
 *.env
 !.env.example
-!desktop/.env.example
 
-# Desktop (Tauri/Svelte) build artifacts
-desktop/node_modules/
-desktop/dist/
-desktop/.svelte-kit/
-desktop/src-tauri/target/
+# App (Tauri + SvelteKit) build artifacts
+app/node_modules/
+app/build/
+app/.svelte-kit/
+app/src-tauri/target/
+app/target/
 
-# Core library build artifacts and lock file
-core/target/
-core/Cargo.lock
-
-# Private API keys (if you create this file)
-lib/core/api_keys.dart
-mobile/lib/core/api_keys.dart
-.tmp/aimi-lib
+# Tauri Android build outputs
+app/gen/android/.gradle/
+app/gen/android/app/build/
+app/gen/android/build/
+app/gen/android/.idea/
+app/gen/android/local.properties
