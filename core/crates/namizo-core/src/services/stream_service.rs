@@ -1,89 +1,32 @@
-use domain::{StreamSource, StreamableAnime, StreamingEpisode};
-use providers::{AllAnime, Anidap, AnimePahe, Anizone, SourceOptions, StreamProvider};
-use std::sync::Arc;
+use anyhow::Result;
+use domain::StreamSource;
 
-pub struct StreamService {
-    allanime: Arc<AllAnime>,
-    animepahe: Arc<AnimePahe>,
-    anizone: Arc<Anizone>,
-    anidap: Arc<Anidap>,
-}
+const DEMO_URL: &str = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+
+pub struct StreamService;
 
 impl StreamService {
     pub fn new() -> Self {
-        Self {
-            allanime: Arc::new(AllAnime::new()),
-            animepahe: Arc::new(AnimePahe::new()),
-            anizone: Arc::new(Anizone::new()),
-            anidap: Arc::new(Anidap::new()),
-        }
+        Self
     }
 
-    fn provider(&self, name: &str) -> Arc<dyn StreamProvider> {
-        match name {
-            "allanime" => self.allanime.clone(),
-            "animepahe" => self.animepahe.clone(),
-            "anizone" => self.anizone.clone(),
-            "anidap" => self.anidap.clone(),
-            _ => self.animepahe.clone(),
-        }
-    }
-
-    pub async fn search(
+    pub async fn get_episode_sources(
         &self,
-        provider_name: &str,
-        query: &str,
-    ) -> Result<Vec<StreamableAnime>, String> {
-let provider = self.provider(provider_name);
-        match provider
-            .search(query.into())
-            .await
-        {
-            Ok(results) => {
-Ok(results)
-            }
-            Err(error) => {
-Err(error.to_string())
-            }
-        }
+        _anime_title: &str,
+        _episode_num: f64,
+        _mode: &str,
+    ) -> Result<Vec<StreamSource>> {
+        Ok(vec![StreamSource {
+            url: DEMO_URL.to_string(),
+            quality: "Demo".to_string(),
+            kind: "hls".to_string(),
+            headers: None,
+        }])
     }
+}
 
-    pub async fn episodes(
-        &self,
-        provider_name: &str,
-        anime: &StreamableAnime,
-    ) -> Result<Vec<StreamingEpisode>, String> {
-let provider = self.provider(provider_name);
-        match provider
-            .get_episodes(anime)
-            .await
-        {
-            Ok(episodes) => {
-Ok(episodes)
-            }
-            Err(error) => {
-Err(error.to_string())
-            }
-        }
-    }
-
-    pub async fn sources(
-        &self,
-        provider_name: &str,
-        episode: &StreamingEpisode,
-        options: Option<SourceOptions>,
-    ) -> Result<Vec<StreamSource>, String> {
-let provider = self.provider(provider_name);
-        match provider
-            .get_sources(episode, options.as_ref())
-            .await
-        {
-            Ok(sources) => {
-Ok(sources)
-            }
-            Err(error) => {
-Err(error.to_string())
-            }
-        }
+impl Default for StreamService {
+    fn default() -> Self {
+        Self::new()
     }
 }

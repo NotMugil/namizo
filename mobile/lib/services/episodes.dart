@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,8 +22,6 @@ class EpisodeCheckService {
 
   static final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
-
-  static final aimi.Kuroiru _kuroiru = aimi.Kuroiru();
 
   static bool get _supportsBackgroundTasks => true;
 
@@ -267,62 +264,8 @@ class EpisodeCheckService {
     String? posterPath,
     DateTime since,
   ) async {
-    final newEpisodes = <NewEpisode>[];
-
-    try {
-      final details = await _kuroiru.getDetails('$showId');
-      final latestEpisode = details.lastEpisode ?? details.episodes ?? 0;
-      if (latestEpisode <= 0) return [];
-
-      final status = (details.status ?? '').toLowerCase();
-      if (status.contains('not yet') || status.contains('upcoming')) {
-        return [];
-      }
-
-      if (!Hive.isBoxOpen(_boxName)) {
-        await Hive.openBox<NewEpisode>(_boxName);
-      }
-      final episodesBox = Hive.box<NewEpisode>(_boxName);
-
-      var highestKnownEpisode = 0;
-      for (final existing in episodesBox.values) {
-        if (existing.showId == showId &&
-            existing.episodeNumber > highestKnownEpisode) {
-          highestKnownEpisode = existing.episodeNumber;
-        }
-      }
-
-      if (latestEpisode <= highestKnownEpisode) return [];
-
-      final startEpisode =
-          highestKnownEpisode == 0 ? latestEpisode : highestKnownEpisode + 1;
-
-      final scheduledAt = details.schedule != null
-          ? DateTime.fromMillisecondsSinceEpoch(details.schedule! * 1000)
-          : DateTime.now();
-      final airDate = scheduledAt.isAfter(DateTime.now())
-          ? DateTime.now()
-          : scheduledAt;
-
-      for (var ep = startEpisode; ep <= latestEpisode; ep++) {
-        newEpisodes.add(
-          NewEpisode(
-            showId: showId,
-            showName: showName,
-            seasonNumber: 1,
-            episodeNumber: ep,
-            episodeName: 'Episode $ep',
-            posterPath: posterPath,
-            airDate: airDate.isAfter(since) ? airDate : DateTime.now(),
-            detectedAt: DateTime.now(),
-          ),
-        );
-      }
-    } catch (_) {
-      // Silently skip — show will be re-checked next cycle.
-    }
-
-    return newEpisodes;
+    // Episode-check backend removed — returns empty until a replacement is wired up.
+    return const [];
   }
 
   static Future<void> _showNewEpisodeNotification(

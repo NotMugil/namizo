@@ -2,39 +2,31 @@ use anyhow::Result;
 use async_trait::async_trait;
 use domain::{StreamSource, StreamableAnime, StreamingEpisode};
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SourceOptions {
-    pub mode: Option<String>,
-    pub host: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SearchQuery<'a> {
-    value: Cow<'a, str>,
-}
+pub struct SearchQuery<'a>(&'a str);
 
 impl<'a> SearchQuery<'a> {
     pub fn as_str(&self) -> &str {
-        &self.value
+        self.0
     }
 }
 
 impl<'a> From<&'a str> for SearchQuery<'a> {
-    fn from(value: &'a str) -> Self {
-        Self {
-            value: Cow::Borrowed(value),
-        }
+    fn from(s: &'a str) -> Self {
+        Self(s)
     }
 }
 
-impl From<String> for SearchQuery<'_> {
-    fn from(value: String) -> Self {
-        Self {
-            value: Cow::Owned(value),
-        }
+impl<'a> From<&'a String> for SearchQuery<'a> {
+    fn from(s: &'a String) -> Self {
+        Self(s.as_str())
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourceOptions {
+    pub mode: Option<String>,
+    pub host: Option<String>,
 }
 
 #[async_trait]

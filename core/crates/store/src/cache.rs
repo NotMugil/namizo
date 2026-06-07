@@ -64,6 +64,13 @@ impl<'a> EpisodeCache<'a> {
         )?;
         Ok(())
     }
+
+    pub fn clear_all(&self) -> Result<(), StoreError> {
+        self.db
+            .conn
+            .execute("DELETE FROM tvdb_episode_cache", [])?;
+        Ok(())
+    }
 }
 
 pub struct AnimeDetailsCache<'a> {
@@ -120,6 +127,13 @@ impl<'a> AnimeDetailsCache<'a> {
             "DELETE FROM anime_details_cache WHERE anilist_id = ?1",
             [anilist_id],
         )?;
+        Ok(())
+    }
+
+    pub fn clear_all(&self) -> Result<(), StoreError> {
+        self.db
+            .conn
+            .execute("DELETE FROM anime_details_cache", [])?;
         Ok(())
     }
 }

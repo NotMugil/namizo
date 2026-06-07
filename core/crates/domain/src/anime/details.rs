@@ -18,6 +18,8 @@ pub struct AnimeDetails {
     pub season_year: Option<u32>,
     pub format: Option<String>, // "TV", "MOVIE", "OVA", "ONA"
     pub episode_count: Option<u32>,
+    pub next_airing_episode: Option<u32>,
+    pub next_airing_at: Option<i64>,
     pub studios: Vec<String>,
     pub trailer_id: Option<String>, // YouTube video ID only, site filtered in mapping
     pub characters: Vec<Character>,

@@ -104,7 +104,7 @@ fn to_summary(m: &Value) -> Option<AnimeSummary> {
     Some(AnimeSummary {
         id: m["id"].as_u64()? as u32,
         title: resolve_title(m),
-        cover_image: m["coverImage"]["large"].as_str()?.to_string(),
+        cover_image: m["coverImage"]["extraLarge"].as_str()?.to_string(),
         description: m["description"].as_str().map(|s| s.to_string()),
         average_score: m["averageScore"].as_u64().map(|s| s as u8),
         genres: str_array(&m["genres"]),
@@ -115,6 +115,8 @@ fn to_summary(m: &Value) -> Option<AnimeSummary> {
         status: m["status"].as_str().map(|s| s.to_string()),
         next_airing_episode: m["nextAiringEpisode"]["episode"].as_u64().map(|v| v as u32),
         next_airing_at: m["nextAiringEpisode"]["airingAt"].as_i64(),
+        duration: m["duration"].as_u64().map(|d| d as u32),
+        season_year: m["seasonYear"].as_u64().map(|y| y as u32),
     })
 }
 
@@ -181,7 +183,7 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
         id_mal: m["idMal"].as_u64().map(|v| v as u32),
         title: resolve_title(m),
         title_japanese: m["title"]["native"].as_str().map(|s| s.to_string()),
-        cover_image: m["coverImage"]["large"].as_str()?.to_string(),
+        cover_image: m["coverImage"]["extraLarge"].as_str()?.to_string(),
         banner_image: m["bannerImage"].as_str().map(|s| s.to_string()),
         description: m["description"].as_str().map(|s| s.to_string()),
         genres: str_array(&m["genres"]),
@@ -192,6 +194,8 @@ fn map_details(m: &Value) -> Option<AnimeDetails> {
         season_year: m["seasonYear"].as_u64().map(|y| y as u32),
         format: m["format"].as_str().map(|s| s.to_string()),
         episode_count: m["episodes"].as_u64().map(|e| e as u32),
+        next_airing_episode: m["nextAiringEpisode"]["episode"].as_u64().map(|v| v as u32),
+        next_airing_at: m["nextAiringEpisode"]["airingAt"].as_i64(),
         studios,
         trailer_id,
         characters,

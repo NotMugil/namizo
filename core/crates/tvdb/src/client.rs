@@ -6,6 +6,7 @@ const BASE_URL: &str = "https://api4.thetvdb.com/v4";
 const ENGLISH_LANG: &str = "eng";
 const ARTWORK_CDN_BASE: &str = "https://artworks.thetvdb.com/banners/";
 const FALLBACK_SERIES_BACKGROUND_TYPE_ID: u64 = 3;
+const FALLBACK_SERIES_CLEAR_LOGO_TYPE_ID: u64 = 23;
 
 pub struct TvdbClient {
     pub client: Client,
@@ -70,6 +71,49 @@ impl TvdbClient {
                 self.fetch_series_background(tvdb_id, &token).await
             }
             other => other,
+        }
+    }
+
+    pub async fn get_clear_logo(
+        &self,
+        anilist_id: u32,
+        format: Option<&str>,
+        mapping: &[Value],
+    ) -> Result<Option<String>, TvdbError> {
+        let tvdb_match = lookup_tvdb_match(mapping, anilist_id, format)?;
+        let tvdb_id = tvdb_match.tvdb_id;
+        let token = auth::get_token(&self.client, &self.api_key).await?;
+        match self.fetch_series_clear_logo(tvdb_id, &token).await {
+            Err(TvdbError::Http(ref e)) if e.status().map(|s| s.as_u16()) == Some(401) => {
+                auth::invalidate_token().await;
+                let token = auth::get_token(&self.client, &self.api_key).await?;
+                self.fetch_series_clear_logo(tvdb_id, &token).await
+            }
+            other => other,
+        }
+    }
+
+    async fn fetch_series_clear_logo(
+        &self,
+        tvdb_id: u64,
+        token: &str,
+    ) -> Result<Option<String>, TvdbError> {
+        let type_id = self.resolve_series_clear_logo_type_id(token).await;
+        let artworks = self
+            .fetch_series_artworks(tvdb_id, type_id, Some(ENGLISH_LANG), token)
+            .await?;
+        let fallback = self
+            .fetch_series_artworks(tvdb_id, type_id, None, token)
+            .await?;
+        let combined = merge_artworks(artworks, fallback);
+        Ok(select_best_clear_logo_url(&combined))
+    }
+
+    async fn resolve_series_clear_logo_type_id(&self, token: &str) -> u64 {
+        match self.fetch_artwork_types(token).await {
+            Ok(types) => find_series_clear_logo_type_id(&types)
+                .unwrap_or(FALLBACK_SERIES_CLEAR_LOGO_TYPE_ID),
+            Err(_) => FALLBACK_SERIES_CLEAR_LOGO_TYPE_ID,
         }
     }
 
@@ -495,6 +539,46 @@ fn merge_artworks(primary: Vec<Value>, secondary: Vec<Value>) -> Vec<Value> {
     }
 
     out
+}
+
+fn find_series_clear_logo_type_id(types: &[Value]) -> Option<u64> {
+    types.iter().find_map(|entry| {
+        let id = entry["id"].as_u64()?;
+        let name = entry["name"].as_str().unwrap_or("").to_ascii_lowercase();
+        let slug = entry["slug"].as_str().unwrap_or("").to_ascii_lowercase();
+        if slug.contains("clearlogo") || slug.contains("clear-logo") || name.contains("clear logo") || name.contains("clearlogo") {
+            Some(id)
+        } else {
+            None
+        }
+    })
+}
+
+fn select_best_clear_logo_url(artworks: &[Value]) -> Option<String> {
+    artworks
+        .iter()
+        .filter_map(|artwork| {
+            let image = artwork["image"].as_str()?;
+            let url = normalize_artwork_url(image)?;
+            let score = value_to_i64(&artwork["score"]).unwrap_or(0);
+            let lang = artwork["language"]
+                .as_str()
+                .map(str::trim)
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            // Language is a tiebreaker only — score is the primary rank.
+            // A small lang_tiebreak (0-2) can never override a 1-point score difference.
+            let lang_tiebreak: i64 = if lang == ENGLISH_LANG || lang == "en" {
+                2
+            } else if lang.is_empty() || lang == "null" {
+                1
+            } else {
+                0
+            };
+            Some(((score, lang_tiebreak), url))
+        })
+        .max_by_key(|(rank, _)| *rank)
+        .map(|(_, url)| url)
 }
 
 fn find_series_background_type_id(types: &[Value]) -> Option<u64> {

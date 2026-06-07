@@ -7,4 +7,7 @@ pub enum AnilistError {
 
     #[error("Failed to parse response: {0}")]
     Parse(String),
+
+    #[error("AniList rate limit — retry after {0}s")]
+    RateLimit(u64),
 }

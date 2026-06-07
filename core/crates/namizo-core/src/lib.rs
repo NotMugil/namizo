@@ -6,7 +6,6 @@ pub use domain::{
     SyncJob, SyncKind, WatchEvent,
 };
 pub use jikan::{JikanClient, JikanEpisode, JikanEpisodesPage};
-pub use providers::SourceOptions;
 pub use services::anime_service::AnimeService;
 pub use services::library_service::LibraryService;
 pub use services::stream_service::StreamService;

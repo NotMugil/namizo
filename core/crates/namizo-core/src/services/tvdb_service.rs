@@ -2,12 +2,13 @@ use chrono::Utc;
 use serde_json::Value;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use store::{Database, EpisodeCache};
+use store::{AnimeDetailsCache, Database, EpisodeCache};
 use tvdb::mapping::load_mapping;
 use tvdb::{TvdbClient, TvdbEpisode, TvdbError};
 
 const TVDB_EPISODE_CACHE_KEY_OFFSET: u32 = 1_000_000_000;
 const TVDB_BACKGROUND_CACHE_KEY_OFFSET: u32 = 1_300_000_000;
+const TVDB_CLEAR_LOGO_CACHE_KEY_OFFSET: u32 = 1_500_000_000;
 const TVDB_BACKGROUND_MISS_TTL_SECONDS: i64 = 6 * 60 * 60;
 
 pub struct TvdbService {
@@ -127,6 +128,58 @@ impl TvdbService {
         }
 
         Ok(background)
+    }
+
+    pub async fn get_clear_logo(
+        &self,
+        anilist_id: u32,
+        format: Option<&str>,
+    ) -> Result<Option<String>, String> {
+        let cache_key = anilist_id.saturating_add(TVDB_CLEAR_LOGO_CACHE_KEY_OFFSET);
+        let now = Utc::now().timestamp();
+
+        {
+            let db = self.db.lock().unwrap();
+            let cache = EpisodeCache::new(&db);
+            if let Ok(Some(cached)) = cache.get::<Value>(cache_key) {
+                if let Some(url) = cached["url"].as_str().map(|v| v.to_string()) {
+                    return Ok(Some(url));
+                }
+                if cached["missing_until"].as_i64().unwrap_or(0) > now {
+                    return Ok(None);
+                }
+            }
+        }
+
+        let logo = match self.client.get_clear_logo(anilist_id, format, &self.mapping).await {
+            Ok(url) => url,
+            Err(TvdbError::Skipped(_) | TvdbError::MappingNotFound(_) | TvdbError::NotFound(_)) => None,
+            Err(_) => None,
+        };
+
+        let payload = if let Some(url) = &logo {
+            serde_json::json!({ "url": url, "missing_until": Value::Null })
+        } else {
+            serde_json::json!({ "url": Value::Null, "missing_until": now + TVDB_BACKGROUND_MISS_TTL_SECONDS })
+        };
+
+        {
+            let db = self.db.lock().unwrap();
+            let _ = EpisodeCache::new(&db).set(cache_key, &payload);
+        }
+
+        Ok(logo)
+    }
+
+    pub fn clear_cache(&self) -> Result<(), String> {
+        let db = self.db.lock().unwrap();
+        EpisodeCache::new(&db)
+            .clear_all()
+            .map_err(|e| e.to_string())?;
+        AnimeDetailsCache::new(&db)
+            .clear_all()
+            .map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 

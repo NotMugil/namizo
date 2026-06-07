@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:namizo/core/config.dart';
 import 'package:namizo/core/constants.dart';
 import 'package:namizo/models/media/search_result.dart';
@@ -11,10 +10,54 @@ import 'package:namizo/models/tvdb/tvdb_models.dart';
 import 'package:namizo/services/tvdb.dart';
 import 'package:namizo/utils/image_url.dart' as img_util;
 
+// Local stubs replacing removed aimi_lib types
+class _KDetails {
+  final String id;
+  final String title;
+  final String? titleEn;
+  final String? image;
+  final String? description;
+  final double? score;
+  final int? episodes;
+  final int? lastEpisode;
+  final String? status;
+  final int? airedInt;
+  final int? schedule;
+  final List<String>? genres;
+  final String? duration;
+  const _KDetails({
+    required this.id,
+    required this.title,
+    this.titleEn,
+    this.image,
+    this.description,
+    this.score,
+    this.episodes,
+    this.lastEpisode,
+    this.status,
+    this.airedInt,
+    this.schedule,
+    this.genres,
+    this.duration,
+  });
+}
+
+class _KSearchResult {
+  final String id;
+  final String title;
+  final String? time;
+  final String? image;
+  const _KSearchResult({
+    required this.id,
+    required this.title,
+    this.time,
+    this.image,
+  });
+}
+
 class KuroiruService {
   final Dio _jikanDio;
   final Dio _kuroiruDio;
-  final aimi.Kuroiru _kuroiru;
   final TvdbMetadataService _tvdbMetadata;
   final CacheService _cache;
   final Map<String, Future<List<dynamic>>> _inFlightHomeRequests = {};
@@ -36,7 +79,6 @@ class KuroiruService {
           headers: {'User-Agent': AppConfigurations.defaultAppUserAgent},
         ),
       ),
-      _kuroiru = aimi.Kuroiru(),
       _tvdbMetadata = TvdbMetadataService(_cache);
 
   Future<List<Map<String, dynamic>>> getAiringCalendar() async {
@@ -179,7 +221,7 @@ class KuroiruService {
       List<SearchResult> mappedKuroiru = const [];
       if (page == 1) {
         try {
-          final kuroiruResults = await _kuroiru.search(normalizedQuery);
+          final kuroiruResults = <_KSearchResult>[]; // aimi_lib removed
           mappedKuroiru = _mapKuroiruSearchResults(kuroiruResults);
         } catch (_) {
           mappedKuroiru = const [];
@@ -229,9 +271,7 @@ class KuroiruService {
     }
   }
 
-  List<SearchResult> _mapKuroiruSearchResults(
-    List<aimi.AnimeSearchResult> raw,
-  ) {
+  List<SearchResult> _mapKuroiruSearchResults(List<_KSearchResult> raw) {
     final mapped = <SearchResult>[];
 
     for (final item in raw) {
@@ -479,7 +519,7 @@ class KuroiruService {
     if (cached != null) return cached;
 
     try {
-      final details = await _kuroiru.getDetails('$showId');
+      final details = _KDetails(id: '$showId', title: ''); // aimi_lib removed
       final episodes = details.episodes ?? details.lastEpisode ?? 0;
       final mapped = SeriesInfo(
         numberOfSeasons: 1,
@@ -517,7 +557,7 @@ class KuroiruService {
         return empty;
       }
 
-      final details = await _kuroiru.getDetails('$showId');
+      final details = _KDetails(id: '$showId', title: ''); // aimi_lib removed
       final episodeCount = details.episodes ?? details.lastEpisode ?? 0;
       final runtime = _parseDurationMinutes(details.duration);
       final episodes = List<EpisodeData>.generate(episodeCount, (index) {
@@ -715,7 +755,7 @@ class KuroiruService {
     if (cached != null) return cached;
 
     try {
-      final details = await _kuroiru.getDetails('$tvId');
+      final details = _KDetails(id: '$tvId', title: ''); // aimi_lib removed
       final mapped = await _enrichSearchResultWithTvdbArtwork(
         tvId,
         _toSearchResult(details),
@@ -734,7 +774,7 @@ class KuroiruService {
     final staleCache = await _cache.getStaleRaw(cacheKey);
     if (staleCache != null && _cache.isExpired(cacheKey)) {
       _cache.updateInBackground(cacheKey, () async {
-        final details = await _kuroiru.getDetails('$tvId');
+        final details = _KDetails(id: '$tvId', title: ''); // aimi_lib removed
         return _toDetailWithVideosMap(tvId, details);
       }, longCache);
       return staleCache;
@@ -743,7 +783,7 @@ class KuroiruService {
     if (staleCache != null) return staleCache;
 
     try {
-      final details = await _kuroiru.getDetails('$tvId');
+      final details = _KDetails(id: '$tvId', title: ''); // aimi_lib removed
       final data = await _toDetailWithVideosMap(tvId, details);
       await _cache.set(cacheKey, data, ttl: longCache);
 
@@ -1046,7 +1086,7 @@ class KuroiruService {
     return path;
   }
 
-  SearchResult _toSearchResult(aimi.AnimeDetails details) {
+  SearchResult _toSearchResult(_KDetails details) {
     final id = int.tryParse(details.id) ?? 0;
     return SearchResult(
       id: id,
@@ -1067,7 +1107,7 @@ class KuroiruService {
 
   Future<Map<String, dynamic>> _toDetailWithVideosMap(
     int malId,
-    aimi.AnimeDetails details,
+    _KDetails details,
   ) async {
     final enriched = await _enrichSearchResultWithTvdbArtwork(
       malId,

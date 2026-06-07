@@ -34,13 +34,15 @@ pub const MEDIA_PAGE_QUERY: &str = r#"
         ) {
           id
           title { romaji english }
-          coverImage { large }
+          coverImage { extraLarge }
           description
           averageScore
           genres
           format
           episodes
+          duration
           status
+          seasonYear
           bannerImage
           nextAiringEpisode {
             episode
@@ -58,7 +60,7 @@ pub const DETAILS_QUERY: &str = r#"
         id
         idMal
         title { romaji english native }
-        coverImage { large }
+        coverImage { extraLarge }
         bannerImage
         description
         genres
@@ -69,6 +71,11 @@ pub const DETAILS_QUERY: &str = r#"
         seasonYear
         format
         episodes
+        duration
+        nextAiringEpisode {
+          episode
+          airingAt
+        }
         studios(isMain: true) {
           nodes { name }
         }
@@ -92,11 +99,14 @@ pub const DETAILS_QUERY: &str = r#"
               id
               type
               title { romaji english }
-              coverImage { large }
+              coverImage { extraLarge }
+              bannerImage
               averageScore
               genres
               format
               episodes
+              status
+              seasonYear
             }
           }
         }
@@ -106,11 +116,14 @@ pub const DETAILS_QUERY: &str = r#"
             mediaRecommendation {
               id
               title { romaji english }
-              coverImage { large }
+              coverImage { extraLarge }
+              bannerImage
               averageScore
               genres
               format
               episodes
+              status
+              seasonYear
             }
           }
         }

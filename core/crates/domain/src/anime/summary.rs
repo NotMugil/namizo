@@ -15,4 +15,6 @@ pub struct AnimeSummary {
     pub status: Option<String>,
     pub next_airing_episode: Option<u32>,
     pub next_airing_at: Option<i64>,
+    pub duration: Option<u32>,
+    pub season_year: Option<u32>,
 }
