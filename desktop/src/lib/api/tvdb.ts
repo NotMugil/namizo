@@ -20,3 +20,14 @@ export async function getTvdbBackground(
         format,
     })
 }
+
+export async function getTvdbClearLogo(
+    anilistId: number,
+    format: string | null
+): Promise<string | null> {
+    return invoke<string | null>('get_tvdb_clear_logo', { anilistId, format })
+}
+
+export async function clearTvdbCache(): Promise<void> {
+    return invoke('clear_tvdb_cache')
+}

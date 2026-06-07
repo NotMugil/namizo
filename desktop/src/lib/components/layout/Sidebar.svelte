@@ -13,9 +13,9 @@
 
 	const navLinks = [
 		{ href: ROUTES.HOME,     label: 'Home',     icon: HouseIcon },
-		{ href: ROUTES.DISCOVER, label: 'Discover',  icon: CompassIcon },
-		{ href: ROUTES.LIBRARY,  label: 'Library',   icon: BookmarkIcon },
-		{ href: ROUTES.SCHEDULE, label: 'Schedule',  icon: CalendarIcon }
+		{ href: ROUTES.DISCOVER, label: 'Discover', icon: CompassIcon },
+		{ href: ROUTES.LIBRARY,  label: 'Library',  icon: BookmarkIcon },
+		{ href: ROUTES.SCHEDULE, label: 'Schedule', icon: CalendarIcon },
 	];
 
 	function close() { sidebar.open = false; }

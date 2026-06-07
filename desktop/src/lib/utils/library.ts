@@ -51,6 +51,11 @@ export function cacheLibraryEntry(entry: LibraryEntry): void {
     librarySnapshot = [entry, ...librarySnapshot];
 }
 
+export function invalidateLibraryCache(): void {
+    librarySnapshot = null;
+    librarySnapshotRequest = null;
+}
+
 export function removeCachedLibraryEntry(anilistId: number): void {
     if (!librarySnapshot) {
         return;

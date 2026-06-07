@@ -1,9 +1,10 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { anilistConnection } from '$lib/server/db/schema';
+import { anilistConnection, verification } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
 import { auth } from '$lib/server/auth';
+import { eq, and, gt } from 'drizzle-orm';
 
 const ANILIST_TOKEN_URL = 'https://anilist.co/api/v2/oauth/token';
 const ANILIST_API_URL   = 'https://graphql.anilist.co';
@@ -12,8 +13,33 @@ export const GET: RequestHandler = async ({ url, request }) => {
 	const code = url.searchParams.get('code');
 	if (!code) throw error(400, 'Missing authorization code');
 
-	const session = await auth.api.getSession({ headers: request.headers });
-	if (!session?.user) throw redirect(302, '/login');
+	// Resolve the Namizo user: prefer state-based lookup (external browser flow)
+	// and fall back to the in-app session cookie (legacy in-webview flow).
+	let userId: string;
+
+	const state = url.searchParams.get('state');
+	if (state) {
+		const [stateRecord] = await db
+			.select()
+			.from(verification)
+			.where(
+				and(
+					eq(verification.identifier, `anilist_oauth:${state}`),
+					gt(verification.expiresAt, new Date())
+				)
+			)
+			.limit(1);
+
+		if (!stateRecord) throw error(400, 'Invalid or expired OAuth state — please try connecting again');
+		userId = stateRecord.value;
+
+		// Clean up the one-time state token
+		await db.delete(verification).where(eq(verification.identifier, `anilist_oauth:${state}`));
+	} else {
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session?.user) throw redirect(302, '/login');
+		userId = session.user.id;
+	}
 
 	// Exchange authorization code for access token
 	const tokenRes = await fetch(ANILIST_TOKEN_URL, {
@@ -56,7 +82,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		.insert(anilistConnection)
 		.values({
 			id: crypto.randomUUID(),
-			userId: session.user.id,
+			userId,
 			anilistId: viewer.id,
 			anilistUsername: viewer.name,
 			accessToken: token.access_token,

@@ -1,16 +1,17 @@
 <script lang="ts" context="module">
     const carouselBackgroundCache = new Map<string, string | null>()
     const carouselBackgroundRequests = new Map<string, Promise<string | null>>()
+    const carouselClearLogoCache = new Map<string, string | null>()
+    const carouselClearLogoRequests = new Map<string, Promise<string | null>>()
 </script>
 
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte'
-    import { goto } from '$app/navigation'
-    import { PlayIcon, InfoIcon, ArrowLeftIcon, ArrowRightIcon, PlusIcon } from 'phosphor-svelte'
+    import { PlayIcon, InfoIcon, PlusIcon } from 'phosphor-svelte'
     import type { AnimeSummary } from '$lib/types/anime'
+    import type { LibraryEntry } from '$lib/types/library'
     import TrailerSurface from '$lib/components/shared/TrailerSurface.svelte'
     import LibraryEntryEditor from '$lib/components/library/LibraryEntryEditor.svelte'
-    import type { LibraryEntry } from '$lib/types/library'
     import {
         cacheLibraryEntry,
         draftLibraryFromSummary,
@@ -18,7 +19,9 @@
         resolveLibraryEntryWithState,
     } from '$lib/utils/library'
     import { BRANDING_DELAY } from '$lib/constants/ui'
-    import { getTvdbBackground } from '$lib/api/tvdb'
+    import { getTvdbBackground, getTvdbClearLogo } from '$lib/api/tvdb'
+    import { throttledApiCall } from '$lib/utils/request-limiter'
+    import { playbackPrefs } from '$lib/state.svelte'
 
     export let items: AnimeSummary[] = []
 
@@ -31,9 +34,13 @@
     let editorOpen = false
     let selectedEntry: LibraryEntry | null = null
     let tvdbBackgroundImage: string | null = null
+    let tvdbClearLogo: string | null = null
     let backgroundRequestVersion = 0
+    let clearLogoRequestVersion = 0
     let currentItemInCollection = false
     let collectionStatusRequestVersion = 0
+    let touchStartX = 0
+    let touchStartY = 0
 
     $: item = items[current] ?? null
     $: totalItems = Math.min(items.length, 8) // cap at 8 for carousel
@@ -47,7 +54,9 @@
 
     $: if (item) {
         tvdbBackgroundImage = null
+        tvdbClearLogo = null
         void resolveBackgroundImage(item)
+        void resolveClearLogo(item)
         void resolveCollectionStatus(item.id)
     }
 
@@ -63,7 +72,8 @@
 
     function startTrailerTimer() {
         const slideItem = items[current]
-        if (!slideItem?.trailer_id) return
+        if (!slideItem?.trailer_id || !playbackPrefs.autoplayTrailers) return
+        if (typeof window !== 'undefined' && window.innerWidth < 640) return
         trailerMounted = true
 
         trailerTimer = setTimeout(() => {
@@ -127,7 +137,7 @@
             return inFlight
         }
 
-        const request = getTvdbBackground(slide.id, slide.format ?? null)
+        const request = throttledApiCall(() => getTvdbBackground(slide.id, slide.format ?? null))
             .then((value) => value ?? null)
             .catch(() => null)
             .then((value) => {
@@ -180,6 +190,64 @@
             currentItemInCollection = false
         }
     }
+
+    function clearLogoKey(slide: AnimeSummary): string {
+        return `${slide.id}|${(slide.format ?? '').trim().toUpperCase()}`
+    }
+
+    function fetchClearLogoCached(slide: AnimeSummary): Promise<string | null> {
+        const key = clearLogoKey(slide)
+        const cached = carouselClearLogoCache.get(key)
+        if (cached !== undefined) return Promise.resolve(cached)
+        const inFlight = carouselClearLogoRequests.get(key)
+        if (inFlight) return inFlight
+        const request = throttledApiCall(() => getTvdbClearLogo(slide.id, slide.format ?? null))
+            .then((v) => v ?? null)
+            .catch(() => null)
+            .then((v) => {
+                carouselClearLogoCache.set(key, v)
+                carouselClearLogoRequests.delete(key)
+                return v
+            })
+        carouselClearLogoRequests.set(key, request)
+        return request
+    }
+
+    async function resolveClearLogo(slide: AnimeSummary) {
+        const requestVersion = ++clearLogoRequestVersion
+        const resolved = await fetchClearLogoCached(slide)
+        if (requestVersion === clearLogoRequestVersion && item?.id === slide.id) {
+            tvdbClearLogo = resolved
+        }
+    }
+
+    function handleTouchStart(e: TouchEvent) {
+        touchStartX = e.touches[0].clientX
+        touchStartY = e.touches[0].clientY
+    }
+
+    function handleTouchEnd(e: TouchEvent) {
+        const dx = e.changedTouches[0].clientX - touchStartX
+        const dy = e.changedTouches[0].clientY - touchStartY
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 48) {
+            if (dx < 0) next()
+            else prev()
+            resetTimer()
+        }
+    }
+
+    function mobileLabelForFormat(format: string | null): string {
+        if (!format) return ''
+        const map: Record<string, string> = {
+            TV: 'TV Show',
+            TV_SHORT: 'TV Short',
+            MOVIE: 'Movie',
+            OVA: 'OVA',
+            ONA: 'ONA',
+            SPECIAL: 'Special',
+        }
+        return map[format.toUpperCase()] ?? format
+    }
 </script>
 
 {#if item}
@@ -190,27 +258,23 @@
         role="region"
         onmouseenter={() => { paused = true; if (timer) clearInterval(timer) }}
         onmouseleave={() => { paused = false; resetTimer() }}
+        ontouchstart={handleTouchStart}
+        ontouchend={handleTouchEnd}
     >
-        <!-- Background image -->
+        <!-- Backgrounds -->
         <div class="absolute inset-0">
-            <!-- Mobile: portrait cover art (landscape banners crop poorly at narrow widths) -->
             <img
                 src={item.cover_image}
                 alt={item.title}
                 class="sm:hidden absolute inset-0 z-0 w-full h-full object-cover object-top brightness-40
-                       transition-opacity duration-700
-                       {showTrailer ? 'opacity-0' : 'opacity-100'}"
+                       transition-opacity duration-700 {showTrailer ? 'opacity-0' : 'opacity-100'}"
             />
-            <!-- sm+: TVDB / AniList landscape banner -->
             <img
                 src={activeBackgroundImage}
                 alt={item.title}
                 class="hidden sm:block absolute inset-0 z-0 w-full h-full object-cover scale-110 brightness-50
-                       transition-opacity duration-700
-                       {showTrailer ? 'opacity-0' : 'opacity-100'}"
+                       transition-opacity duration-700 {showTrailer ? 'opacity-0' : 'opacity-100'}"
             />
-
-            <!-- iframe mounts early (buffering), but stays hidden until branding clears -->
             {#if trailerMounted && item.trailer_id}
                 {#key `${item.id}:${item.trailer_id}`}
                     <div class="absolute inset-0 z-0 transition-opacity duration-700
@@ -224,25 +288,76 @@
                     </div>
                 {/key}
             {/if}
-            <div
-                class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-black/90 via-black/40 to-transparent"
-            ></div>
-            <div
-                class="pointer-events-none absolute inset-0 z-10 bg-gradient-to-t from-black via-background/20 to-transparent"
-            ></div>
+            <div class="pointer-events-none hidden sm:block absolute inset-0 z-10 bg-linear-to-r from-black/90 via-black/40 to-transparent"></div>
+            <div class="pointer-events-none absolute inset-0 z-10 bg-linear-to-t from-black via-background/20 to-transparent"></div>
         </div>
 
-        <div class="relative z-20 flex h-full items-end pb-8 px-8 gap-6">
+        <!-- ── MOBILE layout ── -->
+        <div class="sm:hidden relative z-20 flex flex-col h-full items-center justify-end pb-6 px-5 gap-3">
+            {#if tvdbClearLogo}
+                <img src={tvdbClearLogo} alt={item.title} class="max-h-20 max-w-[90%] object-contain drop-shadow-lg" />
+            {:else}
+                <h2 class="text-2xl font-bold text-center leading-tight line-clamp-2 m-0">{item.title}</h2>
+            {/if}
 
-            <!-- Cover -->
+            <div class="flex gap-2 flex-wrap justify-center">
+                {#if item.format}
+                    <span class="chip">{mobileLabelForFormat(item.format)}</span>
+                {/if}
+                {#if item.status === 'RELEASING'}
+                    <span class="chip text-xs font-semibold bg-emerald-500/20 text-emerald-300">AIRING</span>
+                {:else if item.status === 'NOT_YET_RELEASED'}
+                    <span class="chip">UPCOMING</span>
+                {/if}
+                {#if item.season_year}
+                    <span class="chip">{item.season_year}</span>
+                {/if}
+            </div>
+
+            <div class="flex items-center gap-3 mt-1">
+                <a
+                    href="/watch/{item.id}?ep=1"
+                    class="inline-flex items-center gap-2 h-10 px-7 rounded-full
+                           bg-white text-black text-sm font-semibold
+                           no-underline transition-opacity hover:opacity-90"
+                >
+                    <PlayIcon size={15} weight="fill" />
+                    Watch Now
+                </a>
+                <button
+                    type="button"
+                    class="inline-flex items-center justify-center w-10 h-10 rounded-full
+                           bg-white/15 border border-white/25 text-white
+                           transition-colors hover:bg-white/25"
+                    onclick={openCollectionEditor}
+                    aria-label={currentItemInCollection ? 'Edit entry' : 'Add to collection'}
+                >
+                    <PlusIcon size={16} weight="bold" />
+                </button>
+            </div>
+
+            <div class="flex gap-2 mt-1">
+                {#each Array.from({ length: totalItems }) as _, i}
+                    <button
+                        class="h-2 rounded-full transition-all duration-300 border-0
+                               {i === current ? 'w-6 bg-white' : 'w-2 bg-white/35'}"
+                        onclick={() => goTo(i)}
+                        aria-label="Go to slide {i + 1}"
+                    ></button>
+                {/each}
+            </div>
+        </div>
+
+        <!-- ── DESKTOP layout ── -->
+        <div class="hidden sm:flex relative z-20 h-full items-end pb-8 px-8 gap-6">
             <img
                 src={item.cover_image}
                 alt={item.title}
-                class="hidden sm:block md: h-[200px] lg:h-[300px] aspect-[2/3] object-cover rounded-lg
+                class="md:h-50 lg:h-75 aspect-2/3 object-cover rounded-lg
                        border border-white/10 shadow-xl shrink-0 self-end"
             />
 
-            <div class="flex flex-col gap-2 min-w-0 max-w-[520px]">
+            <div class="flex flex-col gap-2 min-w-0 max-w-130">
                 <div class="flex gap-1.5 flex-wrap">
                     {#if item.format}
                         <span class="chip">{item.format}</span>
@@ -258,76 +373,63 @@
                     {/each}
                 </div>
 
-                <!-- Title -->
                 <h2 class="text-[clamp(1.3rem,3vw,2rem)] font-bold leading-tight line-clamp-2 m-0">
                     {item.title}
                 </h2>
 
                 {#if item.description}
-                    <p class="m-0 text-white/60 text-[0.82rem] leading-[1.5] max-w-[520px]
-                            overflow-y-auto [max-height:calc(1.5em*3)]
+                    <p class="m-0 text-white/60 text-[0.82rem] leading-normal max-w-130
+                            overflow-y-auto max-h-[calc(1.5em*3)]
                             [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {@html item.description}
                     </p>
                 {/if}
 
-                <!-- Actions -->
                 <div class="flex gap-2 mt-1">
                     <a
                         href="/watch/{item.id}?ep=1"
-                        class="inline-flex items-center gap-1.5 h-9 px-3 sm:px-4 rounded-lg
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
                                bg-white text-black text-[0.82rem] font-semibold
                                no-underline transition-opacity hover:opacity-90"
                     >
                         <PlayIcon size={14} weight="fill" />
-                        <span class="sm:hidden">Watch</span>
-                        <span class="hidden sm:inline">Watch Now</span>
+                        Watch Now
                     </a>
                     <a
                         href="/anime/{item.id}"
-                        class="inline-flex items-center gap-1.5 h-9 px-3 sm:px-4 rounded-lg
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
                                border border-white/20 bg-white/10 text-white
                                text-[0.82rem] font-medium no-underline
                                transition-colors hover:bg-white/15"
                     >
                         <InfoIcon size={14} weight="bold" />
-                        <span class="hidden sm:inline">Details</span>
+                        Details
                     </a>
                     <button
                         type="button"
-                        class="inline-flex items-center gap-1.5 h-9 px-3 sm:px-4 rounded-lg
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg
                                border border-white/20 bg-white/10 text-white
                                text-[0.82rem] font-medium
                                transition-colors hover:bg-white/15"
                         onclick={openCollectionEditor}
                     >
                         <PlusIcon size={14} weight="bold" />
-                        <span class="hidden sm:inline">{currentItemInCollection ? 'Edit Entry' : 'Add to Collection'}</span>
+                        {currentItemInCollection ? 'Edit Entry' : 'Add to Collection'}
                     </button>
                 </div>
             </div>
         </div>
 
-        <div class="absolute bottom-3 right-6 z-20 flex flex-col items-end gap-3">
-            <div class="flex gap-1">
-                <button class="chevron-btn" onclick={prev} aria-label="Previous">
-                    <ArrowLeftIcon />
-                </button>
-                <button class="chevron-btn" onclick={next} aria-label="Next">
-                    <ArrowRightIcon/>
-                </button>
-            </div>
-
-            <div class="flex gap-1.5">
-                {#each Array.from({ length: totalItems }) as _, i}
-                    <button
-                        class="h-1.5 rounded-full transition-all duration-300 border-0
-                            {i === current ? 'w-5 bg-white' : 'w-1.5 bg-white/35 hover:bg-white/55'}"
-                        onclick={() => goTo(i)}
-                        aria-label="Go to slide {i + 1}"
-                    ></button>
-                {/each}
-            </div>
+        <!-- Desktop dots (bottom-right) -->
+        <div class="hidden sm:flex absolute bottom-4 right-6 z-20 gap-2">
+            {#each Array.from({ length: totalItems }) as _, i}
+                <button
+                    class="h-2 rounded-full transition-all duration-300 border-0
+                           {i === current ? 'w-6 bg-white' : 'w-2 bg-white/35 hover:bg-white/55'}"
+                    onclick={() => goTo(i)}
+                    aria-label="Go to slide {i + 1}"
+                ></button>
+            {/each}
         </div>
     </div>
 {/if}

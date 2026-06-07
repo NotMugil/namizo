@@ -42,8 +42,8 @@ fn main() {
                         .expect("failed to init anime service"),
                     library_service: LibraryService::new(&db_path)
                         .expect("failed to init library service"),
-                    stream_service: StreamService::new(),
                     playback_service,
+                    stream_service: StreamService::new(),
                     tvdb_service,
                 });
             });
@@ -64,9 +64,6 @@ fn main() {
             commands::library::library_progress,
             commands::library::library_resume,
             commands::library::library_facets,
-            commands::stream::stream_search,
-            commands::stream::stream_episodes,
-            commands::stream::stream_sources,
             commands::playback::playback_start,
             commands::playback::playback_stop,
             commands::logging::frontend_log,
@@ -74,6 +71,9 @@ fn main() {
             commands::jikan::get_jikan_episodes_page,
             commands::tvdb::get_tvdb_episodes,
             commands::tvdb::get_tvdb_background,
+            commands::tvdb::get_tvdb_clear_logo,
+            commands::tvdb::clear_tvdb_cache,
+            commands::stream::get_episode_sources,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

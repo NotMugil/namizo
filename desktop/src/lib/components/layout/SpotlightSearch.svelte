@@ -206,10 +206,11 @@
   });
 </script>
 
+<!-- Desktop pill (sm+) -->
 <button
   type="button"
   onclick={() => openSpotlight()}
-  class="group hidden h-10 min-w-[12rem] items-center justify-between gap-3 rounded-full border border-white/10 bg-black/55 px-4 text-left shadow-[0_10px_24px_rgba(0,0,0,0.5)] backdrop-blur-[18px] transition hover:border-white/20 hover:bg-black/65 md:flex md:w-[min(30vw,22rem)]"
+  class="group hidden sm:flex h-10 min-w-[12rem] items-center justify-between gap-3 rounded-full border border-white/10 bg-black/55 px-4 text-left shadow-[0_10px_24px_rgba(0,0,0,0.5)] backdrop-blur-[18px] transition hover:border-white/20 hover:bg-black/65 sm:w-[min(30vw,22rem)]"
   aria-label="Open search spotlight"
 >
   <span class="inline-flex min-w-0 items-center gap-2 text-sm text-white/72 transition group-hover:text-white">
@@ -221,13 +222,15 @@
   </span>
 </button>
 
+<!-- Mobile: icon-only button -->
 <button
   type="button"
   onclick={() => openSpotlight()}
-  class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/12 bg-black/55 text-white/80 backdrop-blur-[12px] transition hover:bg-black/70 md:hidden"
+  class="sm:hidden inline-flex h-9 w-9 items-center justify-center rounded-xl
+         text-white/70 transition-colors active:bg-white/20 hover:bg-white/10"
   aria-label="Open search spotlight"
 >
-  <MagnifyingGlassIcon size={18} weight="bold" />
+  <MagnifyingGlassIcon size={20} weight="bold" />
 </button>
 
 {#if isSpotlightOpen}

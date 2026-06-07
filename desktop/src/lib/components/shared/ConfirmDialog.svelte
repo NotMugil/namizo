@@ -37,7 +37,7 @@
 		aria-modal="true"
 		aria-labelledby="confirm-dlg-title"
 		tabindex="-1"
-		class="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 sm:p-0"
+		class="fixed inset-0 z-200 flex items-end sm:items-center justify-center p-4 sm:p-0"
 		onkeydown={(e) => { if (e.key === 'Escape') cancel(); }}
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { page } from "$app/stores";
+  import { breadcrumb } from "$lib/state.svelte";
   import { getAnimeDetails } from "$lib/api/anime";
   import type { AnimeDetails } from "$lib/types/anime";
   import { getTvdbBackground, getTvdbEpisodes } from "$lib/api/tvdb";
@@ -7,7 +9,7 @@
   import type { TvdbEpisode } from "$lib/types/tvdb";
   import type { JikanEpisode, JikanEpisodesPage } from "$lib/types/jikan";
   import AnimeRow from "$lib/components/AnimeRow.svelte";
-  import { PlayIcon, HeartIcon, PlusIcon, PencilIcon } from "phosphor-svelte";
+  import { PlayIcon, HeartIcon, PlusIcon, PencilIcon, BellSimpleRingingIcon } from "phosphor-svelte";
   import EpisodeList from "$lib/components/EpisodeList.svelte";
   import CharactersRow from "$lib/components/CharectersRow.svelte";
   import LoadingScreen from "$lib/components/shared/LoadingScreen.svelte";
@@ -16,7 +18,7 @@
   import {
     cacheLibraryEntry,
     draftLibraryFromDetails,
-    getLibraryStatus,
+    findLibraryEntryById,
     resolveLibraryEntryWithState,
   } from "$lib/utils/library";
   import {
@@ -45,6 +47,7 @@
   let editorOpen = false;
   let selectedEntry: LibraryEntry | null = null;
   let inList = false;
+  let watchProgress = 0;
   let listStatusRequestVersion = 0;
 
   $: id = Number($page.params.id);
@@ -53,6 +56,12 @@
     void loadDetails(id);
   }
 
+  $: if (details) {
+    breadcrumb.items = [{ label: 'Home', href: '/' }, { label: details.title }];
+  }
+
+  onDestroy(() => { breadcrumb.items = []; });
+
   $: heroBackgroundImage =
     tvdbBackgroundImage ??
     details?.banner_image ??
@@ -60,6 +69,25 @@
     null;
 
   $: resolvedEpisodeCount = resolveEpisodeCount(details, fallbackEpisodeCount);
+
+  function mobileLabelForFormat(fmt: string | null): string {
+    if (!fmt) return ''
+    const map: Record<string, string> = {
+      TV: 'TV Show', TV_SHORT: 'TV Short', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special'
+    }
+    return map[fmt.toUpperCase()] ?? fmt
+  }
+
+  function formatAiringDate(ts: number | null): string {
+    if (!ts) return ''
+    return new Date(ts * 1000).toLocaleString(undefined, {
+      weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+    })
+  }
+
+  $: airingDaysLeft = details?.next_airing_at
+    ? Math.ceil((details.next_airing_at * 1000 - Date.now()) / 86_400_000)
+    : null;
 
   function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,6 +106,7 @@
     jikanApiHasMore = false;
     jikanPaging = false;
     jikanBufferedEpisodes = [];
+    watchProgress = 0;
 
     try {
       const d = await getAnimeDetails(animeId);
@@ -359,13 +388,14 @@
   async function resolveListPresence(anilistId: number) {
     const requestVersion = ++listStatusRequestVersion;
     try {
-      const status = await getLibraryStatus(anilistId);
+      const entry = await findLibraryEntryById(anilistId);
       if (
         requestVersion !== listStatusRequestVersion ||
         details?.id !== anilistId
       )
         return;
-      inList = Boolean(status);
+      inList = Boolean(entry?.status);
+      watchProgress = entry?.progress ?? 0;
     } catch {
       if (
         requestVersion !== listStatusRequestVersion ||
@@ -373,6 +403,7 @@
       )
         return;
       inList = false;
+      watchProgress = 0;
     }
   }
 </script>
@@ -383,57 +414,25 @@
   <p class="text-center py-12 text-red-500">{error}</p>
 {:else if details}
   <div class="relative bg-black min-h-screen overflow-x-hidden">
-    <!-- ── Hero ── -->
+    <!-- ── Mobile Banner ── -->
+    <div class="sm:hidden relative h-48 overflow-hidden">
+      <img
+        src={heroBackgroundImage ?? details.cover_image}
+        alt=""
+        class="w-full h-full object-cover brightness-75 transition-opacity duration-500"
+      />
+      <div class="absolute inset-0 bg-gradient-to-b from-transparent via-black/30 to-black pointer-events-none"></div>
+    </div>
+
+    <!-- ── Desktop Hero ── -->
     <div
-      class="relative min-h-[clamp(380px,56vh,640px)] bg-cover bg-top flex items-end"
+      class="hidden sm:flex relative min-h-[clamp(380px,56vh,640px)] bg-cover bg-top items-end"
       style="background-image: linear-gradient(96deg, rgba(0,0,0,0.92), rgba(0,0,0,0.55)),
              url('{heroBackgroundImage ?? details.cover_image}')"
     >
-      <!-- bottom fade -->
-      <div
-        class="absolute inset-0 bottom-[-1px] bg-gradient-to-b from-transparent via-transparent to-black pointer-events-none"
-      ></div>
-
-      <div class="relative z-10 w-full px-4 sm:px-[clamp(1rem,2.5vw,2.5rem)] pt-[clamp(5rem,7vw,7rem)] pb-8">
-
-        <!-- ── Mobile layout ── -->
-        <div class="flex flex-col sm:hidden gap-3">
-          <div class="flex gap-3 items-end">
-            <img
-              src={details.cover_image}
-              alt={details.title}
-              class="h-32 aspect-[2/3] object-cover rounded-lg border border-white/10 shadow-xl shrink-0"
-              loading="eager"
-            />
-            <div class="min-w-0 pb-0.5">
-              <h1 class="text-lg font-bold leading-tight text-white line-clamp-3 mb-1 m-0">{details.title}</h1>
-              {#if details.studios.length}
-                <span class="text-[0.65rem] text-white/40">{details.studios[0]}</span>
-              {/if}
-              <div class="flex flex-wrap gap-1 mt-1.5">
-                {#if details.format}<span class="chip">{details.format}</span>{/if}
-                {#if details.average_score}<span class="chip">{(details.average_score / 10).toFixed(1)} ★</span>{/if}
-                {#if details.episode_count}<span class="chip">{details.episode_count} eps</span>{:else if resolvedEpisodeCount}<span class="chip">{resolvedEpisodeCount} eps</span>{/if}
-                {#if details.status}<span class="chip">{formatAnimeStatus(details.status)}</span>{/if}
-              </div>
-            </div>
-          </div>
-          <div class="flex gap-2">
-            <a href="/watch/{details.id}?ep=1"
-              class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white text-black py-2.5 text-[0.82rem] font-semibold no-underline">
-              <PlayIcon size={13} weight="fill" />Play
-            </a>
-            <button type="button"
-              class="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/10 text-white py-2.5 text-[0.82rem]"
-              onclick={openCollectionEditor}>
-              {#if inList}<PencilIcon size={13} weight="bold" />{:else}<PlusIcon size={13} weight="bold" />{/if}
-              {inList ? 'Edit' : 'Add'}
-            </button>
-          </div>
-        </div>
-
-        <!-- ── Desktop layout ── -->
-        <div class="hidden sm:grid grid-cols-[minmax(170px,240px)_1fr] gap-6 items-end">
+      <div class="absolute inset-0 bottom-[-1px] bg-gradient-to-b from-transparent via-transparent to-black pointer-events-none"></div>
+      <div class="relative z-10 w-full px-[clamp(1rem,2.5vw,2.5rem)] pt-[clamp(5rem,7vw,7rem)] pb-8">
+        <div class="grid grid-cols-[minmax(170px,240px)_1fr] gap-6 items-end">
           <img
             src={details.cover_image}
             alt={details.title}
@@ -441,7 +440,6 @@
                    shadow-[0_16px_34px_rgba(0,0,0,0.6)]"
             loading="eager"
           />
-
           <div class="grid gap-3 min-w-0">
             <h1 class="m-0 text-[clamp(1.6rem,3vw,2.8rem)] font-bold leading-[1.1]">{details.title}</h1>
             {#if details.title_japanese}
@@ -491,9 +489,102 @@
                 <HeartIcon size={15} weight="regular" />
               </button>
             </div>
+            {#if airingDaysLeft !== null && airingDaysLeft > 0}
+              <div class="relative group inline-flex items-center gap-1.5 cursor-default select-none">
+                <BellSimpleRingingIcon size={13} class="text-white/50" weight="regular" />
+                <p class="m-0 text-sm text-white/70">
+                  {#if details.next_airing_episode}Ep {details.next_airing_episode} airing in{:else}Next episode airing in{/if}
+                  <span class="text-emerald-400 font-semibold">{airingDaysLeft} {airingDaysLeft === 1 ? 'day' : 'days'}</span>
+                </p>
+                {#if details.next_airing_at}
+                  <div class="absolute bottom-full left-0 mb-2 px-3 py-2 rounded-xl border border-white/12 bg-[#111] shadow-xl
+                              text-[0.72rem] text-white/70 whitespace-nowrap z-50
+                              opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
+                    {formatAiringDate(details.next_airing_at)}
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ── Mobile Details Content ── -->
+    <div class="sm:hidden relative z-10 -mt-8 px-4 pb-4 space-y-4">
+      <!-- Cover art + AIRING badge + title -->
+      <div class="flex gap-3 items-end">
+        <img
+          src={details.cover_image}
+          alt={details.title}
+          class="h-28 w-[4.5rem] object-cover rounded-xl border border-white/10 shadow-xl shrink-0"
+          loading="eager"
+        />
+        <div class="flex-1 min-w-0 pb-0.5">
+          {#if details.status === 'RELEASING'}
+            <span class="inline-flex items-center rounded-md bg-emerald-500/15 border border-emerald-500/40
+                         text-emerald-400 text-[0.68rem] font-semibold px-2 py-0.5 mb-2">AIRING</span>
+          {/if}
+          <h1 class="text-[1.05rem] font-bold leading-snug text-white m-0 line-clamp-3">{details.title}</h1>
+          {#if details.studios.length}
+            <p class="text-[0.63rem] text-white/35 mt-0.5 m-0">{details.studios[0]}</p>
+          {/if}
+        </div>
+      </div>
+
+      <!-- Amber tag chips: format, season, year -->
+      <div class="flex gap-2 flex-wrap">
+        {#if details.format}
+          <span class="border border-amber-500/50 text-amber-400 text-[0.72rem] font-medium px-2.5 py-1 rounded-lg">
+            {mobileLabelForFormat(details.format)}
+          </span>
+        {/if}
+        {#if details.season}
+          <span class="border border-amber-500/50 text-amber-400 text-[0.72rem] font-medium px-2.5 py-1 rounded-lg">
+            {details.season.charAt(0) + details.season.slice(1).toLowerCase()}
+          </span>
+        {/if}
+        {#if details.season_year}
+          <span class="border border-amber-500/50 text-amber-400 text-[0.72rem] font-medium px-2.5 py-1 rounded-lg">
+            {details.season_year}
+          </span>
+        {/if}
+      </div>
+
+      <!-- Description -->
+      {#if details.description}
+        <p class="text-[0.79rem] text-white/55 leading-relaxed line-clamp-3 m-0">{@html details.description}</p>
+      {/if}
+
+      <!-- Action buttons -->
+      <div class="flex items-center gap-2.5">
+        <a href="/watch/{details.id}?ep=1"
+           class="inline-flex items-center gap-1.5 h-10 px-6 rounded-full bg-white text-black text-sm font-semibold no-underline transition-opacity hover:opacity-90">
+          <PlayIcon size={13} weight="fill" />Watch Now
+        </a>
+        <button type="button" onclick={openCollectionEditor}
+                class="inline-flex items-center justify-center h-10 w-10 rounded-full border border-white/20 bg-white/8 text-white transition-colors hover:bg-white/15">
+          {#if inList}<PencilIcon size={14} weight="bold" />{:else}<PlusIcon size={14} weight="bold" />{/if}
+        </button>
+      </div>
+
+      <!-- Airing countdown (with tooltip) -->
+      {#if airingDaysLeft !== null && airingDaysLeft > 0}
+        <div class="relative group inline-flex items-center gap-1.5 cursor-default select-none">
+          <BellSimpleRingingIcon size={13} class="text-white/40" weight="regular" />
+          <span class="text-xs text-white/60">
+            {details.next_airing_episode ? `Ep ${details.next_airing_episode} airing in` : 'Next ep airing in'}
+            <span class="text-emerald-400 font-semibold">{airingDaysLeft} {airingDaysLeft === 1 ? 'day' : 'days'}</span>
+          </span>
+          {#if details.next_airing_at}
+            <div class="absolute bottom-full left-0 mb-2 px-3 py-2 rounded-xl border border-white/12 bg-[#111] shadow-xl
+                        text-[0.72rem] text-white/70 whitespace-nowrap z-50
+                        opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
+              {formatAiringDate(details.next_airing_at)}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <!-- ── Content ── -->
@@ -509,6 +600,7 @@
           canLoadMore={jikanHasMore}
           loadingMore={jikanPaging}
           onLoadMore={onEpisodeListLoadMore}
+          {watchProgress}
         />
 
         <CharactersRow characters={details.characters} />

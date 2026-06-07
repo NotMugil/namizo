@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
+  import { breadcrumb } from "$lib/state.svelte";
   import { discoverAnime } from "$lib/api/anime";
   import type { AnimeSummary } from "$lib/types/anime";
   import type { SearchPageItem } from "$lib/types/search";
@@ -200,6 +201,7 @@
   }
 
   onMount(() => {
+    breadcrumb.items = [{ label: 'Home', href: '/' }, { label: 'Discover' }];
     const params = new URLSearchParams(window.location.search);
     query = params.get("q")?.trim() ?? "";
 
@@ -209,6 +211,7 @@
   });
 
   onDestroy(() => {
+    breadcrumb.items = [];
     window.removeEventListener("resize", handleResize);
     activeRequestId += 1;
     if (searchDebounce) {
@@ -282,7 +285,7 @@
   <div class="p-3 sm:p-4">
     <div class="flex flex-wrap items-center gap-2">
       <div class="flex flex-1 items-center gap-2">
-        <label class="relative min-w-[220px] flex-[1_1_280px]">
+        <label class="relative min-w-55 flex-[1_1_280px]">
           <MagnifyingGlassIcon
             size={13}
             weight="bold"
@@ -319,7 +322,7 @@
       <div class="relative">
         <button
           type="button"
-          class="inline-flex h-9 min-w-[130px] items-center justify-between gap-2 rounded-[10px] border border-white/12 bg-black/62 px-3 text-sm text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-[16px] outline-none transition hover:border-white/22"
+          class="inline-flex h-9 min-w-32.5 items-center justify-between gap-2 rounded-[10px] border border-white/12 bg-black/62 px-3 text-sm text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-lg outline-none transition hover:border-white/22"
           onclick={(event) => {
             event.stopPropagation();
             genreOpen = !genreOpen;
@@ -338,11 +341,11 @@
 
         {#if genreOpen}
           <div
-            class="absolute right-0 z-[90] mt-2 max-h-64 min-w-[200px] overflow-y-auto rounded-[10px] border border-white/14 bg-black/72 p-1 text-white shadow-[0_16px_42px_rgba(0,0,0,0.62)] backdrop-blur-[22px]"
+            class="absolute right-0 z-90 mt-2 max-h-64 min-w-50 overflow-y-auto rounded-[10px] border border-white/14 bg-black/72 p-1 text-white shadow-[0_16px_42px_rgba(0,0,0,0.62)] backdrop-blur-[22px]"
           >
             <button
               type="button"
-              class="mb-1 h-8 w-full rounded-[7px] px-2 text-left text-[0.82rem] text-white/80 transition hover:bg-white/[0.10] hover:text-white"
+              class="mb-1 h-8 w-full rounded-[7px] px-2 text-left text-[0.82rem] text-white/80 transition hover:bg-white/10 hover:text-white"
               onclick={(event) => {
                 event.stopPropagation();
                 selectedGenres = [];
@@ -353,7 +356,7 @@
             {#each genreOptions as genre}
               <button
                 type="button"
-                class="flex h-8 w-full items-center justify-between gap-2 rounded-[7px] px-2 text-left text-[0.82rem] text-white/78 transition hover:bg-white/[0.10] hover:text-white"
+                class="flex h-8 w-full items-center justify-between gap-2 rounded-[7px] px-2 text-left text-[0.82rem] text-white/78 transition hover:bg-white/10 hover:text-white"
                 onclick={(event) => {
                   event.stopPropagation();
                   if (selectedGenres.includes(genre)) {
@@ -383,13 +386,13 @@
     <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
       <div class="flex flex-wrap items-center gap-2">
         <span
-          class="rounded-md bg-white/[0.06] px-3 py-1 text-[0.68rem] text-white/76"
+          class="rounded-md bg-white/6 px-3 py-1 text-[0.68rem] text-white/76"
         >
           {totalResults} results
         </span>
         {#each activeFilters as filter (filter)}
           <span
-            class="rounded-md border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[0.68rem] text-white/78"
+            class="rounded-md border border-white/12 bg-white/4 px-2.5 py-1 text-[0.68rem] text-white/78"
           >
             {filter}
           </span>
@@ -457,13 +460,13 @@
         {#each Array.from({ length: perPage }) as _, index (index)}
           <div class="space-y-2">
             <div
-              class="aspect-[2/3] animate-pulse rounded-lg bg-white/[0.06]"
+              class="aspect-2/3 animate-pulse rounded-lg bg-white/6"
             ></div>
             <div
-              class="h-3 w-[75%] animate-pulse rounded bg-white/[0.06]"
+              class="h-3 w-[75%] animate-pulse rounded bg-white/6"
             ></div>
             <div
-              class="h-2.5 w-[45%] animate-pulse rounded bg-white/[0.05]"
+              class="h-2.5 w-[45%] animate-pulse rounded bg-white/5"
             ></div>
           </div>
         {/each}

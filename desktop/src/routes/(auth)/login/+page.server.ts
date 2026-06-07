@@ -2,10 +2,21 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { auth } from '$lib/server/auth';
 import { APIError } from 'better-auth/api';
+import { parseSetCookieHeader, toCookieOptions } from 'better-auth/cookies';
 import { loginSchema } from '$lib/validators/auth';
 import { db } from '$lib/server/db';
 import { invite } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
+
+function applyResponseCookies(cookies: import('@sveltejs/kit').Cookies, response: Response) {
+	const setCookies = response.headers.get('set-cookie');
+	if (!setCookies) return;
+	for (const [name, attributes] of parseSetCookieHeader(setCookies)) {
+		try {
+			cookies.set(name, attributes.value, { ...toCookieOptions(attributes), path: attributes.path || '/' });
+		} catch {}
+	}
+}
 
 export const load: PageServerLoad = (event) => {
 	if (event.locals.user) return redirect(302, '/');
@@ -39,10 +50,45 @@ export const actions: Actions = {
 		if (!parsed.success) return fail(400, { signInError: parsed.error.issues[0].message });
 
 		try {
-			await auth.api.signInEmail({ body: parsed.data });
+			const response = await auth.api.signInEmail({ body: parsed.data, asResponse: true });
+			applyResponseCookies(event.cookies, response);
+
+			if (!response.ok) {
+				const data = await response.json() as Record<string, unknown>;
+				return fail(response.status, { signInError: (data.message as string) || 'Invalid credentials' });
+			}
+
+			const data = await response.json() as Record<string, unknown> | null;
+			if (data?.twoFactorRedirect) return { requires2FA: true };
 		} catch (error) {
 			if (error instanceof APIError)
 				return fail(400, { signInError: error.message || 'Invalid credentials' });
+			return fail(500, { signInError: 'Something went wrong. Please try again.' });
+		}
+
+		return redirect(302, '/');
+	},
+
+	verifyTotpLogin: async (event) => {
+		const formData = await event.request.formData();
+		const code = formData.get('code')?.toString() ?? '';
+		if (!code) return fail(400, { signInError: 'Verification code is required.' });
+
+		try {
+			const response = await auth.api.verifyTOTP({
+				body: { code },
+				headers: event.request.headers,
+				asResponse: true
+			});
+			applyResponseCookies(event.cookies, response);
+
+			if (!response.ok) {
+				const data = await response.json() as Record<string, unknown>;
+				return fail(response.status, { signInError: (data.message as string) || 'Invalid code — check your authenticator app.' });
+			}
+		} catch (e) {
+			if (e instanceof APIError)
+				return fail(400, { signInError: e.message || 'Invalid code — check your authenticator app.' });
 			return fail(500, { signInError: 'Something went wrong. Please try again.' });
 		}
 

@@ -70,6 +70,38 @@ export const bookmark = pgTable(
 	(t) => [uniqueIndex('bm_user_anime_idx').on(t.userId, t.animeId)]
 );
 
+export const twoFactor = pgTable('two_factor', {
+	id: text('id').primaryKey(),
+	secret: text('secret').notNull(),
+	backupCodes: text('backup_codes').notNull(),
+	userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	verified: boolean('verified').default(true)
+});
+
+export const libraryEntry = pgTable('library_entry', {
+	id: text('id').primaryKey(),
+	userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+	anilistId: integer('anilist_id').notNull(),
+	title: text('title').notNull(),
+	coverImage: text('cover_image'),
+	format: text('format'),
+	episodeTotal: integer('episode_total'),
+	score: real('score'),
+	genres: text('genres').array().notNull().default([]),
+	season: text('season'),
+	seasonYear: integer('season_year'),
+	userStartDate: text('user_start_date'),
+	userEndDate: text('user_end_date'),
+	rewatches: integer('rewatches').notNull().default(0),
+	notes: text('notes'),
+	status: text('status').notNull(),
+	progress: integer('progress').notNull().default(0),
+	lastEpisode: integer('last_episode'),
+	lastWatchedAt: integer('last_watched_at'),
+	localUpdatedAt: integer('local_updated_at'),
+	syncedAt: timestamp('synced_at').notNull().defaultNow()
+}, (t) => [uniqueIndex('le_user_anilist_idx').on(t.userId, t.anilistId)]);
+
 export const anilistConnection = pgTable('anilist_connection', {
 	id: text('id').primaryKey(),
 	userId: text('user_id')

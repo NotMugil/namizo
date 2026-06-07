@@ -5,9 +5,35 @@
 
 	let { form }: { form: ActionData } = $props();
 
-	let view = $state<'landing' | 'invite' | 'signin'>('landing');
+	let view = $state<'landing' | 'invite' | 'signin' | 'twofa'>('landing');
 	let loading = $state(false);
 	let showPassword = $state(false);
+	let submittedSignIn = $state(false);
+
+	// 2FA digit inputs
+	let totpDigits = $state(['', '', '', '', '', '']);
+	let totpRefs: HTMLInputElement[] = [];
+	const totpCode = $derived(totpDigits.join(''));
+
+	function onTotpInput(i: number, e: Event) {
+		const el = e.target as HTMLInputElement;
+		const val = el.value.replace(/\D/g, '').slice(-1);
+		totpDigits = totpDigits.map((d, idx) => idx === i ? val : d);
+		if (val && i < 5) totpRefs[i + 1]?.focus();
+	}
+	function onTotpKeydown(i: number, e: KeyboardEvent) {
+		if (e.key === 'Backspace' && !totpDigits[i] && i > 0) {
+			totpDigits = totpDigits.map((d, idx) => idx === i - 1 ? '' : d);
+			totpRefs[i - 1]?.focus();
+		}
+	}
+	function onTotpPaste(e: ClipboardEvent) {
+		e.preventDefault();
+		const text = (e.clipboardData?.getData('text') ?? '').replace(/\D/g, '');
+		totpDigits = [...text.slice(0, 6).split(''), ...Array(6).fill('')].slice(0, 6) as string[];
+		const last = Math.min(text.length - 1, 5);
+		if (last >= 0) totpRefs[last]?.focus();
+	}
 
 	let boxes = $state(['', '', '', '', '', '']);
 	let boxRefs: HTMLInputElement[] = [];
@@ -42,6 +68,13 @@
 	}
 
 	function resetInvite() { boxes = ['', '', '', '', '', '']; view = 'landing'; }
+
+	$effect(() => {
+		if ((form as Record<string, unknown>)?.requires2FA && submittedSignIn) {
+			view = 'twofa';
+			totpDigits = ['', '', '', '', '', ''];
+		}
+	});
 </script>
 
 <svelte:head><title>Namizo</title></svelte:head>
@@ -117,7 +150,7 @@
 			Back
 		</button>
 
-	{:else}
+	{:else if view === 'signin'}
 		<div class="mb-7"><Logo height={24} class="text-white" /></div>
 		<h2 class="mb-1 text-lg font-semibold text-white">Welcome back</h2>
 		<p class="mb-7 text-sm text-white/40">Sign in to continue watching</p>
@@ -129,7 +162,7 @@
 		{/if}
 
 		<form method="post" action="?/signInEmail" class="w-full flex flex-col gap-4"
-			use:enhance={() => { loading = true; return async ({ update }) => { await update(); loading = false; }; }}>
+			use:enhance={() => { loading = true; submittedSignIn = true; return async ({ update }) => { await update(); loading = false; }; }}>
 
 			<div class="flex flex-col gap-1.5">
 				<label for="email" class="text-xs font-medium text-white/45 uppercase tracking-wider">Email</label>
@@ -168,9 +201,59 @@
 			</button>
 		</form>
 
-		<button onclick={() => (view = 'landing')} class="mt-5 text-sm text-white/35 hover:text-white/60 transition-colors flex items-center gap-1.5">
+		<button onclick={() => { view = 'landing'; submittedSignIn = false; }} class="mt-5 text-sm text-white/35 hover:text-white/60 transition-colors flex items-center gap-1.5">
 			<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
 			Back
+		</button>
+
+	{:else if view === 'twofa'}
+		<!-- Two-factor authentication step -->
+		<div class="mb-7"><Logo height={24} class="text-white" /></div>
+		<h2 class="mb-1 text-lg font-semibold text-white">Two-factor authentication</h2>
+		<p class="mb-7 text-sm text-white/40 text-center">Enter the 6-digit code from your authenticator app</p>
+
+		{#if form?.signInError}
+			<div class="mb-4 w-full rounded-lg border border-red-500/20 bg-red-500/8 px-4 py-2.5">
+				<p class="text-sm text-red-300">{form.signInError}</p>
+			</div>
+		{/if}
+
+		<form method="post" action="?/verifyTotpLogin" class="w-full flex flex-col items-center gap-6"
+			use:enhance={() => { loading = true; return async ({ update }) => { await update({ reset: false }); loading = false; }; }}>
+			<input type="hidden" name="code" value={totpCode} />
+			<div class="flex gap-2">
+				{#each totpDigits as digit, i}
+					<input
+						bind:this={totpRefs[i]}
+						type="text" inputmode="numeric" maxlength="1"
+						value={digit}
+						onfocus={(e) => (e.target as HTMLInputElement).select()}
+						oninput={(e) => onTotpInput(i, e)}
+						onkeydown={(e) => onTotpKeydown(i, e)}
+						onpaste={onTotpPaste}
+						class="h-12 w-10 rounded-xl border border-white/10 bg-white/4
+						       text-center text-lg font-mono font-bold text-white
+						       focus:border-white/40 focus:bg-white/8 focus:outline-none
+						       transition-colors"
+					/>
+				{/each}
+			</div>
+			<button type="submit"
+				class="btn-primary w-full rounded-xl py-3.5 text-[0.9rem] flex items-center justify-between px-5"
+				disabled={totpCode.length < 6 || loading}>
+				{#if loading}
+					<span>Verifying…</span>
+					<svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+				{:else}
+					<span>Verify</span>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+				{/if}
+			</button>
+		</form>
+
+		<button onclick={() => { view = 'signin'; submittedSignIn = false; }} class="mt-5 text-sm text-white/35 hover:text-white/60 transition-colors flex items-center gap-1.5">
+			<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+			Back to sign in
 		</button>
 	{/if}
 </div>

@@ -12,6 +12,8 @@ export interface AnimeSummary {
     status?: string | null
     next_airing_episode?: number | null
     next_airing_at?: number | null
+    duration?: number | null
+    season_year?: number | null
 }
 
 export interface DiscoverFilters {
@@ -50,6 +52,8 @@ export interface AnimeDetails {
     season_year: number | null
     format: string | null
     episode_count: number | null
+    next_airing_episode: number | null
+    next_airing_at: number | null
     studios: string[]
     trailer_id: string | null
     characters: Character[]

@@ -3,10 +3,18 @@
 	import type { ActionData, PageData } from './$types';
 	import {
 		UserIcon, LockSimpleIcon, PlayCircleIcon, EnvelopeSimpleIcon,
-		InfoIcon, PencilSimpleIcon, CopySimpleIcon, CheckIcon as CheckIconPh,
-		LinkSimpleIcon, ArrowSquareOutIcon, EyeIcon, EyeSlashIcon
+		InfoIcon, PencilSimpleIcon, CopySimpleIcon,
+		LinkSimpleIcon, ArrowSquareOutIcon, EyeIcon, EyeSlashIcon,
+		ShieldCheckIcon, SpinnerGapIcon, ArrowsClockwiseIcon, XIcon, PlusIcon, DownloadSimpleIcon,
+		PuzzlePieceIcon, CheckCircleIcon, StarIcon, MagnifyingGlassIcon
 	} from 'phosphor-svelte';
 	import { onDestroy, onMount } from 'svelte';
+	import { toast } from 'svelte-sonner';
+	import { breadcrumb } from '$lib/state.svelte';
+	import { librarySave, libraryFetch } from '$lib/api/library';
+	import { libraryVersion, playbackPrefs } from '$lib/state.svelte';
+	import { invalidateLibraryCache } from '$lib/utils/library';
+	import { clearTvdbCache } from '$lib/api/tvdb';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	const user = $derived(data.user);
@@ -17,9 +25,19 @@
 	let showNew        = $state(false);
 	let showConfirm    = $state(false);
 	let activeSection  = $state('profile');
-	let copiedCode     = $state<string | null>(null);
 	let revealedCodes  = $state(new Set<string>());
 	const invitesRemaining = $derived(3 - (data.invites?.length ?? 0));
+
+	// ── Invite dialog ──────────────────────────────────────────────────────
+	let inviteDialogOpen = $state(false);
+	let creatingInvite   = $state(false);
+
+	$effect(() => {
+		if (form?.inviteCreated) {
+			inviteDialogOpen = false;
+			toast.success('Invite created — share the code below.');
+		}
+	});
 
 	function toggleReveal(id: string) {
 		revealedCodes = revealedCodes.has(id)
@@ -29,9 +47,221 @@
 
 	function copyCode(code: string) {
 		navigator.clipboard.writeText(code).then(() => {
-			copiedCode = code;
-			setTimeout(() => { if (copiedCode === code) copiedCode = null; }, 2000);
+			toast.success('Invite code copied to clipboard');
+		}).catch(() => {
+			toast.error('Failed to copy — try manually');
 		});
+	}
+
+	// ── 2FA ────────────────────────────────────────────────────────────────
+	let twoFaEnabled    = $derived(data.twoFactorEnabled ?? false);
+	let totpDialogOpen  = $state(false);
+	let totpUri         = $state('');
+	let backupCodes     = $state<string[]>([]);
+	let totpStep        = $state<'password' | 'verify' | 'done'>('password');
+	let savingTotp      = $state(false);
+	let disableTotpOpen = $state(false);
+	let qrDataUrl       = $state('');
+	let codeDigits      = $state(['', '', '', '', '', '']);
+	const codeValue     = $derived(codeDigits.join(''));
+
+	const totpSecret = $derived(() => {
+		if (!totpUri) return '';
+		try { return new URL(totpUri).searchParams.get('secret') ?? ''; }
+		catch { return ''; }
+	});
+
+	// Generate QR code whenever totpUri is set (client-side only)
+	$effect(() => {
+		if (!totpUri) { qrDataUrl = ''; return; }
+		import('qrcode').then(({ default: QRCode }) => {
+			QRCode.toDataURL(totpUri, { width: 260, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+				.then(url => { qrDataUrl = url; })
+				.catch(() => {});
+		});
+	});
+
+	function downloadBackupCodes() {
+		const content = [
+			'Namizo — 2FA Backup Codes',
+			'',
+			'Keep these in a safe place. Each code can only be used once.',
+			'',
+			...backupCodes
+		].join('\n');
+		const blob = new Blob([content], { type: 'text/plain' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'namizo-backup-codes.txt';
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
+	function handleDigitInput(e: Event, idx: number) {
+		const input = e.target as HTMLInputElement;
+		const val = input.value.replace(/\D/g, '').slice(-1);
+		codeDigits = codeDigits.map((d, i) => i === idx ? val : d);
+		if (val && idx < 5) {
+			(document.getElementById(`totp-d${idx + 1}`) as HTMLInputElement)?.focus();
+		}
+	}
+
+	function handleDigitKeydown(e: KeyboardEvent, idx: number) {
+		if (e.key === 'Backspace' && !codeDigits[idx] && idx > 0) {
+			codeDigits = codeDigits.map((d, i) => i === idx - 1 ? '' : d);
+			(document.getElementById(`totp-d${idx - 1}`) as HTMLInputElement)?.focus();
+		}
+	}
+
+	function handleDigitPaste(e: ClipboardEvent) {
+		e.preventDefault();
+		const text = (e.clipboardData?.getData('text') ?? '').replace(/\D/g, '');
+		codeDigits = [...text.slice(0, 6).split(''), ...Array(6).fill('')].slice(0, 6) as string[];
+		const lastIdx = Math.min(text.length - 1, 5);
+		if (lastIdx >= 0) (document.getElementById(`totp-d${lastIdx}`) as HTMLInputElement)?.focus();
+	}
+
+	$effect(() => {
+		if (form?.twoFactorEnabled) { totpStep = 'done'; toast.success('Two-factor authentication enabled.'); totpDialogOpen = false; }
+		if (form?.twoFactorDisabled) { disableTotpOpen = false; toast.success('Two-factor authentication disabled.'); }
+		if (form?.totpUri) {
+			totpUri = form.totpUri as string;
+			backupCodes = (form.backupCodes as string[]) ?? [];
+			codeDigits = ['', '', '', '', '', ''];
+			totpStep = 'verify';
+		}
+	});
+
+	// ── AniList connect / disconnect ───────────────────────────────────────
+	let connectingAnilist = $state(false);
+	let disconnectAnilistOpen = $state(false);
+	let disconnectingAnilist = $state(false);
+
+	$effect(() => {
+		if (form?.anilistDisconnected) {
+			disconnectAnilistOpen = false;
+			toast.success('AniList account disconnected.');
+		}
+	});
+
+	async function connectAniList() {
+		connectingAnilist = true;
+		try {
+			const res = await fetch('/api/anilist/initiate');
+			if (!res.ok) { toast.error('Could not start AniList connection.'); return; }
+			const { url }: { url: string } = await res.json();
+
+			try {
+				// Use Tauri's opener plugin so the OAuth page opens in the system browser,
+				// allowing the user to choose a different AniList account than any one cached
+				// in the app webview.
+				const { open } = await import('@tauri-apps/plugin-opener');
+				await open(url);
+			} catch {
+				// Fallback for non-Tauri (web browser) context
+				window.open(url, '_blank');
+			}
+		} catch {
+			toast.error('Could not start AniList connection.');
+		} finally {
+			connectingAnilist = false;
+		}
+	}
+
+	// ── AniList sync ───────────────────────────────────────────────────────
+	let syncing = $state(false);
+
+	async function syncAniList() {
+		syncing = true;
+		try {
+			const res = await fetch('/api/anilist/sync');
+			if (!res.ok) throw new Error(await res.text());
+			const { entries: anilistEntries } = await res.json();
+
+			const existing = await libraryFetch();
+			const existingMap = new Map(existing.map((e) => [e.anilist_id, e]));
+
+			let imported = 0, updated = 0, skipped = 0;
+			for (const entry of anilistEntries) {
+				const local = existingMap.get(entry.anilist_id);
+				if (!local) {
+					await librarySave(entry);
+					imported++;
+				} else if (entry.updated_at > local.updated_at) {
+					await librarySave({ ...local, ...entry });
+					updated++;
+				} else {
+					skipped++;
+				}
+			}
+			// Invalidate the library snapshot so all AnimeCards re-fetch their status
+			invalidateLibraryCache();
+			libraryVersion.n++;
+			toast.success(`Synced — ${imported} new, ${updated} updated, ${skipped} unchanged`);
+		} catch {
+			toast.error('Sync failed. Check your AniList connection and try again.');
+		} finally {
+			syncing = false;
+		}
+	}
+
+	// ── Cache ─────────────────────────────────────────────────────────────────
+	let clearingCache = $state(false);
+
+	async function clearCache() {
+		clearingCache = true;
+		try {
+			await clearTvdbCache();
+			invalidateLibraryCache();
+			toast.success('Cache cleared. Data will be re-fetched on next load.');
+		} catch {
+			toast.error('Failed to clear cache. Please try again.');
+		} finally {
+			clearingCache = false;
+		}
+	}
+
+	// ── Extensions ────────────────────────────────────────────────────────────
+	type ExtCategory = 'all' | 'sources' | 'trackers' | 'subtitles' | 'notifications';
+	interface Extension {
+		id: string; name: string; description: string; author: string;
+		version: string; category: Exclude<ExtCategory, 'all'>;
+		stars: number; installed: boolean; official: boolean; lang?: string;
+	}
+	const EXTENSIONS_DATA: Extension[] = [
+		{ id: 'animepahe',    name: 'AnimePahe',              description: 'High-quality anime streaming from AnimePahe with 720p and 1080p sources.', author: 'Namizo',    version: '2.1.0', category: 'sources',       stars: 4.8, installed: true,  official: true,  lang: 'EN' },
+		{ id: 'allanime',     name: 'AllAnime',               description: 'Multi-source streaming provider with a wide anime catalogue.',               author: 'Namizo',    version: '1.4.2', category: 'sources',       stars: 4.5, installed: false, official: true,  lang: 'EN' },
+		{ id: 'anilist',      name: 'AniList Tracker',        description: 'Sync your watch progress and library with your AniList account.',            author: 'Namizo',    version: '3.0.1', category: 'trackers',      stars: 4.9, installed: true,  official: true },
+		{ id: 'mal',          name: 'MyAnimeList',            description: 'Sync your library and progress to MyAnimeList.',                             author: 'Namizo',    version: '1.2.0', category: 'trackers',      stars: 4.3, installed: false, official: true },
+		{ id: 'opensubs',     name: 'OpenSubtitles',          description: 'Fetch subtitles automatically from OpenSubtitles for any episode.',          author: 'Namizo',    version: '1.0.5', category: 'subtitles',     stars: 4.1, installed: false, official: true },
+		{ id: 'anidap',       name: 'AniDAP',                 description: 'Backup source with alternative streams and download support.',               author: 'community', version: '0.9.3', category: 'sources',       stars: 3.7, installed: false, official: false, lang: 'EN' },
+		{ id: 'discord-rpc',  name: 'Discord Rich Presence',  description: "Show what you're watching on Discord with episode info and cover art.",     author: 'community', version: '1.1.0', category: 'notifications', stars: 4.6, installed: false, official: false },
+		{ id: 'anizone',      name: 'AniZone',                description: 'Community-run streaming source with dubbed content focus.',                  author: 'community', version: '0.7.1', category: 'sources',       stars: 3.4, installed: false, official: false, lang: 'EN' },
+	];
+	const EXT_CATEGORIES: { value: ExtCategory; label: string }[] = [
+		{ value: 'all',           label: 'All' },
+		{ value: 'sources',       label: 'Sources' },
+		{ value: 'trackers',      label: 'Trackers' },
+		{ value: 'subtitles',     label: 'Subtitles' },
+		{ value: 'notifications', label: 'Notifications' },
+	];
+	let extCategory: ExtCategory = $state('all');
+	let extQuery    = $state('');
+	let extInstalled: Set<string> = $state(new Set(EXTENSIONS_DATA.filter(e => e.installed).map(e => e.id)));
+	const extFiltered = $derived(EXTENSIONS_DATA.filter(e => {
+		if (extCategory !== 'all' && e.category !== extCategory) return false;
+		if (extQuery.trim()) {
+			const q = extQuery.toLowerCase();
+			return e.name.toLowerCase().includes(q) || e.description.toLowerCase().includes(q)
+		}
+		return true;
+	}));
+	const extVisible = $derived(extFiltered.filter(e => extCategory !== 'all' || extQuery !== '' || !extInstalled.has(e.id)));
+	function extToggle(id: string) {
+		if (extInstalled.has(id)) extInstalled.delete(id);
+		else extInstalled.add(id);
+		extInstalled = new Set(extInstalled);
 	}
 
 	const NAV = [
@@ -40,6 +270,8 @@
 		{ id: 'playback',     label: 'Playback',     Icon: PlayCircleIcon },
 		{ id: 'invites',      label: 'Invites',      Icon: EnvelopeSimpleIcon },
 		{ id: 'integrations', label: 'Integrations', Icon: LinkSimpleIcon },
+		{ id: 'extensions',   label: 'Extensions',   Icon: PuzzlePieceIcon },
+		{ id: 'storage',      label: 'Storage',      Icon: ArrowsClockwiseIcon },
 		{ id: 'about',        label: 'About',        Icon: InfoIcon }
 	] as const;
 
@@ -110,14 +342,22 @@
 	// ── Playback prefs ─────────────────────────────────────────────────────
 	let autoNext = $state(false);
 	let autoPlay = $state(false);
+	let autoplayTrailers = $state(true);
 
 	onMount(() => {
+		breadcrumb.items = [{ label: 'Home', href: '/' }, { label: 'Settings' }];
 		autoNext = localStorage.getItem('namizo:autoNext') === 'true';
 		autoPlay = localStorage.getItem('namizo:autoPlay') === 'true';
+		autoplayTrailers = localStorage.getItem('namizo:autoplayTrailers') !== 'false';
 	});
 
 	function setAutoNext(v: boolean) { autoNext = v; localStorage.setItem('namizo:autoNext', String(v)); }
 	function setAutoPlay(v: boolean) { autoPlay = v; localStorage.setItem('namizo:autoPlay', String(v)); }
+	function setAutoplayTrailers(v: boolean) {
+		autoplayTrailers = v;
+		playbackPrefs.autoplayTrailers = v;
+		localStorage.setItem('namizo:autoplayTrailers', String(v));
+	}
 
 	function scrollTo(id: string) {
 		activeSection = id;
@@ -144,6 +384,7 @@
 	});
 
 	onDestroy(() => {
+		breadcrumb.items = [];
 		if (usernameDebounce) clearTimeout(usernameDebounce);
 		if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
 	});
@@ -151,10 +392,10 @@
 
 {#snippet toggle(value: boolean, onChange: (v: boolean) => void)}
 	<button type="button" role="switch" aria-checked={value} aria-label="Toggle" onclick={() => onChange(!value)}
-		class="relative inline-flex h-[1.375rem] w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200
+		class="relative inline-flex h-5.5 w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-200
 		       {value ? 'bg-white' : 'bg-white/20'}">
-		<span class="pointer-events-none absolute top-[2px] h-[18px] w-[18px] rounded-full shadow transition-transform duration-200
-		             {value ? 'translate-x-[18px] bg-[#111]' : 'translate-x-[2px] bg-white'}"></span>
+		<span class="pointer-events-none absolute top-0.5 h-4.5 w-4.5 rounded-full shadow transition-transform duration-200
+		             {value ? 'translate-x-4.5 bg-[#111]' : 'translate-x-0.5 bg-white'}"></span>
 	</button>
 {/snippet}
 
@@ -341,6 +582,39 @@
 						</button>
 					</div>
 				</form>
+
+				<!-- Two-factor authentication -->
+				<div class="mt-8 pt-6 border-t border-white/6">
+					<div class="flex items-center justify-between gap-4">
+						<div>
+							<div class="flex items-center gap-2 mb-0.5">
+								<ShieldCheckIcon size={15} class={twoFaEnabled ? 'text-emerald-400' : 'text-white/30'} />
+								<p class="text-[0.88rem] font-medium text-white">Two-factor authentication</p>
+							</div>
+							<p class="text-[0.75rem] text-white/40">
+								{twoFaEnabled ? 'Enabled — your account is protected with TOTP.' : 'Add an extra layer of security with an authenticator app.'}
+							</p>
+						</div>
+						{#if twoFaEnabled}
+							<button type="button" onclick={() => (disableTotpOpen = true)}
+								class="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem]
+								       border border-red-500/20 bg-red-500/8 text-red-400/80
+								       hover:bg-red-500/15 hover:text-red-300 transition-colors">
+								Disable 2FA
+							</button>
+						{:else}
+							<button type="button" onclick={() => { totpStep = 'password'; totpDialogOpen = true; }}
+								class="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem]
+								       border border-white/12 bg-white/5 text-white/60
+								       hover:bg-white/10 hover:text-white transition-colors">
+								Enable 2FA
+							</button>
+						{/if}
+					</div>
+					{#if form?.totpError}
+						<p class="mt-3 text-[0.82rem] text-red-300">{form.totpError}</p>
+					{/if}
+				</div>
 			</section>
 
 			<div class="border-t border-white/6"></div>
@@ -363,6 +637,13 @@
 						</div>
 						{@render toggle(autoPlay, setAutoPlay)}
 					</div>
+					<div class="flex items-center justify-between gap-4 py-4 border-b border-white/6">
+						<div>
+							<p class="text-[0.88rem] font-medium text-white">Autoplay Trailers</p>
+							<p class="text-[0.75rem] text-white/40 mt-0.5">Play trailers automatically when browsing anime cards and the carousel</p>
+						</div>
+						{@render toggle(autoplayTrailers, setAutoplayTrailers)}
+					</div>
 				</div>
 			</section>
 
@@ -384,76 +665,64 @@
 					</div>
 				{/if}
 
-				<div class="mb-5 flex flex-col rounded-xl border border-white/8 bg-white/[0.02] divide-y divide-white/6">
+				<div class="mb-5 flex flex-col rounded-xl border border-white/8 bg-white/2 divide-y divide-white/6">
 					{#if data.invites.length === 0}
 						<p class="px-4 py-5 text-[0.82rem] text-white/30 text-center">No invites yet. Create one below.</p>
 					{:else}
 						{#each data.invites as inv (inv.id)}
-							<div class="flex items-center justify-between gap-3 px-4 py-3.5">
-								<div class="flex items-center gap-2.5 min-w-0">
-									<code class="font-mono text-[0.92rem] font-bold tracking-[0.14em] text-white shrink-0">
-										{revealedCodes.has(inv.id) ? inv.code : '••••••••••••'}
-									</code>
-									{#if inv.usedAt}
-										<span class="chip">Used</span>
-									{:else}
-										<span class="chip chip-accent">Active</span>
-									{/if}
-									{#if inv.note}
-										<span class="text-[0.72rem] text-white/30 truncate max-w-[12ch]">{inv.note}</span>
-									{/if}
-								</div>
-								<div class="flex items-center gap-2 shrink-0">
-									<span class="text-[0.72rem] text-white/25 tabular-nums">
-										{new Date(inv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-									</span>
-									<button type="button" onclick={() => toggleReveal(inv.id)}
-										class="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/4
-										       text-white/40 transition-colors hover:bg-white/8 hover:text-white/70"
-										aria-label={revealedCodes.has(inv.id) ? 'Hide code' : 'Reveal code'}>
-										{#if revealedCodes.has(inv.id)}
-											<EyeSlashIcon size={13} />
+							<div class="flex flex-col px-4 pt-3.5 pb-3">
+								<!-- Code + status + action buttons row -->
+								<div class="flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2.5 min-w-0">
+										<code class="font-mono text-[0.92rem] font-bold tracking-[0.14em] text-white shrink-0">
+											{revealedCodes.has(inv.id) ? inv.code : '••••••••••••'}
+										</code>
+										{#if inv.usedAt}
+											<span class="chip">Used</span>
 										{:else}
-											<EyeIcon size={13} />
+											<span class="chip chip-accent">Active</span>
 										{/if}
-									</button>
-									{#if !inv.usedAt}
-										<button type="button" onclick={() => copyCode(inv.code)}
-											class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/4
-											       px-2.5 py-1 text-[0.72rem] text-white/55 transition-colors
-											       hover:border-white/18 hover:bg-white/8 hover:text-white/80">
-											{#if copiedCode === inv.code}
-												<CheckIconPh size={11} weight="bold" class="text-emerald-400" />
-												<span class="text-emerald-400">Copied</span>
+									</div>
+									<div class="flex items-center gap-2 shrink-0">
+										<span class="text-[0.72rem] text-white/25 tabular-nums">
+											{new Date(inv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+										</span>
+										<button type="button" onclick={() => toggleReveal(inv.id)}
+											class="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/4
+											       text-white/40 transition-colors hover:bg-white/8 hover:text-white/70"
+											aria-label={revealedCodes.has(inv.id) ? 'Hide code' : 'Reveal code'}>
+											{#if revealedCodes.has(inv.id)}
+												<EyeSlashIcon size={13} />
 											{:else}
-												<CopySimpleIcon size={11} />
-												Copy
+												<EyeIcon size={13} />
 											{/if}
 										</button>
-									{/if}
+										{#if !inv.usedAt}
+											<button type="button" onclick={() => copyCode(inv.code)}
+												class="inline-flex items-center justify-center h-7 w-7 rounded-lg border border-white/10 bg-white/4
+												       text-white/40 transition-colors hover:bg-white/8 hover:text-white/70"
+												aria-label="Copy invite code">
+												<CopySimpleIcon size={13} />
+											</button>
+										{/if}
+									</div>
 								</div>
+								<!-- Note on second line -->
+								{#if inv.note}
+									<p class="mt-1 text-[0.72rem] text-white/35 truncate">{inv.note}</p>
+								{/if}
 							</div>
 						{/each}
 					{/if}
 				</div>
 
-				<form method="post" action="?/createInvite" use:enhance class="flex flex-col gap-3">
-					<div class="flex gap-2">
-						<input
-							type="text"
-							name="note"
-							placeholder="Note (optional) — e.g. for John"
-							maxlength="80"
-							class="flex-1 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5
-							       text-[0.83rem] text-white placeholder:text-white/25
-							       focus:border-white/20 focus:outline-none transition-colors"
-						/>
-						<button type="submit" disabled={invitesRemaining <= 0}
-							class="btn-primary inline rounded-xl py-2.5 text-sm px-5 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
-							{invitesRemaining > 0 ? `Create · ${invitesRemaining} left` : 'Limit reached'}
-						</button>
-					</div>
-				</form>
+				<button type="button"
+					onclick={() => { if (invitesRemaining > 0) inviteDialogOpen = true; }}
+					disabled={invitesRemaining <= 0}
+					class="inline-flex items-center gap-2 btn-primary rounded-xl py-2.5 text-sm px-5 disabled:opacity-40 disabled:cursor-not-allowed">
+					<PlusIcon size={14} weight="bold" />
+					{invitesRemaining > 0 ? `Create invite · ${invitesRemaining} remaining` : 'Invite limit reached'}
+				</button>
 			</section>
 
 			<div class="border-t border-white/6"></div>
@@ -487,25 +756,189 @@
 								<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">Connected</span>
 							</div>
 						{:else if data.anilistAuthorizeUrl}
-							<a href={data.anilistAuthorizeUrl}
+							<button type="button" onclick={connectAniList} disabled={connectingAnilist}
 								class="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm
 								       border border-white/12 bg-white/5 text-white/60
-								       hover:bg-white/10 hover:text-white transition-colors">
+								       hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50">
 								<ArrowSquareOutIcon size={14} />
-								Connect
-							</a>
+								{connectingAnilist ? 'Opening…' : 'Connect'}
+							</button>
 						{:else}
 							<span class="text-[0.72rem] text-white/25 shrink-0">Set ANILIST_CLIENT_ID in .env</span>
 						{/if}
 					</div>
-					<div class="mt-3 pt-3 border-t border-white/6">
+					<div class="mt-3 pt-3 border-t border-white/6 flex items-center justify-between gap-4">
 						<p class="text-[0.75rem] text-white/30 leading-relaxed">
 							{#if data.anilist}
-								Connected as <span class="text-white/50">@{data.anilist.anilistUsername}</span>. Your AniList library is available for syncing.
+								Connected as <span class="text-white/50">@{data.anilist.anilistUsername}</span>. Sync your AniList library into the local app.
 							{:else}
-								Connect your AniList account to sync your watchlist and watch progress. Uses the secure Authorization Code flow.
+								Connect your AniList account to sync your watchlist and watch progress.
 							{/if}
 						</p>
+						{#if data.anilist}
+							<div class="shrink-0 flex items-center gap-2">
+								<button type="button" onclick={syncAniList} disabled={syncing}
+									class="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem]
+									       border border-white/12 bg-white/5 text-white/60
+									       hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50">
+									{#if syncing}
+										<SpinnerGapIcon size={14} class="animate-spin" />
+										Syncing…
+									{:else}
+										<ArrowsClockwiseIcon size={14} />
+										Sync library
+									{/if}
+								</button>
+								<button type="button" onclick={() => (disconnectAnilistOpen = true)}
+									class="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem]
+									       border border-red-500/20 bg-red-500/8 text-red-400/80
+									       hover:bg-red-500/15 hover:text-red-300 transition-colors">
+									Disconnect
+								</button>
+							</div>
+						{/if}
+					</div>
+				</div>
+			</section>
+
+			<div class="border-t border-white/6"></div>
+
+			<!-- EXTENSIONS -->
+			<section id="extensions" class="scroll-mt-28 md:scroll-mt-16 py-8">
+				<h2 class="text-[0.7rem] font-semibold text-white/35 uppercase tracking-widest mb-1">Extensions</h2>
+				<p class="text-[0.78rem] text-white/35 mb-5">Add sources, trackers, and integrations to Namizo.</p>
+
+				<!-- Search + filters -->
+				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div class="flex gap-1.5 flex-wrap">
+						{#each EXT_CATEGORIES as cat}
+							<button type="button" onclick={() => (extCategory = cat.value)}
+								class="px-3 py-1.5 rounded-full text-[0.78rem] font-medium transition-colors
+								       {extCategory === cat.value ? 'bg-white/12 text-white' : 'text-white/40 hover:text-white/70 hover:bg-white/6'}">
+								{cat.label}
+							</button>
+						{/each}
+					</div>
+					<label class="relative w-full sm:w-56">
+						<MagnifyingGlassIcon size={13} class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+						<input type="search" placeholder="Search extensions…" bind:value={extQuery}
+							class="h-8 w-full rounded-xl border border-white/10 bg-white/4 pl-8 pr-3
+							       text-[0.8rem] text-white/85 outline-none placeholder:text-white/30
+							       focus:border-white/20 focus:bg-white/6 transition-colors" />
+					</label>
+				</div>
+
+				<!-- Installed -->
+				{#if extCategory === 'all' && extQuery === ''}
+					{@const installedList = EXTENSIONS_DATA.filter(e => extInstalled.has(e.id))}
+					{#if installedList.length > 0}
+						<div class="mb-6">
+							<p class="text-[0.7rem] font-semibold uppercase tracking-widest text-white/30 mb-3">Installed</p>
+							<div class="grid gap-2.5 sm:grid-cols-2">
+								{#each installedList as ext (ext.id)}
+									{@const isInstalled = extInstalled.has(ext.id)}
+									<div class="flex items-start justify-between gap-3 rounded-xl border border-white/8 bg-white/2 p-3.5 hover:border-white/14 transition-colors">
+										<div class="flex items-center gap-3 min-w-0">
+											<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/6 border border-white/8">
+												<PuzzlePieceIcon size={16} class="text-white/40" weight="duotone" />
+											</div>
+											<div class="min-w-0">
+												<div class="flex items-center gap-1.5">
+													<span class="text-[0.84rem] font-medium text-white truncate">{ext.name}</span>
+													{#if ext.official}<CheckCircleIcon size={12} class="text-sky-400 shrink-0" weight="fill" />{/if}
+												</div>
+												<p class="text-[0.72rem] text-white/35 mt-0.5 flex items-center gap-1">
+													<StarIcon size={10} weight="fill" class="text-amber-400/70" />{ext.stars.toFixed(1)}
+													· {ext.official ? 'Official' : ext.author} · v{ext.version}{#if ext.lang} · {ext.lang}{/if}
+												</p>
+											</div>
+										</div>
+										<button type="button" onclick={() => extToggle(ext.id)}
+											class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[0.72rem] font-medium transition-colors
+											       {isInstalled ? 'border border-white/10 text-white/45 hover:border-red-500/30 hover:text-red-400 hover:bg-red-500/8' : 'bg-white/10 text-white/75 hover:bg-white/16'}">
+											{#if isInstalled}<CheckCircleIcon size={11} weight="fill" />Installed{:else}<DownloadSimpleIcon size={11} />Install{/if}
+										</button>
+									</div>
+								{/each}
+							</div>
+						</div>
+						<p class="text-[0.7rem] font-semibold uppercase tracking-widest text-white/30 mb-3">Available</p>
+					{/if}
+				{/if}
+
+				<!-- Available / filtered grid -->
+				{#if extVisible.length === 0 && (extCategory !== 'all' || extQuery !== '')}
+					<div class="flex flex-col items-center justify-center py-12 text-white/25">
+						<PuzzlePieceIcon size={32} weight="thin" class="mb-2" />
+						<p class="text-sm">No extensions match your search.</p>
+					</div>
+				{:else}
+					<div class="grid gap-2.5 sm:grid-cols-2">
+						{#each extVisible as ext (ext.id)}
+							{@const isInstalled = extInstalled.has(ext.id)}
+							<div class="flex flex-col gap-2.5 rounded-xl border border-white/8 bg-white/2 p-3.5 hover:border-white/14 hover:bg-white/4 transition-colors">
+								<div class="flex items-start justify-between gap-3">
+									<div class="flex items-center gap-3 min-w-0">
+										<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/6 border border-white/8">
+											<PuzzlePieceIcon size={16} class="text-white/40" weight="duotone" />
+										</div>
+										<div class="min-w-0">
+											<div class="flex items-center gap-1.5">
+												<span class="text-[0.84rem] font-medium text-white truncate">{ext.name}</span>
+												{#if ext.official}<CheckCircleIcon size={12} class="text-sky-400 shrink-0" weight="fill" />{/if}
+											</div>
+											<p class="text-[0.72rem] text-white/35 mt-0.5">{ext.official ? 'Official' : ext.author} · v{ext.version}{#if ext.lang} · {ext.lang}{/if}</p>
+										</div>
+									</div>
+									<button type="button" onclick={() => extToggle(ext.id)}
+										class="shrink-0 inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[0.72rem] font-medium transition-colors
+										       {isInstalled ? 'border border-white/10 text-white/45 hover:border-red-500/30 hover:text-red-400 hover:bg-red-500/8' : 'bg-white/10 text-white/75 hover:bg-white/16'}">
+										{#if isInstalled}<CheckCircleIcon size={11} weight="fill" />Installed{:else}<DownloadSimpleIcon size={11} />Install{/if}
+									</button>
+								</div>
+								<p class="text-[0.76rem] leading-relaxed text-white/40 line-clamp-2">{ext.description}</p>
+								<div class="flex items-center gap-1 text-[0.7rem] text-white/25">
+									<StarIcon size={10} weight="fill" class="text-amber-400/70" />
+									{ext.stars.toFixed(1)}
+									<span class="ml-auto capitalize">{ext.category}</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</section>
+
+			<div class="border-t border-white/6"></div>
+
+			<!-- STORAGE -->
+			<section id="storage" class="scroll-mt-28 md:scroll-mt-16 py-8">
+				<h2 class="text-[0.7rem] font-semibold text-white/35 uppercase tracking-widest mb-1">Storage</h2>
+				<p class="text-[0.78rem] text-white/35 mb-5">Manage locally cached data used to speed up the app.</p>
+
+				<div class="rounded-xl border border-white/8 bg-white/2 divide-y divide-white/6">
+					<div class="flex items-center justify-between gap-4 p-4">
+						<div>
+							<p class="text-[0.88rem] font-medium text-white">Episode &amp; background image cache</p>
+							<p class="text-[0.75rem] text-white/40 mt-0.5">
+								Cached TVDB episode info and background images. Clears automatically after 7 days.
+							</p>
+						</div>
+						<button
+							type="button"
+							onclick={clearCache}
+							disabled={clearingCache}
+							class="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem]
+							       border border-white/12 bg-white/5 text-white/60
+							       hover:bg-white/10 hover:text-white transition-colors disabled:opacity-50"
+						>
+							{#if clearingCache}
+								<SpinnerGapIcon size={14} class="animate-spin" />
+								Clearing…
+							{:else}
+								<ArrowsClockwiseIcon size={14} />
+								Clear cache
+							{/if}
+						</button>
 					</div>
 				</div>
 			</section>
@@ -600,6 +1033,252 @@
 				<button type="button" onclick={closeAvatarEdit} class="btn-ghost inline flex-1 py-2.5 text-sm rounded-xl">Cancel</button>
 				<button type="button" onclick={applyAvatar} class="btn-primary inline flex-1 py-2.5 text-sm rounded-xl">Apply</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- ── Invite creation dialog ─────────────────────────────────────────────── -->
+{#if inviteDialogOpen}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div role="dialog" aria-modal="true" tabindex="-1"
+		class="fixed inset-0 z-200 flex items-end sm:items-center justify-center p-4 sm:p-0"
+		onkeydown={(e) => { if (e.key === 'Escape') inviteDialogOpen = false; }}>
+		<div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+			onclick={() => (inviteDialogOpen = false)} role="presentation"></div>
+		<div class="relative w-full sm:max-w-sm rounded-2xl border border-white/12 bg-[#0e0e0e] p-5 shadow-2xl">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-[0.92rem] font-semibold text-white">Create invite</h3>
+				<button type="button" onclick={() => (inviteDialogOpen = false)}
+					class="text-white/35 hover:text-white/70 transition-colors" aria-label="Close">
+					<XIcon size={16} />
+				</button>
+			</div>
+
+			<form method="post" action="?/createInvite" use:enhance={() => {
+				creatingInvite = true;
+				return async ({ update }) => { await update(); creatingInvite = false; };
+			}} class="flex flex-col gap-3">
+				<div class="flex flex-col gap-1.5">
+					<label for="inv-note" class="text-[0.75rem] text-white/50">Note <span class="text-white/25">(optional)</span></label>
+					<input id="inv-note" type="text" name="note" placeholder="e.g. for John"
+						maxlength="80" autocomplete="off"
+						class="auth-input text-sm py-2.5" />
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<label for="inv-expires" class="text-[0.75rem] text-white/50">Expires <span class="text-white/25">(optional — leave blank for never)</span></label>
+					<input id="inv-expires" type="date" name="expiresAt"
+						min={new Date().toISOString().split('T')[0]}
+						class="auth-input text-sm py-2.5" />
+				</div>
+				{#if form?.inviteError}
+					<p class="text-[0.8rem] text-red-300">{form.inviteError}</p>
+				{/if}
+				<div class="flex gap-2.5 mt-1">
+					<button type="button" onclick={() => (inviteDialogOpen = false)}
+						class="btn-ghost inline flex-1 rounded-xl py-2.5 text-sm">Cancel</button>
+					<button type="submit" disabled={creatingInvite}
+						class="btn-primary inline flex-1 rounded-xl py-2.5 text-sm disabled:opacity-50">
+						{creatingInvite ? 'Creating…' : 'Create invite'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ── 2FA enable dialog ───────────────────────────────────────────────────── -->
+{#if totpDialogOpen}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div role="dialog" aria-modal="true" tabindex="-1"
+		class="fixed inset-0 z-200 flex items-end sm:items-center justify-center p-4 sm:p-0"
+		onkeydown={(e) => { if (e.key === 'Escape') totpDialogOpen = false; }}>
+		<div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+			onclick={() => (totpDialogOpen = false)} role="presentation"></div>
+		<div class="relative w-full sm:max-w-md rounded-2xl border border-white/12 bg-[#0e0e0e] p-5 shadow-2xl">
+			<div class="flex items-center justify-between mb-4">
+				<h3 class="text-[0.92rem] font-semibold text-white">Enable two-factor authentication</h3>
+				<button type="button" onclick={() => (totpDialogOpen = false)}
+					class="text-white/35 hover:text-white/70 transition-colors" aria-label="Close">
+					<XIcon size={16} />
+				</button>
+			</div>
+
+			{#if totpStep === 'password'}
+				<p class="text-[0.8rem] text-white/45 mb-4">Enter your password to generate a TOTP setup key.</p>
+				<form method="post" action="?/getTotpUri" use:enhance={() => {
+					savingTotp = true;
+					return async ({ update }) => { await update(); savingTotp = false; };
+				}} class="flex flex-col gap-3">
+					<input type="password" name="password" placeholder="Your password"
+						autocomplete="current-password" required
+						class="auth-input text-sm py-2.5" />
+					<div class="flex gap-2.5">
+						<button type="button" onclick={() => (totpDialogOpen = false)}
+							class="btn-ghost inline flex-1 rounded-xl py-2.5 text-sm">Cancel</button>
+						<button type="submit" disabled={savingTotp}
+							class="btn-primary inline flex-1 rounded-xl py-2.5 text-sm disabled:opacity-50">
+							{savingTotp ? 'Generating…' : 'Continue'}
+						</button>
+					</div>
+				</form>
+
+			{:else if totpStep === 'verify'}
+				<!-- Step 1: QR code + secret -->
+				<div class="mb-5">
+					<div class="flex items-center gap-2 mb-1.5">
+						<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-white/12 text-[0.65rem] font-bold text-white shrink-0">1</span>
+						<p class="text-[0.88rem] font-medium text-white">Scan QR code</p>
+					</div>
+					<p class="text-[0.75rem] text-white/40 mb-3 ml-7">Open your authenticator app and scan the code, or enter the secret key manually.</p>
+
+					<div class="rounded-xl border border-white/10 bg-white/4 p-5 flex flex-col items-center gap-4">
+						<!-- QR code centered, with enough padding so corners don't clip it -->
+						{#if qrDataUrl}
+							<img src={qrDataUrl} alt="TOTP QR code" class="h-48 w-48 rounded-xl" />
+						{:else}
+							<div class="h-48 w-48 rounded-xl bg-white/8 animate-pulse"></div>
+						{/if}
+
+						<!-- Secret key for manual entry -->
+						<div class="w-full border-t border-white/8 pt-4 text-center">
+							<p class="text-[0.72rem] text-white/40 mb-1">Can't scan QR code? Enter this secret manually:</p>
+							<code class="block text-[0.85rem] font-mono font-bold text-white/80 tracking-widest my-2 break-all select-all">{totpSecret()}</code>
+							<button type="button"
+								onclick={() => navigator.clipboard.writeText(totpSecret()).then(() => toast.success('Secret copied'))}
+								class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[0.75rem] text-white/50 hover:bg-white/10 hover:text-white/80 transition-colors">
+								<CopySimpleIcon size={12} />Copy secret key
+							</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- Backup codes -->
+				{#if backupCodes.length}
+					<div class="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 mb-5">
+						<div class="flex items-start justify-between gap-3 mb-3">
+							<p class="text-[0.75rem] text-amber-300/80 font-medium leading-snug">
+								Save these backup codes — they can't be shown again. Each code can only be used once.
+							</p>
+							<button type="button" onclick={downloadBackupCodes}
+								class="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/25 bg-amber-500/10
+								       px-2.5 py-1.5 text-[0.72rem] text-amber-300/70 hover:bg-amber-500/20 hover:text-amber-200 transition-colors">
+								<DownloadSimpleIcon size={12} />
+								Download .txt
+							</button>
+						</div>
+						<div class="grid grid-cols-2 gap-x-6 gap-y-1">
+							{#each backupCodes as bc}
+								<code class="text-[0.78rem] text-white/65 font-mono tracking-wide">{bc}</code>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Step 2: Verify code -->
+				<div>
+					<div class="flex items-center gap-2 mb-1.5">
+						<span class="inline-flex items-center justify-center h-5 w-5 rounded-full bg-white/12 text-[0.65rem] font-bold text-white shrink-0">2</span>
+						<p class="text-[0.88rem] font-medium text-white">Get verification code</p>
+					</div>
+					<p class="text-[0.75rem] text-white/40 mb-3 ml-7">Enter the 6-digit code you see in your authenticator app.</p>
+
+					<form method="post" action="?/enableTwoFactor" use:enhance={() => {
+						savingTotp = true;
+						return async ({ update }) => { await update({ reset: false }); savingTotp = false; };
+					}} class="flex flex-col gap-4 ml-7">
+						<input type="hidden" name="code" value={codeValue} />
+						<div class="flex gap-2">
+							{#each codeDigits as digit, idx}
+								<input
+									id="totp-d{idx}"
+									type="text"
+									inputmode="numeric"
+									maxlength="2"
+									value={digit}
+									oninput={(e) => handleDigitInput(e, idx)}
+									onkeydown={(e) => handleDigitKeydown(e, idx)}
+									onpaste={(e) => handleDigitPaste(e)}
+									class="h-11 w-10 rounded-xl border border-white/15 bg-white/5 text-center text-lg font-mono font-bold text-white
+									       focus:border-white/40 focus:bg-white/8 focus:outline-none transition-colors"
+								/>
+							{/each}
+						</div>
+						<div class="flex gap-2.5">
+							<button type="button" onclick={() => (totpStep = 'password')}
+								class="btn-ghost inline flex-1 rounded-xl py-2.5 text-sm">Back</button>
+							<button type="submit" disabled={savingTotp || codeValue.length < 6}
+								class="btn-primary inline flex-1 rounded-xl py-2.5 text-sm disabled:opacity-50">
+								{savingTotp ? 'Verifying…' : 'Confirm'}
+							</button>
+						</div>
+					</form>
+				</div>
+			{/if}
+		</div>
+	</div>
+{/if}
+
+<!-- ── AniList disconnect dialog ──────────────────────────────────────────── -->
+{#if disconnectAnilistOpen}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div role="dialog" aria-modal="true" tabindex="-1"
+		class="fixed inset-0 z-200 flex items-end sm:items-center justify-center p-4 sm:p-0"
+		onkeydown={(e) => { if (e.key === 'Escape') disconnectAnilistOpen = false; }}>
+		<div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+			onclick={() => (disconnectAnilistOpen = false)} role="presentation"></div>
+		<div class="relative w-full sm:max-w-sm rounded-2xl border border-white/12 bg-[#0e0e0e] p-5 shadow-2xl">
+			<div class="mb-3.5 flex h-9 w-9 items-center justify-center rounded-full bg-red-500/10">
+				<LinkSimpleIcon size={17} class="text-red-400" />
+			</div>
+			<h3 class="text-[0.92rem] font-semibold text-white mb-1">Disconnect AniList</h3>
+			<p class="text-[0.82rem] text-white/45 mb-5">Your local library will remain intact, but sync will stop working until you reconnect.</p>
+			<form method="post" action="?/disconnectAnilist" use:enhance={() => {
+				disconnectingAnilist = true;
+				return async ({ update }) => { await update(); disconnectingAnilist = false; };
+			}} class="flex gap-2.5">
+				<button type="button" onclick={() => (disconnectAnilistOpen = false)}
+					class="btn-ghost inline flex-1 rounded-xl py-2.5 text-sm">Cancel</button>
+				<button type="submit" disabled={disconnectingAnilist}
+					class="inline flex-1 rounded-xl py-2.5 text-sm font-medium border transition-colors
+					       border-red-500/25 bg-red-500/12 text-red-300 hover:bg-red-500/22 disabled:opacity-50">
+					{disconnectingAnilist ? 'Disconnecting…' : 'Disconnect'}
+				</button>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ── 2FA disable dialog ─────────────────────────────────────────────────── -->
+{#if disableTotpOpen}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<div role="dialog" aria-modal="true" tabindex="-1"
+		class="fixed inset-0 z-200 flex items-end sm:items-center justify-center p-4 sm:p-0"
+		onkeydown={(e) => { if (e.key === 'Escape') disableTotpOpen = false; }}>
+		<div class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+			onclick={() => (disableTotpOpen = false)} role="presentation"></div>
+		<div class="relative w-full sm:max-w-sm rounded-2xl border border-white/12 bg-[#0e0e0e] p-5 shadow-2xl">
+			<div class="mb-3.5 flex h-9 w-9 items-center justify-center rounded-full bg-red-500/10">
+				<ShieldCheckIcon size={17} class="text-red-400" />
+			</div>
+			<h3 class="text-[0.92rem] font-semibold text-white mb-1">Disable two-factor authentication</h3>
+			<p class="text-[0.82rem] text-white/45 mb-5">Enter your password to confirm. Your TOTP codes will stop working immediately.</p>
+			<form method="post" action="?/disableTwoFactor" use:enhance={() => {
+				savingTotp = true;
+				return async ({ update }) => { await update(); savingTotp = false; };
+			}} class="flex flex-col gap-3">
+				<input type="password" name="password" placeholder="Your password"
+					autocomplete="current-password" required
+					class="auth-input text-sm py-2.5" />
+				<div class="flex gap-2.5">
+					<button type="button" onclick={() => (disableTotpOpen = false)}
+						class="btn-ghost inline flex-1 rounded-xl py-2.5 text-sm">Cancel</button>
+					<button type="submit" disabled={savingTotp}
+						class="inline flex-1 rounded-xl py-2.5 text-sm font-medium border transition-colors
+						       border-red-500/25 bg-red-500/12 text-red-300 hover:bg-red-500/22 disabled:opacity-50">
+						{savingTotp ? 'Disabling…' : 'Disable 2FA'}
+					</button>
+				</div>
+			</form>
 		</div>
 	</div>
 {/if}

@@ -3,66 +3,46 @@
     import { goto, replaceState } from '$app/navigation'
     import { onDestroy } from 'svelte'
     import VideoPlayer from '$lib/components/player/VideoPlayer.svelte'
-    import EpisodeGrid from '$lib/components/player/EpisodeGrid.svelte'
+    import EpisodeSidebar from '$lib/components/player/EpisodeSidebar.svelte'
+    import EpisodeInfo from '$lib/components/player/EpisodeInfo.svelte'
+    import RecommendationCard from '$lib/components/player/RecommendationCard.svelte'
     import LoadingScreen from '$lib/components/shared/LoadingScreen.svelte'
+    import { breadcrumb } from '$lib/state.svelte'
     import { getAnimeDetails } from '$lib/api/anime'
     import { getJikanEpisodes } from '$lib/api/jikan'
     import { logToTerminal } from '$lib/api/logging'
     import { getTvdbEpisodes } from '$lib/api/tvdb'
+    import { BellSimpleRingingIcon } from 'phosphor-svelte'
     import { playbackStart, playbackStop } from '$lib/api/playback'
-    import { streamSearch, streamEpisodes, streamSources } from '$lib/api/stream'
+    import { getEpisodeSources } from '$lib/api/stream'
     import type { AnimeDetails } from '$lib/types/anime'
-    import type { StreamableAnime, StreamingEpisode, StreamSource, ProviderKind } from '$lib/types/stream'
+    import type { StreamSource } from '$lib/types/stream'
     import {
         buildAniListEpisodeNumbers,
         buildAniListTitleMap,
         episodeTitleForNumber as resolveEpisodeTitleForNumber,
         parseEpisodeNumber,
         parseRequestedEpisode,
-        resolveEpisodeByNumber,
-        syntheticEpisode,
-        type EpisodeMatchKind,
     } from '$lib/utils/watch/episodes'
-    import { buildSearchQueries as buildWatchSearchQueries, inferExplicitSeasonIndex } from '$lib/utils/watch/search'
-    import {
-        rankProviderMatches as rankProviderMatchesUtil,
-        scoreEpisodeMappingConfidence,
-        validateCandidateMapping,
-        type WatchMatchContext,
-    } from '$lib/utils/watch/matching'
-    import {
-        buildPlaybackFailureMessage as buildPlaybackFailureMessageUtil,
-        formatSourceLabel,
-        orderSources,
-        providerName as resolveProviderName,
-    } from '$lib/utils/watch/provider'
 
-    const PROVIDER_OPTIONS: { label: string; value: ProviderKind }[] = [
-        { label: 'AllAnime', value: 'allanime' },
-        { label: 'AnimePahe', value: 'animepahe' },
-        { label: 'Anizone', value: 'anizone' },
-        { label: 'Anidap', value: 'anidap' },
+    const PROVIDER_OPTIONS = [
+        { label: 'Sub', value: 'sub' },
+        { label: 'Dub', value: 'dub' },
     ]
-    type ProviderContext = { streamAnime: StreamableAnime; episodes: StreamingEpisode[] }
+
+    let audioMode: 'sub' | 'dub' = 'sub'
 
     let details: AnimeDetails | null = null
     let pageLoading = true
     let pageError: string | null = null
 
-    let provider: ProviderKind = 'animepahe'
-    let streamAnime: StreamableAnime | null = null
-    let streamAnimeProvider: ProviderKind | null = null
-    let providerContexts = new Map<ProviderKind, ProviderContext>()
-    let episodes: StreamingEpisode[] = []
-    let selectedEpisode: StreamingEpisode | null = null
-
+    let selectedEpisodeNumber: number | null = null
     let sources: StreamSource[] = []
     let selectedSource: StreamSource | null = null
     let playbackUrl: string | null = null
     let sourceKind: string = 'hls'
     let playbackSessionId: string | null = null
 
-    let bootstrapping = false
     let sourcesLoading = false
     let statusMessage = ''
     let mediaError = ''
@@ -77,73 +57,18 @@
     let fillerNumbers: Set<number> = new Set()
     let recapNumbers: Set<number> = new Set()
     let episodeTitleByNumber: Record<number, string> = {}
-    let tvdbEpisodeOffset: number | null = null
+    let episodeThumbnailByNumber: Record<number, string | null> = {}
 
     $: animeId = $page.params.id
     $: requestedEp = parseRequestedEpisode($page.url.searchParams.get('ep'))
-    $: episodeNumbers = buildAniListEpisodeNumbers(details?.episode_count ?? null, episodes)
-    $: selectedNumber = (() => {
-        const parsed = parseEpisodeNumber(selectedEpisode?.number)
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : requestedEp
-    })()
+    $: episodeNumbers = buildAniListEpisodeNumbers(details?.episode_count ?? null, [])
+    $: selectedNumber = selectedEpisodeNumber ?? requestedEp
     $: selectedEpisodeTitle = (() => {
-        if (!selectedEpisode) return 'Select Episode'
-        const parsed = parseEpisodeNumber(selectedEpisode.number)
-        if (Number.isFinite(parsed) && parsed > 0) {
-            return episodeTitleForNumber(parsed)
-        }
-        return `Episode ${selectedEpisode.number}`
+        if (!selectedEpisodeNumber) return 'Select Episode'
+        return episodeTitleForNumber(selectedEpisodeNumber)
     })()
 
     $: if (animeId) bootstrap(animeId, requestedEp)
-
-    function providerName(value: ProviderKind): string {
-        return resolveProviderName(value, PROVIDER_OPTIONS)
-    }
-
-    function buildPlaybackFailureMessage(stage: string, reason: string): string {
-        return buildPlaybackFailureMessageUtil({
-            stage,
-            reason,
-            provider,
-            providerOptions: PROVIDER_OPTIONS,
-            selectedNumber,
-            selectedSource,
-        })
-    }
-
-    function buildSearchQueries(base: string, targetProvider: ProviderKind): string[] {
-        const relationTitles = (details?.relations ?? [])
-            .map(relation => relation.title?.trim() ?? '')
-            .filter(Boolean)
-            .slice(0, 4)
-        return buildWatchSearchQueries(base, targetProvider, {
-            detailsTitle: details?.title ?? '',
-            detailsTitleJapanese: details?.title_japanese ?? '',
-            relationTitles,
-        })
-    }
-
-    function watchMatchContext(): WatchMatchContext {
-        return {
-            title: details?.title ?? '',
-            titleJapanese: details?.title_japanese ?? '',
-            episodeCount: details?.episode_count ?? null,
-            seasonYear: details?.season_year ?? null,
-            season: details?.season ?? null,
-            status: details?.status ?? null,
-            format: details?.format ?? null,
-        }
-    }
-
-    function rankProviderMatches(
-        results: StreamableAnime[],
-        hint: string,
-        desiredEpisode?: number,
-        targetProvider: ProviderKind = provider,
-    ): Array<{ anime: StreamableAnime; score: number }> {
-        return rankProviderMatchesUtil(results, hint, desiredEpisode, targetProvider, watchMatchContext())
-    }
 
     function episodeTitleForNumber(number: number): string {
         return resolveEpisodeTitleForNumber(episodeTitleByNumber, number)
@@ -157,11 +82,7 @@
 
         await stopActivePlayback()
 
-        streamAnime = null
-        streamAnimeProvider = null
-        providerContexts = new Map()
-        episodes = []
-        selectedEpisode = null
+        selectedEpisodeNumber = null
         sources = []
         selectedSource = null
         playbackUrl = null
@@ -169,7 +90,7 @@
         fillerNumbers = new Set()
         recapNumbers = new Set()
         episodeTitleByNumber = {}
-        tvdbEpisodeOffset = null
+        episodeThumbnailByNumber = {}
         debugLines = []
         focusMode = false
         theatreMode = false
@@ -186,24 +107,30 @@
                 void fetchJikanFiller(details.id_mal)
             }
 
-            // Render the page shell as soon as metadata is available.
             pageLoading = false
-            await bootstrapProvider(details?.title ?? '', targetEp)
+
+            // Select and begin fetching the requested episode.
+            const numbers = buildAniListEpisodeNumbers(details?.episode_count ?? null, [])
+            const initialEp = numbers.includes(targetEp)
+                ? targetEp
+                : numbers.length > 0 ? numbers[0] : null
+
+            if (initialEp !== null) {
+                void playEpisode(initialEp)
+            }
         } catch (error) {
             pageError = String(error)
             pageLoading = false
-        } finally {
-            if (pageError) pageLoading = false
         }
     }
 
     async function fetchJikanFiller(malId: number) {
         try {
             const episodes = await getJikanEpisodes(malId)
-            fillerNumbers = new Set(episodes.filter(episode => episode.filler).map(episode => episode.number))
-            recapNumbers = new Set(episodes.filter(episode => episode.recap).map(episode => episode.number))
+            fillerNumbers = new Set(episodes.filter(e => e.filler).map(e => e.number))
+            recapNumbers = new Set(episodes.filter(e => e.recap).map(e => e.number))
         } catch {
-            // filler data is non-critical
+            // non-critical
         }
     }
 
@@ -212,414 +139,100 @@
             const tvdbEpisodes = await getTvdbEpisodes(anime.id, anime.format)
             if (details?.id !== anime.id || tvdbEpisodes.length === 0) return
 
-            const merged = { ...episodeTitleByNumber }
+            const mergedTitles = { ...episodeTitleByNumber }
+            const mergedThumbs: Record<number, string | null> = { ...episodeThumbnailByNumber }
             for (const episode of tvdbEpisodes) {
+                if (episode.number <= 0) continue
                 const title = episode.title?.trim()
-                if (!title || episode.number <= 0) continue
-                merged[episode.number] = title
+                if (title) mergedTitles[episode.number] = title
+                if (episode.thumbnail) mergedThumbs[episode.number] = episode.thumbnail
             }
-            episodeTitleByNumber = merged
-
-            const numbered = tvdbEpisodes
-                .map(episode => episode.number)
-                .filter(number => Number.isFinite(number) && number > 0)
-                .sort((a, b) => a - b)
-            if (numbered.length > 0) {
-                const minNumber = numbered[0]
-                const maxNumber = numbered[numbered.length - 1]
-                tvdbEpisodeOffset = minNumber > 1 ? minNumber - 1 : null
-                addDebugLine(
-                    `tvdb_episode_window min=${minNumber} max=${maxNumber} offset=${tvdbEpisodeOffset ?? 0} count=${numbered.length}`,
-                )
-            }
+            episodeTitleByNumber = mergedTitles
+            episodeThumbnailByNumber = mergedThumbs
         } catch {
-            // title enrichment is best-effort
+            // best-effort
         }
-    }
-
-    async function bootstrapProvider(titleHint: string, targetEp: number) {
-        bootstrapping = true
-        mediaError = ''
-
-        try {
-            const numbers = buildAniListEpisodeNumbers(details?.episode_count ?? null, [])
-            const initialEp = numbers.includes(targetEp)
-                ? targetEp
-                : (numbers[0] ?? targetEp)
-
-            await selectAndPlay(initialEp, titleHint)
-        } catch (error) {
-            mediaError = String(error)
-            statusMessage = ''
-        } finally {
-            bootstrapping = false
-        }
-    }
-
-    async function switchProvider(next: ProviderKind) {
-        if (provider === next && streamAnimeProvider === next) return
-        provider = next
-        if (!details) return
-
-        await stopActivePlayback()
-        playbackUrl = null
-        selectedSource = null
-        sources = []
-        sourceKind = 'hls'
-        statusMessage = `Switching to ${providerName(next)}...`
-        mediaError = ''
-        addDebugLine(`provider_switch provider=${providerName(next)} episode=${selectedNumber}`)
-
-        const currentEp = selectedNumber
-        await selectAndPlay(currentEp, details.title, next)
     }
 
     async function stopActivePlayback() {
-        const currentSessionId = playbackSessionId
+        const id = playbackSessionId
         playbackSessionId = null
         playbackProgressSeen = false
-
-        if (!currentSessionId) return
-
-        try {
-            await playbackStop(currentSessionId)
-        } catch {
-            // session teardown is best-effort
-        }
+        if (!id) return
+        try { await playbackStop(id) } catch { /* best-effort */ }
     }
 
-    async function startPlaybackForSource(source: StreamSource, episodeNumber: number = selectedNumber) {
+    async function playEpisode(number: number) {
+        if (!Number.isFinite(number) || number <= 0 || !details) return
+
+        selectedEpisodeNumber = number
+        sources = []
+        selectedSource = null
+        playbackUrl = null
+        mediaError = ''
+        updateEpisodeUrl(number)
+        addDebugLine(`episode_select number=${number}`)
+
         await stopActivePlayback()
-        playbackProgressSeen = false
-
-        const started = await playbackStart(source)
-        selectedSource = source
-        sourceKind = started.kind
-        playbackUrl = started.url
-        playbackSessionId = started.sessionId
-        addDebugLine(
-            `playback_start provider=${providerName(provider)} episode=${episodeNumber} source=${formatSourceLabel(source)} kind=${started.kind}`,
-        )
-    }
-
-    async function selectAndPlay(number: number, titleHint: string, forcedProvider?: ProviderKind) {
-        if (!Number.isFinite(number) || number <= 0) return
 
         sourcesLoading = true
-        mediaError = ''
-        statusMessage = ''
+        statusMessage = 'Loading episode…'
 
         try {
-            const targetProvider = forcedProvider ?? provider
-            const context = await resolveProviderContext(targetProvider, titleHint, number)
-            if (!context) {
-                const errorMessage = `No stream result found in ${providerName(targetProvider)} for "${titleHint}".`
-                mediaError = errorMessage
+            const fetched = await getEpisodeSources(details.title, number, audioMode)
+            sources = fetched
+
+            if (sources.length === 0) {
+                mediaError = 'No sources found for this episode'
                 statusMessage = ''
-                addDebugLine(
-                    `stream_lookup_failed provider=${providerName(targetProvider)} episode=${number} error=${errorMessage}`,
-                )
                 return
             }
 
-            const desiredSeasonIndex = inferExplicitSeasonIndex(
-                titleHint,
-                details?.title ?? '',
-                details?.title_japanese ?? '',
-            )
-            const episodeMatch = resolveEpisodeByNumber(
-                context.episodes,
-                number,
-                {
-                    requireSourceId: targetProvider === 'animepahe',
-                    expectedEpisodeCount:
-                        details?.episode_count ?? context.streamAnime.available_episodes ?? null,
-                    seasonIndex: Number.isFinite(Number(desiredSeasonIndex)) ? Number(desiredSeasonIndex) : null,
-                    tvdbOffset: tvdbEpisodeOffset,
-                },
-            )
-            const matchValidation = validateCandidateMapping(
-                targetProvider,
-                context.streamAnime,
-                episodeMatch,
-                Number.isFinite(Number(details?.episode_count)) ? Number(details?.episode_count) : Number.NaN,
-                Number.isFinite(Number(desiredSeasonIndex)) ? Number(desiredSeasonIndex) : Number.NaN,
-                Number.isFinite(Number(details?.season_year)) ? Number(details?.season_year) : Number.NaN,
-            )
-            const matchedEpisode = episodeMatch.episode
-            const candidateEpisode = matchedEpisode ?? syntheticEpisode(number, context.streamAnime.id)
-            const resolvedEpisode: StreamingEpisode = {
-                anime_id: context.streamAnime.id,
-                number: String(number),
-                source_id: candidateEpisode.source_id,
-            }
-            addDebugLine(
-                `episode_match provider=${providerName(targetProvider)} requested=${number} mapped_to=${matchedEpisode?.number ?? 'none'} kind=${episodeMatch.kind} min=${Number.isFinite(episodeMatch.minNumber) ? episodeMatch.minNumber : 'na'} max=${Number.isFinite(episodeMatch.maxNumber) ? episodeMatch.maxNumber : 'na'}`,
-            )
-            if (!matchValidation.accepted) {
-                const errorMessage = `Episode mapping for ${providerName(targetProvider)} was rejected: ${matchValidation.reason}.`
-                mediaError = errorMessage
-                statusMessage = ''
-                addDebugLine(
-                    `episode_mapping_rejected provider=${providerName(targetProvider)} requested=${number} map=${episodeMatch.kind}:${matchedEpisode?.number ?? 'none'} reason=${matchValidation.reason}`,
-                )
-                return
-            }
-            if (targetProvider === 'animepahe' && !candidateEpisode.source_id) {
-                const errorMessage = `AnimePahe episode mapping failed for episode ${number}. No episode session ID was found.`
-                mediaError = errorMessage
-                statusMessage = ''
-                addDebugLine(
-                    `episode_mapping_failed provider=${providerName(targetProvider)} requested=${number} matched=${matchedEpisode?.number ?? 'none'} source_id=${candidateEpisode.source_id ?? 'none'}`,
-                )
-                return
-            }
+            selectedSource = sources[0]
+            statusMessage = 'Starting playback…'
+            addDebugLine(`sources_found count=${sources.length}`)
 
-            statusMessage = `Loading sources for EP ${number} from ${providerName(targetProvider)}...`
-            const providerSources = await streamSources(targetProvider, candidateEpisode, null)
-            addDebugLine(
-                `source_candidates provider=${providerName(targetProvider)} episode=${number} list=${providerSources
-                    .map(source => formatSourceLabel(source))
-                    .join(',') || 'none'}`,
-            )
-            const orderedSources = orderSources(providerSources)
-
-            if (orderedSources.length === 0) {
-                const errorMessage = `No sources found for episode ${number} on ${providerName(targetProvider)}.`
-                mediaError = errorMessage
-                statusMessage = ''
-                addDebugLine(
-                    `source_lookup_failed provider=${providerName(targetProvider)} episode=${number} error=${errorMessage}`,
-                )
-                return
-            }
-
-            const source = orderedSources[0]
-            provider = targetProvider
-            streamAnime = context.streamAnime
-            streamAnimeProvider = targetProvider
-            episodes = context.episodes
-            selectedEpisode = resolvedEpisode
-            sources = providerSources
-            await startPlaybackForSource(source, number)
-            mediaError = ''
-            statusMessage = autoPlay ? 'Starting playback...' : 'Ready. Press play to start.'
-            addDebugLine(
-                `source_selected provider=${providerName(targetProvider)} episode=${number} source=${formatSourceLabel(source)}`,
-            )
-            updateEpisodeUrl(number)
-        } catch (error) {
-            const errorMessage = String(error)
-            mediaError = buildPlaybackFailureMessage('select_and_play', errorMessage)
+            const result = await playbackStart(selectedSource)
+            playbackUrl = result.url
+            sourceKind = result.kind
+            playbackSessionId = result.sessionId
             statusMessage = ''
-            addDebugLine(
-                `select_and_play_failed provider=${providerName(forcedProvider ?? provider)} episode=${number} error=${errorMessage}`,
-            )
-            await stopActivePlayback()
-            playbackUrl = null
-            selectedSource = null
+        } catch (err) {
+            mediaError = String(err)
+            statusMessage = ''
+            addDebugLine(`source_error ${String(err)}`)
         } finally {
             sourcesLoading = false
         }
     }
 
-    async function playEpisode(number: number) {
-        addDebugLine(`episode_change requested=${number} stopping_current_playback`)
-        mediaError = ''
-        playbackUrl = null
-        selectedSource = null
-        sources = []
-        await stopActivePlayback()
-        statusMessage = `Loading episode ${number}...`
-        await selectAndPlay(number, details?.title ?? '')
-    }
+    async function handleSourceChange(source: StreamSource) {
+        if (!source) return
+        selectedSource = source
 
-    async function onSourceChange(src: StreamSource) {
-        if (!details || !selectedEpisode) return
+        const prev = playbackSessionId
+        playbackSessionId = null
+        if (prev) {
+            try { await playbackStop(prev) } catch { /* best-effort */ }
+        }
 
         try {
-            await startPlaybackForSource(src)
-            mediaError = ''
-            statusMessage = autoPlay ? 'Starting playback...' : 'Ready. Press play to start.'
-            addDebugLine(
-                `source_changed provider=${providerName(provider)} episode=${selectedNumber} source=${formatSourceLabel(src)}`,
-            )
-        } catch (error) {
-            const errorMessage = String(error)
-            mediaError = buildPlaybackFailureMessage('source_change', errorMessage)
-            statusMessage = ''
-            addDebugLine(
-                `source_change_failed provider=${providerName(provider)} episode=${selectedNumber} source=${formatSourceLabel(src)} error=${errorMessage}`,
-            )
+            const result = await playbackStart(source)
+            playbackUrl = result.url
+            sourceKind = result.kind
+            playbackSessionId = result.sessionId
+        } catch (err) {
+            mediaError = String(err)
         }
     }
 
-    function onPlayerStartupError(event?: { message?: string }) {
-        const reason = event?.message ?? 'Playback startup failed.'
-        mediaError = buildPlaybackFailureMessage('startup_error', reason)
-        statusMessage = ''
-        addDebugLine(
-            `startup_error provider=${providerName(provider)} episode=${selectedNumber} source=${formatSourceLabel(selectedSource)} error=${reason}`,
-        )
-    }
-
-    function onPlayerFatalHls(event?: { message?: string }) {
-        const reason = event?.message ?? 'Fatal HLS playback error.'
-        const normalizedReason = reason.toLowerCase()
-        if (playbackProgressSeen && normalizedReason.includes('bufferaddcodecerror')) {
-            addDebugLine(
-                `fatal_hls_ignored provider=${providerName(provider)} episode=${selectedNumber} source=${formatSourceLabel(selectedSource)} reason=${reason}`,
-            )
-            return
-        }
-        mediaError = buildPlaybackFailureMessage('fatal_hls', reason)
-        statusMessage = ''
-        addDebugLine(
-            `fatal_hls provider=${providerName(provider)} episode=${selectedNumber} source=${formatSourceLabel(selectedSource)} error=${reason}`,
-        )
-    }
-
-    function onPlayerMediaError(event?: { message?: string }) {
-        const reason = event?.message ?? 'Media playback error.'
-        mediaError = buildPlaybackFailureMessage('media_error', reason)
-        statusMessage = ''
-        addDebugLine(
-            `media_error provider=${providerName(provider)} episode=${selectedNumber} source=${formatSourceLabel(selectedSource)} error=${reason}`,
-        )
-    }
-
-    function onHlsInfo(event?: { message?: string }) {
-        const message = event?.message ?? 'hls event'
-        const normalizedMessage = message.toLowerCase()
-        if (normalizedMessage.includes('frag_loaded')) {
-            playbackProgressSeen = true
-        }
-        addDebugLine(message)
-    }
-
-    async function resolveProviderContext(
-        targetProvider: ProviderKind,
-        titleHint: string,
-        desiredEpisode: number,
-    ): Promise<ProviderContext | null> {
-        const cached = providerContexts.get(targetProvider)
-        if (cached) {
-            return cached
-        }
-
-        if (targetProvider === streamAnimeProvider && streamAnime) {
-            return {
-                streamAnime,
-                episodes,
+    async function handleProviderChange(value: string) {
+        if ((value === 'sub' || value === 'dub') && value !== audioMode) {
+            audioMode = value
+            if (selectedEpisodeNumber !== null) {
+                await playEpisode(selectedEpisodeNumber)
             }
         }
-
-        const desiredSeasonIndex = inferExplicitSeasonIndex(
-            titleHint,
-            details?.title ?? '',
-            details?.title_japanese ?? '',
-        )
-        const expectedEpisodeCount = Number(details?.episode_count)
-        const desiredYear = Number(details?.season_year)
-        let bestCandidate:
-            | (ProviderContext & {
-                query: string
-                titleScore: number
-                mappingScore: number
-                validationAdjustment: number
-                totalScore: number
-                mappingKind: EpisodeMatchKind
-                mappedNumber: string | null
-            })
-            | null = null
-
-        statusMessage = `Searching ${providerName(targetProvider)}...`
-        for (const query of buildSearchQueries(titleHint, targetProvider)) {
-            const results = await streamSearch(targetProvider, query)
-            const rankedCandidates = rankProviderMatches(results, titleHint, desiredEpisode, targetProvider).slice(
-                0,
-                targetProvider === 'animepahe' ? 6 : 4,
-            )
-            if (rankedCandidates.length === 0) continue
-
-            for (const candidate of rankedCandidates) {
-                const providerEpisodes = await streamEpisodes(targetProvider, candidate.anime)
-                if (providerEpisodes.length === 0) {
-                    addDebugLine(
-                        `episode_list_empty provider=${providerName(targetProvider)} query=${query} matched=${candidate.anime.title}`,
-                    )
-                    continue
-                }
-
-                const match = resolveEpisodeByNumber(providerEpisodes, desiredEpisode, {
-                    requireSourceId: targetProvider === 'animepahe',
-                    expectedEpisodeCount: Number.isFinite(expectedEpisodeCount) ? expectedEpisodeCount : null,
-                    seasonIndex: Number.isFinite(desiredSeasonIndex) ? desiredSeasonIndex : null,
-                    tvdbOffset: tvdbEpisodeOffset,
-                })
-                const mappingScore = scoreEpisodeMappingConfidence(
-                    match,
-                    Number.isFinite(expectedEpisodeCount) ? expectedEpisodeCount : Number.NaN,
-                    Number.isFinite(Number(desiredSeasonIndex)) ? Number(desiredSeasonIndex) : Number.NaN,
-                )
-                const validation = validateCandidateMapping(
-                    targetProvider,
-                    candidate.anime,
-                    match,
-                    Number.isFinite(expectedEpisodeCount) ? expectedEpisodeCount : Number.NaN,
-                    Number.isFinite(Number(desiredSeasonIndex)) ? Number(desiredSeasonIndex) : Number.NaN,
-                    Number.isFinite(desiredYear) ? desiredYear : Number.NaN,
-                )
-                if (!validation.accepted) {
-                    addDebugLine(
-                        `candidate_rejected provider=${providerName(targetProvider)} query=${query} title=${candidate.anime.title} map=${match.kind}:${match.episode?.number ?? 'none'} reason=${validation.reason}`,
-                    )
-                    continue
-                }
-
-                const totalScore = candidate.score + mappingScore + validation.adjustment
-
-                addDebugLine(
-                    `candidate_eval provider=${providerName(targetProvider)} query=${query} title=${candidate.anime.title} year=${candidate.anime.year ?? 'na'} title_score=${candidate.score.toFixed(1)} map=${match.kind}:${match.episode?.number ?? 'none'} map_score=${mappingScore.toFixed(1)} gate=${validation.adjustment.toFixed(1)} total=${totalScore.toFixed(1)}`,
-                )
-
-                if (!bestCandidate || totalScore > bestCandidate.totalScore) {
-                    bestCandidate = {
-                        streamAnime: candidate.anime,
-                        episodes: providerEpisodes,
-                        query,
-                        titleScore: candidate.score,
-                        mappingScore,
-                        validationAdjustment: validation.adjustment,
-                        totalScore,
-                        mappingKind: match.kind,
-                        mappedNumber: match.episode?.number ?? null,
-                    }
-                }
-            }
-
-            if (bestCandidate && bestCandidate.totalScore >= 430 && bestCandidate.mappingScore >= 170) break
-        }
-
-        if (!bestCandidate) return null
-
-        const context: ProviderContext = {
-            streamAnime: bestCandidate.streamAnime,
-            episodes: bestCandidate.episodes,
-        }
-        providerContexts.set(targetProvider, context)
-        addDebugLine(
-            `provider_match_selected provider=${providerName(targetProvider)} title=${bestCandidate.streamAnime.title} query=${bestCandidate.query} title_score=${bestCandidate.titleScore.toFixed(1)} map=${bestCandidate.mappingKind}:${bestCandidate.mappedNumber ?? 'none'} gate=${bestCandidate.validationAdjustment.toFixed(1)} total=${bestCandidate.totalScore.toFixed(1)}`,
-        )
-        return context
-    }
-
-    function addDebugLine(line: string) {
-        const stamp = new Date().toLocaleTimeString()
-        debugLines = [`${stamp} ${line}`, ...debugLines].slice(0, 6)
-        const normalized = line.toLowerCase()
-        const level = normalized.includes('error') || normalized.includes('failed') ? 'error' : 'info'
-        logToTerminal(line, level)
     }
 
     function updateEpisodeUrl(number: number) {
@@ -628,25 +241,70 @@
         replaceState(url, {})
     }
 
-    onDestroy(() => {
-        void stopActivePlayback()
-    })
+    function addDebugLine(line: string) {
+        const stamp = new Date().toLocaleTimeString()
+        debugLines = [`${stamp} ${line}`, ...debugLines].slice(0, 6)
+        logToTerminal(line, 'info')
+    }
 
     function onPlayerPlay() {
         playbackProgressSeen = true
-        if (statusMessage.toLowerCase().includes('starting playback')) {
-            statusMessage = ''
-        }
+        if (statusMessage.toLowerCase().includes('starting')) statusMessage = ''
         mediaError = ''
     }
 
     function onPlayerReady() {
         playbackProgressSeen = true
-        if (statusMessage.toLowerCase().includes('starting playback')) {
-            statusMessage = ''
-        }
+        if (statusMessage.toLowerCase().includes('starting')) statusMessage = ''
     }
+
+    // ── Breadcrumb ─────────────────────────────────────────────────────────
+    $: if (details) {
+        breadcrumb.items = [
+            { label: 'Home', href: '/' },
+            { label: details.title, href: `/anime/${details.id}` },
+            { label: 'Watch' },
+        ]
+    }
+
+    onDestroy(() => {
+        breadcrumb.items = []
+        void stopActivePlayback()
+    })
+
+    // ── Layout: sidebar height matches video height ─────────────────────────
+    let sidebarHeight = 0
+
+    function bindVideoWrap(el: HTMLDivElement) {
+        const obs = new ResizeObserver(([entry]) => { sidebarHeight = entry.contentRect.height })
+        obs.observe(el)
+        return { destroy: () => obs.disconnect() }
+    }
+
+    $: airingDaysLeft = details?.next_airing_at
+        ? Math.ceil((details.next_airing_at * 1000 - Date.now()) / 86_400_000)
+        : null
+
+    function formatAiringDate(ts: number | null): string {
+        if (!ts) return ''
+        return new Date(ts * 1000).toLocaleString(undefined, {
+            weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        })
+    }
+
+    $: episodeMeta = (() => {
+        const anilistEps = details?.episodes ?? []
+        return episodeNumbers.map(n => {
+            const al = anilistEps.find(e => e.number === n)
+            return {
+                number: n,
+                title: episodeTitleByNumber[n] ?? al?.title ?? null,
+                thumbnail: episodeThumbnailByNumber[n] ?? al?.thumbnail ?? null,
+            }
+        })
+    })()
 </script>
+
 {#if pageLoading}
     <LoadingScreen label="Preparing player..." className="bg-black" />
 
@@ -665,73 +323,131 @@
 
 {:else if details}
     <div class="relative min-h-screen bg-black">
-
         {#if focusMode}
-        <button
-            type="button"
-            class="fixed inset-0 z-[60] bg-black/75 backdrop-blur-[1px] border-0"
-            aria-label="Exit focus mode"
-            onclick={() => (focusMode = false)}
-        ></button>
+            <button
+                type="button"
+                class="fixed inset-0 z-60 bg-black/75 backdrop-blur-[1px] border-0"
+                aria-label="Exit focus mode"
+                onclick={() => (focusMode = false)}
+            ></button>
         {/if}
 
-        <div class="mx-auto w-full max-w-[1740px] px-3 pb-6 pt-16 sm:px-4 lg:px-6">
-            <div class="grid gap-4 {theatreMode ? 'xl:h-auto xl:grid-cols-1' : 'lg:grid-cols-[minmax(0,8fr)_minmax(0,2fr)] xl:h-[calc(100vh-5.25rem)]'}">
-                <section
-                    class="flex min-h-0 flex-col rounded-xl p-2 sm:p-3
-                           {theatreMode ? 'mx-auto w-full max-w-[1240px]' : ''}
-                           {focusMode ? 'relative z-[80]' : ''}"
-                >
+        <div class="mx-auto w-full max-w-400 px-3 pb-10 pt-16 sm:px-4 lg:px-6">
+            <div class="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
 
-                <VideoPlayer
-                    {sources}
-                    {selectedSource}
-                    {playbackUrl}
-                    {sourceKind}
-                    {selectedEpisode}
-                    {episodeNumbers}
-                    {selectedNumber}
-                    episodeTitle={selectedEpisodeTitle}
-                    {autoPlay}
-                    {autoNext}
-                    {focusMode}
-                    {theatreMode}
-                    animeTitle={details.title}
-                    {provider}
-                    providerOptions={PROVIDER_OPTIONS}
-                    loading={bootstrapping || sourcesLoading}
-                    {statusMessage}
-                    {mediaError}
-                    onSourceChange={onSourceChange}
-                    onProviderChange={(value) => switchProvider(value as ProviderKind)}
-                    onToggleAutoPlay={() => autoPlay = !autoPlay}
-                    onToggleAutoNext={() => autoNext = !autoNext}
-                    onToggleFocus={() => focusMode = !focusMode}
-                    onToggleTheatre={() => theatreMode = !theatreMode}
-                    onEpisodeSelect={playEpisode}
-                    onPlay={onPlayerPlay}
-                    onReady={onPlayerReady}
-                    onStartupError={onPlayerStartupError}
-                    onFatalHls={onPlayerFatalHls}
-                    onMediaError={onPlayerMediaError}
-                    onHlsInfo={onHlsInfo}
-                />
-                </section>
-
-                <aside class="flex min-h-0 flex-col rounded-xl p-2 sm:p-3">
-                    <div class="mb-2 flex items-center justify-between px-1">
-                        <h2 class="text-sm font-medium text-white">Episodes</h2>
-                        <span class="text-xs text-white/45">{episodeNumbers.length}</span>
+                <div class="min-w-0 {focusMode ? 'relative z-80' : ''}">
+                    <div use:bindVideoWrap class="overflow-hidden rounded-xl">
+                        <VideoPlayer
+                            {sources}
+                            {selectedSource}
+                            {playbackUrl}
+                            {sourceKind}
+                            selectedEpisode={selectedEpisodeNumber !== null ? { anime_id: String(animeId), number: String(selectedEpisodeNumber), source_id: null } : null}
+                            {episodeNumbers}
+                            {selectedNumber}
+                            episodeTitle={selectedEpisodeTitle}
+                            {autoPlay}
+                            {autoNext}
+                            {focusMode}
+                            {theatreMode}
+                            animeTitle={details.title}
+                            provider={audioMode}
+                            providerOptions={PROVIDER_OPTIONS}
+                            loading={sourcesLoading}
+                            {statusMessage}
+                            {mediaError}
+                            onSourceChange={handleSourceChange}
+                            onProviderChange={handleProviderChange}
+                            onToggleAutoPlay={() => autoPlay = !autoPlay}
+                            onToggleAutoNext={() => autoNext = !autoNext}
+                            onToggleFocus={() => focusMode = !focusMode}
+                            onToggleTheatre={() => theatreMode = !theatreMode}
+                            onEpisodeSelect={playEpisode}
+                            onPlay={onPlayerPlay}
+                            onReady={onPlayerReady}
+                            onStartupError={() => {}}
+                            onFatalHls={() => {}}
+                            onMediaError={() => {}}
+                            onHlsInfo={() => {}}
+                        />
                     </div>
-                    <EpisodeGrid
+                </div>
+
+                <!-- Episode sidebar (desktop) -->
+                <aside
+                    class="hidden lg:flex flex-col overflow-hidden rounded-xl pt-3 pb-2 bg-white/3 border border-white/6"
+                    style="{sidebarHeight > 0 ? `max-height:${sidebarHeight}px;` : ''}"
+                >
+                    <EpisodeSidebar
+                        episodes={episodeMeta}
                         {episodeNumbers}
                         {fillerNumbers}
                         {recapNumbers}
                         {selectedNumber}
-                        loading={bootstrapping && episodeNumbers.length === 0}
+                        animeTitle={details.title}
+                        episodeTitle={selectedEpisodeTitle}
+                        loading={pageLoading && episodeNumbers.length === 0}
                         onSelect={playEpisode}
                     />
                 </aside>
+
+                <div class="flex flex-col gap-4 min-w-0">
+                    <!-- Mobile sidebar -->
+                    <div class="lg:hidden overflow-hidden rounded-xl pt-3 pb-2 bg-white/3 border border-white/6" style="max-height:50vh;">
+                        <EpisodeSidebar
+                            episodes={episodeMeta}
+                            {episodeNumbers}
+                            {fillerNumbers}
+                            {recapNumbers}
+                            {selectedNumber}
+                            animeTitle={details.title}
+                            episodeTitle={selectedEpisodeTitle}
+                            loading={pageLoading && episodeNumbers.length === 0}
+                            onSelect={playEpisode}
+                        />
+                    </div>
+
+                    {#if airingDaysLeft !== null && airingDaysLeft > 0}
+                        <div class="relative group flex items-center gap-2.5 px-4 py-3 rounded-xl
+                                    bg-emerald-950/60 border border-emerald-700/50 text-sm text-white/90
+                                    cursor-default select-none">
+                            <BellSimpleRingingIcon size={16} class="text-emerald-400 shrink-0" weight="fill" />
+                            <span>
+                                {#if details.next_airing_episode}Episode {details.next_airing_episode} airs in{:else}Next episode airs in{/if}
+                                <span class="text-emerald-400 font-semibold">{airingDaysLeft} {airingDaysLeft === 1 ? 'day' : 'days'}</span>
+                            </span>
+                            {#if details.next_airing_at}
+                                <div class="absolute bottom-full left-0 mb-2 px-3 py-2 rounded-xl border border-white/12 bg-[#111] shadow-xl
+                                            text-[0.72rem] text-white/70 whitespace-nowrap z-50
+                                            opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150">
+                                    {formatAiringDate(details.next_airing_at)}
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
+
+                    <EpisodeInfo
+                        anime={details}
+                        episodeNumber={selectedNumber}
+                        episodeTitle={selectedEpisodeTitle}
+                        providerOptions={PROVIDER_OPTIONS}
+                        provider={audioMode}
+                        onProviderChange={handleProviderChange}
+                    />
+                </div>
+
+                {#if details.recommendations?.length}
+                    <div class="hidden lg:block">
+                        <h3 class="text-[18px] font-semibold text-white mb-3 px-0.5 py-1">More Like This</h3>
+                        <div class="space-y-2">
+                            {#each details.recommendations.slice(0, 12) as rec (rec.id)}
+                                <RecommendationCard {rec} />
+                            {/each}
+                        </div>
+                    </div>
+                {:else}
+                    <div class="hidden lg:block"></div>
+                {/if}
 
             </div>
         </div>

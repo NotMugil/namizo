@@ -10,6 +10,7 @@
     export let canLoadMore: boolean = false;
     export let loadingMore: boolean = false;
     export let onLoadMore: ((requiredCount: number) => void) | null = null;
+    export let watchProgress: number = 0;
 
     let episodePage = 1;
     let perPage = 10;
@@ -157,14 +158,16 @@
         <div class="grid grid-cols-5 gap-3 max-[760px]:grid-cols-2">
             {#each pagedEntries as entry (entry.fallbackNumber)}
                 {#if entry.episode}
+                    {@const watched = watchProgress > 0 && entry.episode.number <= watchProgress}
                     <a
                         href="/watch/{anime_id}?ep={entry.episode.number}"
                         class="grid gap-1.5 rounded-xl p-1.5
                                no-underline text-inherit transition-colors min-w-0
-                               hover:bg-white/7 hover:border-white/12"
+                               hover:bg-white/7 hover:border-white/12
+                               {watched ? 'opacity-50 hover:opacity-100' : ''}"
                     >
                         <div
-                            class="w-full aspect-video rounded-lg overflow-hidden border border-white/8 bg-black/20"
+                            class="relative w-full aspect-video rounded-lg overflow-hidden border border-white/8 bg-black/20"
                         >
                             <img
                                 src={entry.episode.thumbnail ?? cover_image}
@@ -173,6 +176,15 @@
                                 class="w-full h-full object-cover"
                                 loading="lazy"
                             />
+                            {#if watched}
+                                <div class="absolute inset-0 bg-black/30 pointer-events-none"></div>
+                                <div class="absolute bottom-1.5 right-1.5 flex items-center justify-center
+                                            h-5 w-5 rounded-full bg-black/60 border border-white/20">
+                                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                                        <path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+                            {/if}
                         </div>
                         <div class="grid gap-0.5 px-0.5 pb-1">
                             <p

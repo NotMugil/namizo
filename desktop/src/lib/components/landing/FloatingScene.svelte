@@ -64,10 +64,16 @@
 
 	const visibleDefs = $derived(
 		activeDefs.filter((d) => {
-			if (windowWidth < 640) return false;
+			if (windowWidth < 640) return d.y < 20 || d.y > 80;
 			if (windowWidth < 1024) return d.layer !== 1;
 			return true;
 		})
+	);
+
+	const maskImage = $derived(
+		windowWidth < 640
+			? 'linear-gradient(to bottom, black 0%, transparent 28%, transparent 72%, black 100%)'
+			: 'radial-gradient(ellipse 92% 92% at 50% 50%, black 55%, transparent 100%)'
 	);
 
 	const PARALLAX_STRENGTH = { 1: 18, 2: 36, 3: 60 } as const;
@@ -118,8 +124,8 @@
 	aria-hidden="true"
 	style:z-index="0"
 	style:pointer-events="none"
-	style:mask-image="radial-gradient(ellipse 92% 92% at 50% 50%, black 55%, transparent 100%)"
-	style:-webkit-mask-image="radial-gradient(ellipse 92% 92% at 50% 50%, black 55%, transparent 100%)"
+	style:mask-image={maskImage}
+	style:-webkit-mask-image={maskImage}
 >
 	{#each visibleDefs as def (`${def.x}-${def.y}-${def.layer}`)}
 		<FloatingPoster

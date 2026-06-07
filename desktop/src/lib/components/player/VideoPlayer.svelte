@@ -1012,43 +1012,9 @@
 </script>
 
 <div bind:this={playerShellEl} class="flex min-h-0 flex-col gap-2">
-    {#if !isFullscreen}
-        <div class="flex items-start justify-between gap-3 px-0.5 py-1">
-            <div class="grid min-w-0 gap-0.5">
-                <p
-                    class="truncate text-[0.99rem] font-medium leading-tight text-white"
-                >
-                    {episodeTitle ||
-                        (selectedEpisode
-                            ? `Episode ${selectedEpisode.number}`
-                            : "Select Episode")}
-                </p>
-                <p class="truncate text-[0.78rem] leading-tight text-white/70">
-                    {selectedEpisode
-                        ? `Episode ${selectedEpisode.number}`
-                        : "Episode -"} | {animeTitle}
-                </p>
-            </div>
-
-            {#if providerOptions.length}
-                <div class="shrink-0">
-                    <SelectPicker
-                        items={providerOptions.map((option) => ({
-                            value: option.value,
-                            label: option.label,
-                        }))}
-                        value={provider}
-                        onChange={handleProviderChange}
-                        triggerClass="h-8 w-[176px] rounded-[10px] px-3 text-[0.8rem] font-medium text-white/88"
-                        contentClass="min-w-[176px]"
-                    />
-                </div>
-            {/if}
-        </div>
-    {/if}
 
     <div
-        class="group/player relative overflow-hidden bg-black shadow-[0_0_0_1px_rgba(255,255,255,0.08),0_0_28px_rgba(255,255,255,0.07),0_0_64px_rgba(255,255,255,0.04)]
+        class="group/player relative overflow-hidden bg-black
                {isFullscreen
             ? 'min-h-[320px] md:min-h-[420px] xl:min-h-0 xl:flex-1'
             : 'aspect-video w-full min-h-0'}

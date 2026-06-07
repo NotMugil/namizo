@@ -2,35 +2,44 @@
 	import type { LayoutData } from './$types';
 	import Topbar from '$lib/components/layout/Topbar.svelte';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import BottomNav from '$lib/components/layout/BottomNav.svelte';
 	import ConfirmDialog from '$lib/components/shared/ConfirmDialog.svelte';
-	import { sidebar, signOut } from '$lib/state.svelte';
+	import { sidebar, signOut, playbackPrefs } from '$lib/state.svelte';
 	import { enhance } from '$app/forms';
 	import { Toaster } from 'svelte-sonner';
+	import { browser } from '$app/environment';
 
 	let { children, data }: { children: import('svelte').Snippet; data: LayoutData } = $props();
+
+	if (browser) {
+		const stored = localStorage.getItem('namizo:autoplayTrailers');
+		if (stored !== null) playbackPrefs.autoplayTrailers = stored !== 'false';
+	}
 
 	let signOutFormEl: HTMLFormElement | undefined = $state();
 </script>
 
 <div class="flex flex-col min-h-screen bg-black text-white">
 	<Topbar onMenuClick={() => (sidebar.open = !sidebar.open)} user={data.user} />
-	<main class="flex-1">
+	<main class="flex-1 pb-16 sm:pb-0">
 		{@render children()}
 	</main>
 </div>
 
-<!-- Sidebar backdrop -->
+<BottomNav />
+
+<!-- Sidebar backdrop (desktop only) -->
 <button
 	type="button"
 	aria-label="Close sidebar"
-	class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300
+	class="hidden sm:block fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300
 	       {sidebar.open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
 	onclick={() => (sidebar.open = false)}
 ></button>
 
-<!-- Sidebar drawer -->
+<!-- Sidebar drawer (desktop only) -->
 <div
-	class="fixed top-0 left-0 h-full z-50 shadow-2xl
+	class="hidden sm:block fixed top-0 left-0 h-full z-50 shadow-2xl
 	       transition-transform duration-300
 	       {sidebar.open ? 'translate-x-0' : '-translate-x-full'}"
 >

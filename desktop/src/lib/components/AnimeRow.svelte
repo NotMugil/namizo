@@ -49,7 +49,7 @@
 <section class="mb-8">
     <div class="flex items-center justify-between mb-4">
         <h2 class={titleClass}>{title}</h2>
-        <div class="flex gap-1">
+        <div class="hidden sm:flex gap-1">
             <button
                 class="chevron-btn"
                 disabled={!canScrollLeft}

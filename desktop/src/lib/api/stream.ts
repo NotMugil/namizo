@@ -1,24 +1,19 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { StreamableAnime, StreamSource, StreamingEpisode } from '$lib/types/stream'
+import type { StreamSource } from '$lib/types/stream'
 
-export async function streamSearch(
-    provider: string,
-    query: string
-): Promise<StreamableAnime[]> {
-    return invoke('stream_search', { provider, query })
-}
-
-export async function streamEpisodes(
-    provider: string,
-    anime: StreamableAnime
-): Promise<StreamingEpisode[]> {
-    return invoke('stream_episodes', { provider, anime })
-}
-
-export async function streamSources(
-    provider: string,
-    episode: StreamingEpisode,
-    options?: { mode?: string; host?: string } | null
+/**
+ * Ask the Rust backend for HLS sources for a specific episode.
+ * The backend searches AnimePahe, acquires a Cloudflare clearance cookie
+ * via a hidden browser session, and returns ready-to-play sources.
+ */
+export async function getEpisodeSources(
+    animeTitle: string,
+    episodeNum: number,
+    mode: 'sub' | 'dub' = 'sub',
 ): Promise<StreamSource[]> {
-    return invoke('stream_sources', { provider, episode, options })
+    return invoke<StreamSource[]>('get_episode_sources', {
+        animeTitle,
+        episodeNum,
+        mode,
+    })
 }
