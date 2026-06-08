@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest an idea or improvement
+title: "feature: "
+labels: [enhancement]
+
+body:
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: "Before submitting, please confirm:"
+      options:
+        - label: This feature has not already been requested (open or closed).
+          required: true
+        - label: This request aligns with the scope of the project.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: Clearly describe the problem or limitation you are experiencing.
+      placeholder: |
+        I have to manually search for an anime every time I want to continue watching it.
+        /
+        There is no way to filter my library by genre or watch status.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or improvement you would like to see.
+      placeholder: |
+        Add a "Continue Watching" row on the home screen that shows the last episode I was on.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any alternative solutions or approaches you have considered.
+      placeholder: |
+        Pinning shows to the library, or using the history page as a workaround.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Add any other relevant information, references, or mockups.
+      placeholder: |
+        Similar apps like Miru or Dantotsu handle this by showing a progress bar on the thumbnail.
+    validations:
+      required: false
