@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ShelfState {
     Watching,
+    #[default]
     Planning,
     Completed,
     Rewatching,
@@ -36,11 +37,6 @@ impl ShelfState {
     }
 }
 
-impl Default for ShelfState {
-    fn default() -> Self {
-        Self::Planning
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShelfEntry {
