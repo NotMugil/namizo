@@ -74,5 +74,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Namizo ${{ github.ref_name }}
           releaseDraft: true
-          prerelease: false
+          prerelease: true
           args: ${{ matrix.args || '' }}
