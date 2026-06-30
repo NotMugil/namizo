@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -67,7 +68,7 @@ class ContentRow extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: items.length,
-              cacheExtent: 500, // Pre-render items for smoother scrolling
+              scrollCacheExtent: const ScrollCacheExtent.pixels(500), // Pre-render items for smoother scrolling
               itemBuilder: (context, index) {
                 final item = items[index];
                 final posterPath = item['poster_path'];

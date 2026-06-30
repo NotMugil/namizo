@@ -47,7 +47,7 @@ class SettingsScreen extends ConsumerWidget {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
           handleBack();
         }
@@ -630,8 +630,7 @@ class SettingsScreen extends ConsumerWidget {
                       child: ReorderableListView.builder(
                         buildDefaultDragHandles: false,
                         itemCount: editable.length,
-                        onReorder: (oldIndex, newIndex) async {
-                          if (newIndex > oldIndex) newIndex -= 1;
+                        onReorderItem: (oldIndex, newIndex) async {
                           final item = editable.removeAt(oldIndex);
                           editable.insert(newIndex, item);
                           setModalState(() {});

@@ -38,7 +38,6 @@ class EpisodeCheckService {
     if (_supportsBackgroundTasks) {
       await Workmanager().initialize(
         episodeCheckCallbackDispatcher,
-        isInDebugMode: false,
       );
 
       final prefs = await SharedPreferences.getInstance();

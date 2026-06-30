@@ -21,7 +21,6 @@ class WebViewPlayer extends StatefulWidget {
 }
 
 class _WebViewPlayerState extends State<WebViewPlayer> {
-  InAppWebViewController? _webViewController;
   bool _isLoading = true;
   double _progress = 0;
 
@@ -57,7 +56,6 @@ class _WebViewPlayerState extends State<WebViewPlayer> {
             layoutAlgorithm: LayoutAlgorithm.NORMAL,
           ),
           onWebViewCreated: (controller) {
-            _webViewController = controller;
             print('🌐 WebView created for: ${widget.streamUrl}');
 
             // Add JavaScript handler to receive player events from vidsrc.cc
@@ -440,7 +438,6 @@ class _WebViewPlayerState extends State<WebViewPlayer> {
 
   @override
   void dispose() {
-    _webViewController = null;
     super.dispose();
   }
 }

@@ -41,20 +41,20 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
               Icon(
                 Icons.bookmark_border,
                 size: 120,
-                color: theme.colorScheme.onSurface.withOpacity(0.3),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
               ),
               const SizedBox(height: 24),
               Text(
                 'Your watchlist is empty',
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Add anime to watch later',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
             ],

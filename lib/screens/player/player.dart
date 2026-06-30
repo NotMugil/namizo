@@ -1321,55 +1321,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
-  List<PopupMenuEntry<String>> _buildSubDubMenuItems() {
-    final selected = ref.read(animeSubDubProvider);
-    return [
-      PopupMenuItem(
-        value: 'sub',
-        child: Row(
-          children: [
-            Icon(
-              selected == 'sub' ? Icons.check_circle : Icons.circle_outlined,
-              color: selected == 'sub' ? NamizoTheme.primary : Colors.white70,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Sub',
-              style: TextStyle(
-                color: selected == 'sub' ? NamizoTheme.primary : Colors.white,
-                fontWeight: selected == 'sub'
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-      PopupMenuItem(
-        value: 'dub',
-        child: Row(
-          children: [
-            Icon(
-              selected == 'dub' ? Icons.check_circle : Icons.circle_outlined,
-              color: selected == 'dub' ? NamizoTheme.primary : Colors.white70,
-              size: 18,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Dub',
-              style: TextStyle(
-                color: selected == 'dub' ? NamizoTheme.primary : Colors.white,
-                fontWeight: selected == 'dub'
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    ];
-  }
+
 
   // ── WebView progress helpers ────────────────────────────────────
   Future<void> _saveWebViewProgress(double currentTime, double duration) async {
@@ -1549,7 +1501,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               ? PreferredSize(
                   preferredSize: const Size.fromHeight(kToolbarHeight),
                   child: AppBar(
-                    backgroundColor: Colors.black.withOpacity(0.7),
+                    backgroundColor: Colors.black.withValues(alpha: 0.7),
                     elevation: 0,
                     leading: IconButton(
                       icon: const PhosphorIcon(
@@ -1601,7 +1553,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
+                                color: Colors.white.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: Text(
@@ -1976,18 +1928,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  void _seekRelative(Duration delta) {
-    final controller = _betterPlayerController;
-    final vpc = controller?.videoPlayerController;
-    if (controller == null || vpc == null) return;
 
-    final current = vpc.value.position;
-    final duration = vpc.value.duration ?? Duration.zero;
-    var target = current + delta;
-    if (target < Duration.zero) target = Duration.zero;
-    if (duration > Duration.zero && target > duration) target = duration;
-    controller.seekTo(target);
-  }
 
   // ── OverlayEntry management ─────────────────────────────────────
   void _showOverlayEntry() {
@@ -2084,7 +2025,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
+                    color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -2095,7 +2036,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          color: NamizoTheme.primary.withOpacity(0.7),
+                          color: NamizoTheme.primary.withValues(alpha: 0.7),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -2118,7 +2059,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     'Retry $_retryCount/$_maxRetries',
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.orange.withOpacity(0.8),
+                      color: Colors.orange.withValues(alpha: 0.8),
                     ),
                   ),
                 ],
@@ -2141,7 +2082,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: NamizoTheme.primary.withOpacity(0.1),
+              color: NamizoTheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -2507,7 +2448,7 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                   margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
                                     color: isCurrent
-                                        ? NamizoTheme.primary.withOpacity(0.15)
+                                        ? NamizoTheme.primary.withValues(alpha: 0.15)
                                         : const Color(0xFF1E1E1E),
                                     borderRadius: BorderRadius.circular(10),
                                     border: isCurrent
@@ -2575,8 +2516,8 @@ class _EpisodePickerSheetState extends ConsumerState<_EpisodePickerSheet> {
                                                             BoxDecoration(
                                                               color: Colors
                                                                   .black
-                                                                  .withOpacity(
-                                                                    0.6,
+                                                                  .withValues(
+                                                                    alpha: 0.6,
                                                                   ),
                                                               shape: BoxShape
                                                                   .circle,
@@ -2785,7 +2726,7 @@ class _SpinnerPainter extends CustomPainter {
 
     // Track circle
     final trackPaint = Paint()
-      ..color = Colors.white.withOpacity(0.08)
+      ..color = Colors.white.withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
     canvas.drawCircle(center, radius, trackPaint);
@@ -2798,7 +2739,7 @@ class _SpinnerPainter extends CustomPainter {
       ..shader = SweepGradient(
         startAngle: 0,
         endAngle: math.pi * 2,
-        colors: [NamizoTheme.primary.withOpacity(0), NamizoTheme.primary],
+        colors: [NamizoTheme.primary.withValues(alpha: 0), NamizoTheme.primary],
         transform: GradientRotation(progress * math.pi * 2),
       ).createShader(Rect.fromCircle(center: center, radius: radius));
 
@@ -2878,7 +2819,7 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                   border: Border.all(color: Colors.white24, width: 0.5),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.8),
+                      color: Colors.black.withValues(alpha: 0.8),
                       blurRadius: 20,
                       offset: const Offset(0, 4),
                     ),
@@ -2994,8 +2935,8 @@ class _NextEpisodeOverlayWidget extends StatelessWidget {
                                   size: 20,
                                 ),
                                 style: IconButton.styleFrom(
-                                  backgroundColor: Colors.white.withOpacity(
-                                    0.1,
+                                    backgroundColor: Colors.white.withValues(
+                                      alpha: 0.1,
                                   ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(6),

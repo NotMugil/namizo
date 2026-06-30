@@ -17,7 +17,7 @@ class ProfileScreen extends ConsumerWidget {
 
     return PopScope(
       canPop: false,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop) context.go('/home');
       },
       child: aniListViewerAsync.when(

@@ -78,7 +78,7 @@ class _MediaCardState extends ConsumerState<MediaCard>
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(
+                            color: Colors.black.withValues(alpha: 
                               0.5 * _elevationAnimation.value,
                             ),
                             blurRadius: 15 * _elevationAnimation.value,
@@ -133,7 +133,7 @@ class _MediaCardState extends ConsumerState<MediaCard>
                             right: 0,
                             child: LinearProgressIndicator(
                               value: widget.history.progressPercent,
-                              backgroundColor: Colors.grey.withOpacity(0.3),
+                              backgroundColor: Colors.grey.withValues(alpha: 0.3),
                               valueColor: const AlwaysStoppedAnimation<Color>(
                                 NamizoTheme.primary,
                               ),
@@ -151,7 +151,7 @@ class _MediaCardState extends ConsumerState<MediaCard>
                                     end: Alignment.bottomCenter,
                                     colors: [
                                       Colors.transparent,
-                                      Colors.black.withOpacity(0.7),
+                                      Colors.black.withValues(alpha: 0.7),
                                     ],
                                   ),
                                   borderRadius: BorderRadius.circular(4),
