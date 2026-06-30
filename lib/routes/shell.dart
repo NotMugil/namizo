@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:namizo/theme/theme.dart';
+import 'package:namizo/widgets/cloudflare_bypass_widget.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class MainShellScreen extends StatelessWidget {
@@ -19,13 +20,20 @@ class MainShellScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: navigationShell.currentIndex == 0,
-      onPopInvoked: (didPop) {
+      onPopInvokedWithResult: (didPop, result) {
         if (!didPop && navigationShell.currentIndex != 0) {
           navigationShell.goBranch(0);
         }
       },
       child: Scaffold(
-        body: navigationShell,
+        body: Stack(
+          children: [
+            navigationShell,
+            const Positioned.fill(
+              child: CloudflareBypassWidget(),
+            ),
+          ],
+        ),
         bottomNavigationBar: Container(
           decoration: const BoxDecoration(
             color: Color(0xFF0D0F14),

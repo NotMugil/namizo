@@ -11,6 +11,7 @@ import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
 import 'package:namizo/providers/update.dart';
 import 'package:namizo/routes/routes.dart';
+import 'package:namizo/services/cloudflare_bypass_service.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/services/watchlist.dart';
 import 'package:namizo/theme/font_family.dart';
@@ -58,7 +59,10 @@ class _NamizoAppState extends ConsumerState<NamizoApp> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdate();
+      ref.read(cloudflareBypassProvider).init();
+    });
   }
 
   Future<void> _checkForUpdate() async {
