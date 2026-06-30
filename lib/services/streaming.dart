@@ -42,6 +42,7 @@ class StreamingService {
 
         final animeResult = await _aimiAnimeService.fetchAnimeStream(
           media: media,
+          season: season,
           episode: episode,
           subDubPreference: subDubPreference,
           providerIndex: providerIndex,

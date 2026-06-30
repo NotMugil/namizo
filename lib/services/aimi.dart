@@ -1,6 +1,7 @@
 import 'package:aimi_lib/aimi_lib.dart' as aimi;
 import 'package:namizo/models/media/search_result.dart';
 import 'package:namizo/models/media/stream_result.dart';
+import 'package:namizo/services/scrapers/animepahe_scraper.dart';
 
 /// Anime streaming via aimi_lib providers (AnimePahe/AllAnime/Anizone/Anidap).
 class AimiAnimeService {
@@ -22,15 +23,31 @@ class AimiAnimeService {
 
   Future<StreamResult?> fetchAnimeStream({
     required SearchResult media,
+    required int season,
     required int episode,
     String subDubPreference = 'sub',
     int? providerIndex,
   }) async {
-    final queries = _buildQueryCandidates(media);
-    if (queries.isEmpty) return null;
-
     final providers = _providerConfigsFor(providerIndex);
     for (final config in providers) {
+      if (config.kind == _ProviderKind.animePahe) {
+        try {
+          final result = await AnimepaheScraperService.instance.fetchStreamUrl(
+            media.title ?? media.name ?? '',
+            season,
+            episode,
+            subDub: subDubPreference,
+          );
+          if (result != null) return result;
+        } catch (_) {
+          // Fallback to next provider if Animepahe fails
+        }
+        continue;
+      }
+
+      final queries = _buildQueryCandidates(media);
+      if (queries.isEmpty) continue;
+
       final provider = _createProvider(config.kind);
       try {
         for (final query in queries) {
