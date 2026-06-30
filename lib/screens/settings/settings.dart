@@ -4,12 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:namizo/providers/home.dart';
 import 'package:namizo/providers/services.dart';
 import 'package:namizo/providers/settings.dart';
-import 'package:namizo/providers/update.dart';
 import 'package:namizo/providers/watch_history.dart';
 import 'package:namizo/providers/watchlist.dart';
 import 'package:namizo/services/episodes.dart';
 import 'package:namizo/theme/theme.dart';
-import 'package:namizo/widgets/update_dialog.dart';
 import 'package:namizo/widgets/toast.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -26,7 +24,6 @@ class SettingsScreen extends ConsumerWidget {
     final animationsEnabled = ref.watch(animationsEnabledProvider);
     final episodeCheckEnabled = ref.watch(episodeCheckEnabledProvider);
     final aniListViewerAsync = ref.watch(aniListViewerProvider);
-    final currentThemeMode = ref.watch(themeModeProvider);
     final aniListAutoSync = ref.watch(aniListAutoSyncProvider);
     final easterEggEnabled = ref.watch(easterEggHomeLogoProvider);
     final easterEggUnlocked = ref.watch(easterEggUnlockedProvider);
@@ -40,7 +37,6 @@ class SettingsScreen extends ConsumerWidget {
       includeAniListRows: hasAniListAccount,
     );
     final updateReminderDisabled = ref.watch(updateReminderDisabledProvider);
-    final updateCheckAsync = ref.watch(updateCheckProvider);
     void handleBack() {
       if (context.canPop()) {
         context.pop();

@@ -507,7 +507,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
                                     AppToast.show(
                                       context: context,
                                       message: 'Favorites coming soon',
-                                      icon: Icons.favorite_border,
+                                      icon: PhosphorIconsRegular.heart,
                                       accent: const Color(0xFF3B82F6),
                                     );
                                   },
@@ -841,7 +841,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
 
   void _showToast({
     required String message,
-    required IconData icon,
+    required PhosphorIconData icon,
     required Color accent,
   }) {
     AppToast.show(
@@ -922,7 +922,7 @@ class _MediaDetailScreenState extends ConsumerState<MediaDetailScreen>
   Widget _buildActionTile({
     required BuildContext context,
     required String label,
-    required IconData icon,
+    required PhosphorIconData icon,
     required Color iconColor,
     required _WatchlistAction action,
   }) {

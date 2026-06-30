@@ -97,7 +97,7 @@ class _StatItem {
     required this.value,
   });
 
-  final IconData icon;
+  final PhosphorIconData icon;
   final String label;
   final String value;
 }

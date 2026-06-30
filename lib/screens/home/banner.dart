@@ -452,7 +452,7 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
 
   void _showWatchlistToast({
     required String message,
-    required IconData icon,
+    required PhosphorIconData icon,
     required Color accent,
   }) {
     AppToast.show(
@@ -533,7 +533,7 @@ class _HeroBannerCarouselState extends ConsumerState<HeroBannerCarousel> {
   Widget _buildActionTile({
     required BuildContext context,
     required String label,
-    required IconData icon,
+    required PhosphorIconData icon,
     required Color iconColor,
     required _WatchlistAction action,
   }) {

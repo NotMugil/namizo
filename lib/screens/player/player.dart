@@ -570,7 +570,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           AppToast.show(
             context: context,
             message: 'Resumed from ${_formatDuration(_resumePosition!)}',
-            icon: Icons.history,
+            icon: PhosphorIconsRegular.clockCounterClockwise,
             accent: const Color(0xFF38BDF8),
           );
           _resumePosition = null;
@@ -940,7 +940,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       AppToast.show(
         context: context,
         message: 'Switching to ${_providerNameFor(providerIndex)}...',
-        icon: Icons.swap_horiz,
+        icon: PhosphorIconsRegular.arrowsLeftRight,
         accent: Colors.orange,
       );
     }

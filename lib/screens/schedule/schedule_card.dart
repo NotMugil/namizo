@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:namizo/utils/image_url.dart';
+import 'package:namizo/widgets/app_icon.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 /// An entry from the weekly airing schedule.
@@ -290,7 +291,7 @@ class ScheduleCard extends StatelessWidget {
 }
 
 class _MetaChip extends StatelessWidget {
-  final IconData icon;
+  final Object icon;
   final String text;
 
   const _MetaChip({required this.icon, required this.text});
@@ -300,7 +301,7 @@ class _MetaChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        PhosphorIcon(icon, color: Colors.white54, size: 12),
+        AppIcon(icon, color: Colors.white54, size: 12),
         const SizedBox(width: 4),
         Text(
           text,

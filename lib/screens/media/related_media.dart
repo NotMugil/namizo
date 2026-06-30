@@ -417,7 +417,7 @@ class _RelatedMediaSectionState extends State<RelatedMediaSection> {
     }
   }
 
-  IconData _relatedTypeIcon(String? sourceType) {
+  PhosphorIconData _relatedTypeIcon(String? sourceType) {
     switch ((sourceType ?? '').toLowerCase()) {
       case 'movie':
         return PhosphorIconsRegular.filmSlate;
@@ -442,7 +442,7 @@ class _RelatedMediaSectionState extends State<RelatedMediaSection> {
 }
 
 class _RelatedMetaChip extends StatelessWidget {
-  final IconData icon;
+  final PhosphorIconData icon;
   final String text;
 
   const _RelatedMetaChip({required this.icon, required this.text});

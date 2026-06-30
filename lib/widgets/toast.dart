@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:namizo/theme/toast_style.dart';
+import 'package:namizo/widgets/app_icon.dart';
 
 class AppToast {
   static void show({
     required BuildContext context,
     required String message,
-    required IconData icon,
+    required Object icon,
     required Color accent,
     Duration duration = AppToastStyle.duration,
   }) {
@@ -24,7 +25,7 @@ class AppToast {
         ),
         content: Row(
           children: [
-            Icon(icon, color: accent, size: 18),
+            AppIcon(icon, color: accent, size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
